@@ -1519,13 +1519,9 @@ The HLD describes the overall system architecture. More detailed design informat
 
 | Document                                                               | Purpose                                                                                               |
 | ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| [`scope.md`](./scope.md)                                               | Defines OJT scope, additional capabilities, stretch goals, and future scope                           |
-| [`architecture.md`](./architecture.md)                                 | Provides additional architectural and module-level details                                            |
 | [`trace-protocol.md`](./trace-protocol.md)                             | Defines the Run/Span contract, ordering, lifecycle, metadata, and duplicate handling                  |
 | [`database.md`](./database.md)                                         | Defines PostgreSQL tables, relationships, fields, indexes, constraints, and migrations                |
 | [`analysis-engine.md`](./analysis-engine.md)                           | Defines deterministic rules, findings, evidence, taxonomy, severity, ranking, and analysis versioning |
-| [`testing.md`](./testing.md)                                           | Defines unit, integration, contract, scenario, and end-to-end testing                                 |
-| [`development-plan.md`](./development-plan.md)                         | Defines implementation phases and OJT development sequence                                            |
 | [`future/replay-counterfactual.md`](./future/replay-counterfactual.md) | Defines the future Replay and Counterfactual direction                                                |
 | [`LLD.md`](./LLD.md)                                                   | Defines implementation-level module behavior, API flows, sequences, and internal interactions         |
 
@@ -1550,8 +1546,7 @@ LLD.md
         │
         ├── trace-protocol.md
         ├── database.md
-        ├── analysis-engine.md
-        └── testing.md
+        └── analysis-engine.md
 ```
 
 This separation keeps the HLD focused on system-level design while allowing implementation details to evolve independently.
