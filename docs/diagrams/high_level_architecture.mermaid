@@ -1,0 +1,34 @@
+flowchart LR
+    DEV[Developer]
+
+    AGENT[AI Agent Application]
+    SDK[Python Instrumentation SDK]
+
+    subgraph BACKEND["FastAPI Backend — Modular Monolith"]
+        INGEST[Trace Collection API]
+        TRACE[Trace Service]
+        RECON[Trace Reconstruction]
+        ANALYSIS[Deterministic Trace Analysis Engine]
+        READ[Trace and Analysis APIs]
+    end
+
+    DB[(PostgreSQL Trace & Analysis Store)]
+
+    UI[React JavaScript Debugging UI]
+
+    AGENT -->|Execution activity| SDK
+    SDK -->|Structured runs and spans over HTTPS| INGEST
+
+    INGEST --> TRACE
+    TRACE -->|Persist trace data| DB
+
+    DB -->|Load stored run and spans| RECON
+    RECON -->|Reconstructed execution structure| ANALYSIS
+    RECON -->|Reconstructed execution information| READ
+
+    ANALYSIS -->|Persist findings and analysis metadata| DB
+    DB -->|Run, span and analysis data| READ
+
+    READ -->|REST responses| UI
+
+    DEV -->|Investigates agent runs| UI

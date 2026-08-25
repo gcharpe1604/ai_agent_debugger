@@ -13,8 +13,8 @@ The project is currently in the planning and initial development phase.
 ## Planned Tech Stack
 
 * **Backend:** Python, FastAPI
-* **Database:** PostgreSQL
-* **Frontend:** React, TypeScript
+* **Database:** PostgreSQL, JSONB
+* **Frontend:** React, JavaScript
 * **Deployment:** Docker
 
 ## Documentation

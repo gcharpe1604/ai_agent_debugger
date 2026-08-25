@@ -1,0 +1,38 @@
+flowchart LR
+
+    subgraph DEVENV["Developer Environment"]
+        AGENT[AI Agent Application]
+        SDK[Python Instrumentation SDK]
+
+        AGENT -->|Instrumented execution| SDK
+    end
+
+    DEV[Developer Browser]
+
+    subgraph HOSTED["Hosted AI Agent Debugging Platform"]
+        FRONTEND[React JavaScript Web Application]
+
+        subgraph BACKEND["FastAPI Modular Monolith"]
+            INGEST[Trace Collection API]
+            TRACE[Trace Services]
+            RECON[Trace Reconstruction]
+            ANALYSIS[Trace Analysis Engine]
+            READ[Trace and Analysis APIs]
+        end
+
+        DB[(Managed PostgreSQL)]
+    end
+
+    SDK -->|HTTPS + Integration Credential\nStructured Run / Span Data| INGEST
+
+    INGEST --> TRACE
+    TRACE -->|Persist Trace Data| DB
+
+    DB -->|Load Stored Runs and Spans| RECON
+    RECON --> ANALYSIS
+
+    DB -->|Run / Span Data| READ
+    ANALYSIS -->|Findings and Evidence| READ
+
+    DEV -->|Opens Hosted Application| FRONTEND
+    FRONTEND -->|HTTPS REST Requests| READ
