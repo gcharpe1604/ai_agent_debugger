@@ -1,0 +1,12 @@
+schema_version: 1
+scenario_id: RAG-04
+question: >
+  I deleted my NovaCloud workspace. How long do I have to restore it?
+retrieval_overrides: []
+model_overrides:
+  generate_answer:
+    - invocation: 1
+      output:
+        status: answered
+        answer: You can restore the workspace for up to 30 days after deletion.
+        supporting_document_ids: [KB-01]

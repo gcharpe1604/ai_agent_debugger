@@ -1,0 +1,16 @@
+schema_version: 1
+scenario_id: RAG-02
+expected_outcome: failure
+expected_failure:
+  operation: search_knowledge_base
+  category: wrong_document_retrieval
+  retrieval_attempts: [1, 2]
+important_operations: [search_knowledge_base, assess_evidence, refine_query, generate_answer]
+important_document_ids: [KB-01, KB-03]
+expected_status: insufficient_evidence
+expected_retrieval_attempts: 2
+expected_facts:
+  workspace_restore_days: 14
+correct_source: KB-01
+wrongly_supplied_sources: [KB-03]
+notes: The answer exists in the KB; retrieval fails twice. Downstream abstention is correct for the supplied evidence.

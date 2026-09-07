@@ -1,0 +1,6 @@
+schema_version: 1
+scenario_id: RAG-07
+question: >
+  I'm on the Pro plan. If I request a full workspace export and downgrade to Starter, when will the downgrade take effect, and how long will the export download link remain valid?
+retrieval_overrides: []
+model_overrides: {}

@@ -1,0 +1,17 @@
+schema_version: 1
+scenario_id: RAG-03
+expected_outcome: failure
+expected_failure:
+  operation: search_knowledge_base
+  category: superseded_document_retrieval
+  retrieval_attempts: [1]
+important_operations: [search_knowledge_base, assess_evidence, generate_answer]
+important_document_ids: [KB-01, KB-02]
+expected_status: answered
+expected_retrieval_attempts: 1
+expected_facts:
+  workspace_restore_days: 14
+observed_faulty_facts:
+  workspace_restore_days: 30
+correct_source: KB-01
+wrongly_supplied_sources: [KB-02]

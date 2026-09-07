@@ -1,0 +1,12 @@
+schema_version: 1
+scenario_id: RAG-07
+expected_outcome: correct
+expected_failure: null
+important_operations: [search_knowledge_base, assess_evidence, refine_query, generate_answer]
+important_document_ids: [KB-05, KB-04]
+expected_status: answered
+expected_retrieval_attempts: 2
+required_facts: [downgrade_effective_time, export_link_validity]
+expected_facts:
+  downgrade_effective_time: next billing renewal
+  export_link_validity_hours: 48

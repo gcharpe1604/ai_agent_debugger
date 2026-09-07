@@ -1,0 +1,6 @@
+schema_version: 1
+scenario_id: RAG-05
+question: >
+  Does NovaCloud guarantee that all customer data is stored only in India?
+retrieval_overrides: []
+model_overrides: {}

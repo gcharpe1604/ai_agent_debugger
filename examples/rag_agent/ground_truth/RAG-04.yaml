@@ -1,0 +1,14 @@
+schema_version: 1
+scenario_id: RAG-04
+expected_outcome: failure
+expected_failure:
+  operation: generate_answer
+  category: evidence_contradiction
+important_operations: [search_knowledge_base, assess_evidence, generate_answer]
+important_document_ids: [KB-01]
+expected_status: answered
+expected_retrieval_attempts: 1
+expected_facts:
+  workspace_restore_days: 14
+observed_faulty_facts:
+  workspace_restore_days: 30

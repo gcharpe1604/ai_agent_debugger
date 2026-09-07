@@ -1,0 +1,15 @@
+schema_version: 1
+scenario_id: RAG-06
+expected_outcome: failure
+expected_failure:
+  operation: generate_answer
+  category: unsupported_generation
+important_operations: [search_knowledge_base, assess_evidence, generate_answer]
+important_document_ids: []
+expected_status: answered
+expected_retrieval_attempts: 2
+expected_facts:
+  data_residency_evidence_available: false
+  evidence_sufficient: false
+observed_faulty_facts:
+  india_only_storage_guarantee: true

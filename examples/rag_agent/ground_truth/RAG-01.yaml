@@ -1,0 +1,10 @@
+schema_version: 1
+scenario_id: RAG-01
+expected_outcome: correct
+expected_failure: null
+important_operations: [search_knowledge_base, assess_evidence, generate_answer]
+important_document_ids: [KB-01]
+expected_status: answered
+expected_retrieval_attempts: 1
+expected_facts:
+  workspace_restore_days: 14

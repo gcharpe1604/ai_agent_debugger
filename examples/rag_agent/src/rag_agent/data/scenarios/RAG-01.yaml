@@ -1,0 +1,6 @@
+schema_version: 1
+scenario_id: RAG-01
+question: >
+  I deleted my NovaCloud workspace. How long do I have to restore it?
+retrieval_overrides: []
+model_overrides: {}
