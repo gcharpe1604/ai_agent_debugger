@@ -1,0 +1,183 @@
+# Tool-Using Task Agent
+
+A standalone, deterministic order-fulfillment workload for evaluating the AI Agent
+Debugger later. A controlled planner coordinates local inventory, payment, and
+shipping tools. Twelve selectable scenarios expose different intermediate causes,
+including failures that leave partial state and a final answer that contradicts
+successful tools. No debugger SDK, backend, database, UI, credentials, network
+services, replay, or counterfactual implementation is involved.
+
+## Install and run
+
+Python 3.10+; Pydantic is the only runtime dependency, matching the RAG sample's
+strict input/model validation convention. JSON uses the standard library.
+Installation needs a package index or an existing wheel cache; execution is offline.
+
+From the repository root in PowerShell:
+
+```powershell
+cd examples/tool_task_agent
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e '.[test]'
+.\.venv\Scripts\python.exe -m tool_task_agent list
+.\.venv\Scripts\python.exe -m tool_task_agent run TOOL-01
+.\.venv\Scripts\python.exe -m tool_task_agent run TOOL-07 --json
+.\.venv\Scripts\python.exe -m pytest -q
+.\.venv\Scripts\python.exe -m ruff check src tests
+.\.venv\Scripts\python.exe -m ruff format --check src tests
+```
+
+On Linux/macOS use `python3` and `.venv/bin/python`. The installed console command
+is `tool-task-agent`. Runtime JSON ships inside the package, so both entry points
+work outside this directory. CLI exit 0 means a scenario executed, including an
+intentional failure; invalid configuration/IDs exit 1, invalid CLI syntax exits 2.
+The CLI never reads or scores ground truth.
+
+```python
+from tool_task_agent.scenarios import build_agent, load_scenario
+
+scenario = load_scenario("TOOL-01")
+agent = build_agent(scenario)
+result = agent.run(scenario.request)
+assert result.status == "completed"
+```
+
+## Architecture and workflow
+
+```text
+runtime scenario JSON -> build_agent -> prepared planner + fresh local tool services
+
+request: "Fulfill order ORD-100."
+  -> interpret_plan
+  -> get_order -> validate_result
+  -> reserve_inventory -> validate_result
+  -> charge_payment -> validate_result
+  -> create_shipment -> validate_result
+  -> inspect_fulfillment -> validate_result
+  -> validate_state
+  -> generate_response
+```
+
+The planner recognizes `Fulfill order ORD-<digits>.` (case-insensitive, optional
+period). Only ORD-100 exists: two SENSOR-KIT units, total 5000 integer cents,
+initial stock five. Unsupported requests fail explicitly; unknown orders fail lookup.
+Plans are ordered tool calls with stable logical step IDs (`order`, `reserve`,
+`pay`, `ship`, `inspect`). `$order.quantity` and similar references bind arguments
+to actual validated earlier results. Tools enforce state prerequisites even when
+the planner omits or rearranges steps.
+
+`TaskAgent` receives only a controlled model and a tool factory. It knows no
+scenario IDs, fault categories, or expected outcomes. Prepared planner outputs
+inject selection/argument/order faults. Prepared tool dependencies inject service
+errors or corrupt responses/state at explicit step/attempt coordinates. A prepared
+response override injects final-answer disagreement. There is no scenario branch
+in orchestration and no live language model or general planning framework.
+
+All work is synchronous and local. Every `run()` allocates fresh services, state,
+and attempt counters. IDs are stable domain IDs, with no random values, timestamps,
+network calls, or sleeps. Each result includes a sequential application journal:
+operation, logical step, attempt, arguments, raw output/error, and a deep state
+snapshot. This is ordinary workload output, not debugger Run/Span/Trace data.
+The JSON result includes both operational status and structured final response.
+
+## Tools and state
+
+| Tool | Inputs | Result / effect |
+| --- | --- | --- |
+| `get_order` | order ID | Order SKU, quantity, total cents; read only. |
+| `get_stock` | SKU | Available count; read only. Plausible but wrong substitute for reservation. |
+| `reserve_inventory` | order ID, SKU, quantity | Creates RES-100, decrements stock 5 -> 3. Arguments must match order. |
+| `charge_payment` | order ID, amount cents | Requires reservation and matching total; creates PAY-100. |
+| `create_shipment` | order ID | Requires reservation and payment; creates SHIP-100 referencing both. |
+| `inspect_fulfillment` | order ID | Reads current order, stock, reservation, payment, shipment. |
+
+Write tools are idempotent for this single order. Preconditions and argument
+validation happen before writes. Three attempts **total** are allowed per call;
+only `TransientToolError` and `ToolTimeout` are retryable. Timeout injection raises
+an explicit simulated pre-commit deadline exception, without measuring wall time.
+Permanent errors and malformed responses are not retried. Successful retry stops
+the retry loop immediately; downstream steps run once.
+
+Final state validation requires all records, matching order identities, SKU,
+quantities, total, reservation/payment links, and stock conservation. The stored
+state must agree with inspection. Partial state is preserved on failure; there is
+no automatic rollback, refund, or reservation release. A malformed post-commit
+reservation response therefore leaves stock reserved and must not be retried blindly.
+
+## Scenario catalogue
+
+| ID | Injection | Expected behavior |
+| --- | --- | --- |
+| TOOL-01 | None | Healthy fulfillment, two units shipped. |
+| TOOL-02 | Planner selects `get_stock` instead of reserve | Read succeeds; reservation response validation fails; no writes. |
+| TOOL-03 | Planner gives reservation quantity 0 | Invalid arguments rejected before mutation. |
+| TOOL-04 | Permanent payment failure | Stock reserved; payment fails once; no shipment. |
+| TOOL-05 | Payment timeout on attempts 1, 2, 3 | Retry budget exhausted; no payment/shipment. |
+| TOOL-06 | Replace reservation response with `{"accepted": true}` | Reservation commits; response validation fails; partial state retained. |
+| TOOL-07 | Transient payment failure on attempt 1 | Attempt 2 succeeds; correct fulfillment; exactly one charge. |
+| TOOL-08 | Transient payment failure on attempts 1, 2, 3 | Retry exhaustion; reserved stock remains. |
+| TOOL-09 | Planner omits reserve | Payment rejects missing reservation. |
+| TOOL-10 | Planner puts ship before pay | Shipment rejects missing payment. |
+| TOOL-11 | Shipment receipt says 2 but stored quantity becomes 1 | Inspection exposes corruption; state validation fails. |
+| TOOL-12 | Final response claims 1 unit after tools ship 2 | Operational completion with incorrect final response. |
+
+## Runtime configuration and ground truth
+
+```text
+src/tool_task_agent/
+  models.py, tools.py, controlled_model.py, agent.py, scenarios.py, cli.py
+  data/scenarios/TOOL-01.json ... TOOL-12.json
+ground_truth/TOOL-01.json ... TOOL-12.json
+tests/ground_truth_schema.py, test_*.py
+```
+
+Runtime schema version 1 permits `scenario_id`, `request`, optional `plan_override`,
+`tool_faults`, and `response_override`. Extra structured fields, duplicate JSON
+keys, nonstandard JSON constants, duplicate step IDs/fault coordinates, invalid
+attempts and unreachable later attempts without earlier retryable errors are
+rejected. Tool argument dictionaries intentionally permit faulty values; the
+actual tool validates those at invocation. Complete plans can be replaced to
+represent missing/reordered steps, but no step may be duplicated. A configured
+fault targets a step in the plan; an earlier execution failure can still prevent
+that step from being reached. Tests prove every catalogue injection is reached.
+
+Evaluation-only manifests retain NovaCloud's `schema_version`, `scenario_id`,
+`expected_outcome` (`correct`/`failure`), `expected_status`, `expected_failure`,
+`important_operations`, and `expected_facts` conventions, using JSON instead of
+YAML to avoid an extra dependency. Additional fields are:
+
+- `expected_failure`: category, origin operation/step, detection operation/step.
+  Detection is null for TOOL-12 because runtime does not check final-answer semantics.
+  TOOL-07 records its recovered intermediate failure despite a correct outcome.
+- `expected_suspicious_steps`: stable logical IDs to investigate. A missing step
+  can be named even though it has no invocation event (TOOL-09's `reserve`).
+- `expected_tool_calls`: exact invocation order, including retries.
+- `expected_retry_behaviour`: maximum attempts, retried step, attempt/retry counts,
+  and whether recovery occurs. Null step and zero counts mean no retry episode.
+- `injected_fault`: exact runtime override fields, empty for the healthy case.
+- `expected_error_code`: terminal error, null for operational completion.
+- `expected_facts`: stock, reservation quantity, charged cents, stored shipment
+  quantity, and final claimed quantity. Null means that record/claim is absent.
+- `expected_causal_explanation`: concise explanation of the injected causal chain.
+
+Ground truth and its validation schema remain outside the runtime package and
+wheel. Only tests read them. Labels distinguish an intermediate failure recovered
+correctly (TOOL-07), an operational failure with partial state, and an incorrect
+answer after operational success (TOOL-12). These are known injection causes, not
+claims about what a future debugger has diagnosed.
+
+## Verification and limits
+
+Tests cover each scenario's exact calls, state transitions, response/error,
+bounded retries, idempotency, invalid arguments, ordering, malformed config,
+ground-truth consistency, isolation, and fresh/reused/concurrent repeatability.
+An offline test denies socket access. CLI tests execute from another directory.
+
+This is a small controlled evaluation agent, not a production autonomous service.
+It has one order/SKU, fixed identifiers, no arbitrary natural-language planning,
+real scheduling, live timeouts, concurrency contention, or ambiguous post-commit
+payment retries. Each run is an isolated fulfillment, not a shared warehouse.
+Final response semantic validation is deliberately absent to expose TOOL-12;
+its operational `completed` status is not an evaluation verdict. No integration
+with existing refund scaffolding or NovaCloud runtime is required.
+

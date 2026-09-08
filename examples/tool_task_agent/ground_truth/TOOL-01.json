@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-01",
+  "expected_outcome": "correct",
+  "expected_status": "completed",
+  "expected_error_code": null,
+  "expected_failure": null,
+  "expected_suspicious_steps": [],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "create_shipment",
+    "inspect_fulfillment",
+    "validate_state",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "create_shipment",
+    "inspect_fulfillment"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {},
+  "expected_facts": {
+    "available_stock": 3,
+    "reserved_quantity": 2,
+    "payment_amount_cents": 5000,
+    "shipment_quantity": 2,
+    "final_quantity": 2
+  },
+  "expected_causal_explanation": "Order lookup supplies quantity and total; stock is reserved before payment and shipment. Inspection confirms all records and the final response agrees."
+}

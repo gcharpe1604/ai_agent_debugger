@@ -1,0 +1,83 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-02",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "malformed_response",
+  "expected_failure": {
+    "category": "wrong_tool_selection",
+    "operation": "interpret_plan",
+    "step_id": "plan",
+    "detection_operation": "validate_result",
+    "detection_step": "reserve"
+  },
+  "expected_suspicious_steps": [
+    "plan",
+    "reserve"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "get_stock",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "get_stock"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {
+    "plan_override": [
+      {
+        "step_id": "order",
+        "tool": "get_order",
+        "arguments": {
+          "order_id": "ORD-100"
+        }
+      },
+      {
+        "step_id": "reserve",
+        "tool": "get_stock",
+        "arguments": {
+          "sku": "$order.sku"
+        }
+      },
+      {
+        "step_id": "pay",
+        "tool": "charge_payment",
+        "arguments": {
+          "order_id": "$order.order_id",
+          "amount_cents": "$order.total_cents"
+        }
+      },
+      {
+        "step_id": "ship",
+        "tool": "create_shipment",
+        "arguments": {
+          "order_id": "$order.order_id"
+        }
+      },
+      {
+        "step_id": "inspect",
+        "tool": "inspect_fulfillment",
+        "arguments": {
+          "order_id": "$order.order_id"
+        }
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 5,
+    "reserved_quantity": null,
+    "payment_amount_cents": null,
+    "shipment_quantity": null,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "The planner substitutes the read-only stock lookup for reservation. Its successful response lacks the reservation contract; validation stops before payment and no stock is reserved."
+}

@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-11",
+  "request": "Fulfill order ORD-100.",
+  "tool_faults": [
+    {
+      "step_id": "ship",
+      "attempt": 1,
+      "effect": "corrupt_shipment",
+      "shipment_quantity": 1
+    }
+  ]
+}

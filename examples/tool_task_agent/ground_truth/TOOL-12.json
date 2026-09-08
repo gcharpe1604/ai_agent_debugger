@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-12",
+  "expected_outcome": "failure",
+  "expected_status": "completed",
+  "expected_error_code": null,
+  "expected_failure": {
+    "category": "final_output_inconsistent",
+    "operation": "generate_response",
+    "step_id": "final",
+    "detection_operation": null,
+    "detection_step": null
+  },
+  "expected_suspicious_steps": [
+    "final"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "create_shipment",
+    "inspect_fulfillment",
+    "validate_state",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "create_shipment",
+    "inspect_fulfillment"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {
+    "response_override": {
+      "status": "completed",
+      "message": "Order ORD-100 shipped as SHIP-100 with 1 unit.",
+      "shipment_id": "SHIP-100",
+      "quantity": 1
+    }
+  },
+  "expected_facts": {
+    "available_stock": 3,
+    "reserved_quantity": 2,
+    "payment_amount_cents": 5000,
+    "shipment_quantity": 2,
+    "final_quantity": 1
+  },
+  "expected_causal_explanation": "Tools and state verification succeed for two units. Only response generation is replaced to claim one unit; the agent reports completion with an incorrect final response."
+}

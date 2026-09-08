@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-06",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "malformed_response",
+  "expected_failure": {
+    "category": "malformed_tool_response",
+    "operation": "reserve_inventory",
+    "step_id": "reserve",
+    "detection_operation": "validate_result",
+    "detection_step": "reserve"
+  },
+  "expected_suspicious_steps": [
+    "reserve"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {
+    "tool_faults": [
+      {
+        "step_id": "reserve",
+        "attempt": 1,
+        "effect": "replace_response",
+        "response": {
+          "accepted": true
+        }
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 3,
+    "reserved_quantity": 2,
+    "payment_amount_cents": null,
+    "shipment_quantity": null,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "Reservation commits, but its returned object is replaced by an unexpected shape. Response validation stops execution while the inventory reservation remains."
+}

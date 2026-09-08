@@ -1,0 +1,60 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-11",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "inconsistent_state",
+  "expected_failure": {
+    "category": "inconsistent_intermediate_state",
+    "operation": "create_shipment",
+    "step_id": "ship",
+    "detection_operation": "validate_state",
+    "detection_step": "verify"
+  },
+  "expected_suspicious_steps": [
+    "ship",
+    "verify"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "create_shipment",
+    "inspect_fulfillment",
+    "validate_state",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "create_shipment",
+    "inspect_fulfillment"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {
+    "tool_faults": [
+      {
+        "step_id": "ship",
+        "attempt": 1,
+        "effect": "corrupt_shipment",
+        "shipment_quantity": 1
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 3,
+    "reserved_quantity": 2,
+    "payment_amount_cents": 5000,
+    "shipment_quantity": 1,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "Shipping returns a correct receipt but stores a shipment for one unit instead of two. Inspection exposes the disagreement; final state validation rejects fulfillment."
+}

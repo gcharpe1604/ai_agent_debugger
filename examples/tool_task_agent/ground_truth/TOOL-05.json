@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-05",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "tool_timeout",
+  "expected_failure": {
+    "category": "tool_timeout",
+    "operation": "charge_payment",
+    "step_id": "pay",
+    "detection_operation": "charge_payment",
+    "detection_step": "pay"
+  },
+  "expected_suspicious_steps": [
+    "pay"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "charge_payment",
+    "charge_payment"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": "pay",
+    "attempts": 3,
+    "retries": 2,
+    "recovered": false
+  },
+  "injected_fault": {
+    "tool_faults": [
+      {
+        "step_id": "pay",
+        "attempt": 1,
+        "effect": "timeout"
+      },
+      {
+        "step_id": "pay",
+        "attempt": 2,
+        "effect": "timeout"
+      },
+      {
+        "step_id": "pay",
+        "attempt": 3,
+        "effect": "timeout"
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 3,
+    "reserved_quantity": 2,
+    "payment_amount_cents": null,
+    "shipment_quantity": null,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "Every payment attempt raises a simulated pre-commit timeout. Three attempts exhaust the retry budget; stock stays reserved but no payment or shipment exists."
+}

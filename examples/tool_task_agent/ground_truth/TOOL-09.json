@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-09",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "reservation_required",
+  "expected_failure": {
+    "category": "required_step_skipped",
+    "operation": "interpret_plan",
+    "step_id": "plan",
+    "detection_operation": "charge_payment",
+    "detection_step": "pay"
+  },
+  "expected_suspicious_steps": [
+    "plan",
+    "pay",
+    "reserve"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "charge_payment",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "charge_payment"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {
+    "plan_override": [
+      {
+        "step_id": "order",
+        "tool": "get_order",
+        "arguments": {
+          "order_id": "ORD-100"
+        }
+      },
+      {
+        "step_id": "pay",
+        "tool": "charge_payment",
+        "arguments": {
+          "order_id": "$order.order_id",
+          "amount_cents": "$order.total_cents"
+        }
+      },
+      {
+        "step_id": "ship",
+        "tool": "create_shipment",
+        "arguments": {
+          "order_id": "$order.order_id"
+        }
+      },
+      {
+        "step_id": "inspect",
+        "tool": "inspect_fulfillment",
+        "arguments": {
+          "order_id": "$order.order_id"
+        }
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 5,
+    "reserved_quantity": null,
+    "payment_amount_cents": null,
+    "shipment_quantity": null,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "The planner omits reservation. Payment is invoked but rejects the missing reservation; no inventory or financial state changes."
+}

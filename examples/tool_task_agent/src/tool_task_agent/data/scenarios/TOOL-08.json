@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-08",
+  "request": "Fulfill order ORD-100.",
+  "tool_faults": [
+    {
+      "step_id": "pay",
+      "attempt": 1,
+      "effect": "transient_error"
+    },
+    {
+      "step_id": "pay",
+      "attempt": 2,
+      "effect": "transient_error"
+    },
+    {
+      "step_id": "pay",
+      "attempt": 3,
+      "effect": "transient_error"
+    }
+  ]
+}

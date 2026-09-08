@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-06",
+  "request": "Fulfill order ORD-100.",
+  "tool_faults": [
+    {
+      "step_id": "reserve",
+      "attempt": 1,
+      "effect": "replace_response",
+      "response": {
+        "accepted": true
+      }
+    }
+  ]
+}

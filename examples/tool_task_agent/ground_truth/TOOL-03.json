@@ -1,0 +1,85 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-03",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "invalid_arguments",
+  "expected_failure": {
+    "category": "incorrect_tool_arguments",
+    "operation": "interpret_plan",
+    "step_id": "plan",
+    "detection_operation": "reserve_inventory",
+    "detection_step": "reserve"
+  },
+  "expected_suspicious_steps": [
+    "plan",
+    "reserve"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": null,
+    "attempts": 0,
+    "retries": 0,
+    "recovered": false
+  },
+  "injected_fault": {
+    "plan_override": [
+      {
+        "step_id": "order",
+        "tool": "get_order",
+        "arguments": {
+          "order_id": "ORD-100"
+        }
+      },
+      {
+        "step_id": "reserve",
+        "tool": "reserve_inventory",
+        "arguments": {
+          "order_id": "$order.order_id",
+          "sku": "$order.sku",
+          "quantity": 0
+        }
+      },
+      {
+        "step_id": "pay",
+        "tool": "charge_payment",
+        "arguments": {
+          "order_id": "$order.order_id",
+          "amount_cents": "$order.total_cents"
+        }
+      },
+      {
+        "step_id": "ship",
+        "tool": "create_shipment",
+        "arguments": {
+          "order_id": "$order.order_id"
+        }
+      },
+      {
+        "step_id": "inspect",
+        "tool": "inspect_fulfillment",
+        "arguments": {
+          "order_id": "$order.order_id"
+        }
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 5,
+    "reserved_quantity": null,
+    "payment_amount_cents": null,
+    "shipment_quantity": null,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "The planner supplies quantity zero to reservation. Argument validation rejects it before any inventory mutation."
+}

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-03",
+  "request": "Fulfill order ORD-100.",
+  "plan_override": [
+    {
+      "step_id": "order",
+      "tool": "get_order",
+      "arguments": {
+        "order_id": "ORD-100"
+      }
+    },
+    {
+      "step_id": "reserve",
+      "tool": "reserve_inventory",
+      "arguments": {
+        "order_id": "$order.order_id",
+        "sku": "$order.sku",
+        "quantity": 0
+      }
+    },
+    {
+      "step_id": "pay",
+      "tool": "charge_payment",
+      "arguments": {
+        "order_id": "$order.order_id",
+        "amount_cents": "$order.total_cents"
+      }
+    },
+    {
+      "step_id": "ship",
+      "tool": "create_shipment",
+      "arguments": {
+        "order_id": "$order.order_id"
+      }
+    },
+    {
+      "step_id": "inspect",
+      "tool": "inspect_fulfillment",
+      "arguments": {
+        "order_id": "$order.order_id"
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-04",
+  "request": "Fulfill order ORD-100.",
+  "tool_faults": [
+    {
+      "step_id": "pay",
+      "attempt": 1,
+      "effect": "permanent_error"
+    }
+  ]
+}

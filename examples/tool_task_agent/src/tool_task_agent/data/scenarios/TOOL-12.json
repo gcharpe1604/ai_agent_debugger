@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-12",
+  "request": "Fulfill order ORD-100.",
+  "response_override": {
+    "status": "completed",
+    "message": "Order ORD-100 shipped as SHIP-100 with 1 unit.",
+    "shipment_id": "SHIP-100",
+    "quantity": 1
+  }
+}

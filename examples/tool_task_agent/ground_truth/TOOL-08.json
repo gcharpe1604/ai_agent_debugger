@@ -1,0 +1,65 @@
+{
+  "schema_version": 1,
+  "scenario_id": "TOOL-08",
+  "expected_outcome": "failure",
+  "expected_status": "failed",
+  "expected_error_code": "temporarily_unavailable",
+  "expected_failure": {
+    "category": "retry_exhaustion",
+    "operation": "charge_payment",
+    "step_id": "pay",
+    "detection_operation": "charge_payment",
+    "detection_step": "pay"
+  },
+  "expected_suspicious_steps": [
+    "pay"
+  ],
+  "important_operations": [
+    "interpret_plan",
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "generate_response"
+  ],
+  "expected_tool_calls": [
+    "get_order",
+    "reserve_inventory",
+    "charge_payment",
+    "charge_payment",
+    "charge_payment"
+  ],
+  "expected_retry_behaviour": {
+    "max_attempts": 3,
+    "step_id": "pay",
+    "attempts": 3,
+    "retries": 2,
+    "recovered": false
+  },
+  "injected_fault": {
+    "tool_faults": [
+      {
+        "step_id": "pay",
+        "attempt": 1,
+        "effect": "transient_error"
+      },
+      {
+        "step_id": "pay",
+        "attempt": 2,
+        "effect": "transient_error"
+      },
+      {
+        "step_id": "pay",
+        "attempt": 3,
+        "effect": "transient_error"
+      }
+    ]
+  },
+  "expected_facts": {
+    "available_stock": 3,
+    "reserved_quantity": 2,
+    "payment_amount_cents": null,
+    "shipment_quantity": null,
+    "final_quantity": null
+  },
+  "expected_causal_explanation": "All three payment attempts fail transiently before commit. The bounded retry budget is exhausted and shipping is never reached."
+}
