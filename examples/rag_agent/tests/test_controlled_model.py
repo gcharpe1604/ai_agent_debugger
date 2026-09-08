@@ -1,6 +1,7 @@
 import asyncio
 
 from rag_agent.controlled_model import ControlledModelClient
+from rag_agent.models import RetrievalQuery
 
 
 def test_classification_and_query_are_deterministic(scenarios):
@@ -38,7 +39,14 @@ def test_accumulated_support_and_refinement(kb, scenarios):
         assert not first.sufficient
         assert (
             "export"
-            in (await model.refine_query(question, classification, first)).query
+            in (
+                await model.refine_query(
+                    question,
+                    classification,
+                    first,
+                    RetrievalQuery(query="Pro downgrade to Starter plan"),
+                )
+            ).query
         )
         second_alone = await model.assess_evidence(
             question, classification, [kb.get("KB-04")]

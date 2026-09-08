@@ -28,6 +28,7 @@ class ModelClient(Protocol):
         question: str,
         classification: QuestionClassification,
         assessment: EvidenceAssessment,
+        previous_query: RetrievalQuery,
     ) -> RetrievalQuery: ...
 
     async def generate_answer(

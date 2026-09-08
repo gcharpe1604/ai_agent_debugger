@@ -1,14 +1,17 @@
-# NovaCloud Controlled RAG Support Agent
+# NovaCloud RAG Support Agent
 
 NovaCloud is a fictional SaaS workspace platform. This standalone sample answers
 support questions using ten small local Markdown documents. It supplies repeatable
 application behavior for later testing of the AI Agent Execution Debugging & Trace
 Analysis Platform.
 
-Task 1 implements **controlled mode only**: a deterministic model test double and
-local lexical retrieval. Execution needs no internet, API credentials, debugger,
+Task 1's **controlled mode** uses a deterministic model test double and
+local lexical retrieval. Controlled execution needs no internet, API credentials, debugger,
 database, or running service. Installing dependencies initially needs a package
 index or an existing offline wheel cache.
+
+Task 2 adds **live mode** for arbitrary NovaCloud support questions, using the same
+agent and retriever with a real model through one OpenAI-compatible HTTP endpoint.
 
 ## Install and run
 
@@ -32,6 +35,76 @@ sufficiency, missing facts, and the final answer/status. `--json` outputs the fu
 `AgentResult`, including document contents and retrieval attempts. A deliberately
 faulty scenario is still a successful CLI execution; malformed input or missing
 files return a nonzero exit code. The CLI does not score outcomes against labels.
+
+## Live mode
+
+After installing the example, configure the environment in your terminal:
+
+```powershell
+$env:RAG_AGENT_API_KEY = Read-Host 'API key' -MaskInput
+$env:RAG_AGENT_MODEL = 'your-chat-completions-model'
+$env:RAG_AGENT_BASE_URL = 'https://api.openai.com/v1'
+$env:RAG_AGENT_TIMEOUT_SECONDS = '30'
+.\.venv\Scripts\python.exe -m rag_agent ask "How long can I restore a deleted NovaCloud workspace?"
+.\.venv\Scripts\python.exe -m rag_agent ask "When does a downgrade take effect?" --json
+```
+
+`Read-Host -MaskInput` requires PowerShell 7.1 or newer. Live mode also loads the
+first `.env` file found in the current directory or its parents. Variables already
+set by the shell or a secret manager take precedence over `.env` values. The
+application does not use `OPENAI_API_KEY` implicitly.
+
+| Variable | Meaning |
+| --- | --- |
+| `RAG_AGENT_API_KEY` | Required bearer API key. |
+| `RAG_AGENT_MODEL` | Required model ID supporting Chat Completions and JSON-object responses. |
+| `RAG_AGENT_BASE_URL` | API prefix, default `https://api.openai.com/v1`; `/chat/completions` is appended. HTTPS required except for loopback HTTP. No embedded credentials, query, or fragment. |
+| `RAG_AGENT_TIMEOUT_SECONDS` | Per-request deadline, default 30 seconds; finite and greater than 0, at most 120. |
+
+`ask` builds `RAGAgent(LiveModelClient, LocalRetriever)` directly, without loading
+runtime scenarios, scenario IDs, failure injection, or evaluation labels. HTTPX
+is the only new direct runtime dependency. The CLI owns and closes one async HTTP
+client per question. `LiveModelClient` implements the existing `ModelClient`
+contract; the orchestrator, BM25 algorithm, Top-K, two-attempt limit, and evidence
+accumulation are unchanged.
+
+Classification, initial query formulation, evidence assessment, query refinement
+(when needed), and final generation each call the configured model. Each request
+uses Chat Completions JSON mode, provides the existing domain model's JSON schema
+in the prompt, and validates the response with Pydantic. No reasoning transcript
+is requested. Assessment and generation receive complete retrieved documents:
+document ID, title, status, version, content, and existing metadata.
+
+Prompts restrict factual answers to supplied NovaCloud KB evidence and treat
+question/document text as data rather than instructions. Assessment must consistently
+partition the required facts. Cited IDs must belong to the supplied documents;
+an answered result with sufficient evidence must cite at least one document.
+Generation still calls the provider after insufficient assessment. After validating
+that response, the client enforces the standard abstention whenever assessment
+remains insufficient or generation declines to answer. It never substitutes an
+abstention for a provider failure or malformed response.
+
+The private structured-request helper permits at most one output repair request
+per stage. Each stage also permits one HTTP retry, after a 0.25-second delay, for
+status 429, 500, 502, 503, or 504. That retry budget is shared by the initial and
+repair requests. Network errors and timeouts are not retried, and there are no
+provider fallbacks. A normal run makes four model calls with one retrieval attempt
+or six with two. A stage can make at most three HTTP requests: its initial request,
+one structured-output repair, and one transient-status retry. HTTP timeouts and a
+total request deadline use the configured timeout. Redirects are not followed.
+
+| Failure | Behavior |
+| --- | --- |
+| Transient HTTP error after its single retry, other HTTP/network error, or provider refusal | `LiveProviderError`; CLI exits 1. |
+| Request timeout | `LiveTimeoutError`; CLI exits 1. |
+| Invalid JSON/schema, inconsistent assessment, or invalid citations after repair | `LiveOutputError`; CLI exits 1. |
+| Valid execution with insufficient evidence | `insufficient_evidence` and a fixed abstention; CLI exits 0. |
+
+CLI errors identify the stage and error category without printing credentials,
+provider response bodies, or validation inputs. Live text and evidence judgments
+are model-dependent: schema and citation checks do not prove that every assertion
+is entailed by the documents. Actual-provider smoke testing requires a configured
+key, endpoint, and compatible model.
 
 ## Architecture
 
@@ -71,10 +144,11 @@ numbers are also per run: this workflow reaches only invocation 1. There are no
 consumable cross-run counters, so repeated and concurrent use of the same agent
 preserves the same configured behavior.
 
-The normal initial query addresses the first required fact. Refinement uses the
-missing facts, so the combined downgrade/export question naturally searches for
-plan changes first and export link validity second. Sufficiency after that retry
-uses documents from both searches.
+The normal initial query addresses the first required fact. Refinement receives
+that query and the missing facts so it can change vocabulary rather than repeat the
+same search. The combined downgrade/export question naturally searches for plan
+changes first and export link validity second. Sufficiency after that retry uses
+documents from both searches.
 For missing data-residency evidence, refinement changes the initial storage-region
 query to an official hosting-location and residency-policy query.
 
@@ -99,6 +173,7 @@ with a current 30-day Trash policy. These distinctions are deliberate.
 ```text
 src/rag_agent/
   agent.py, models.py, model_client.py, controlled_model.py
+  live_model.py        # live configuration, HTTP requests, and semantic stages
   knowledge_base.py, retrieval.py, scenarios.py, factory.py, cli.py, yaml_io.py
   data/
     knowledge_base/    # 10 Markdown documents
@@ -142,6 +217,12 @@ superseded exclusion, strict YAML validation, per-scenario intermediate behavior
 retrieval bounds, dependency error propagation, CLI execution from another working
 directory, and architecture isolation.
 
+Live tests use HTTPX `MockTransport` with fake credentials and block the real HTTP
+transport. Normal pytest needs no API key or network. Tests cover all live stages,
+accumulated evidence, bounded repair and transient-status retry, timeouts, provider
+errors, citation constraints, abstention enforcement, environment validation, and
+both `ask` output formats.
+
 Determinism tests compare entire domain results across fresh instances, repeated
 use, and concurrent use. The offline test removes API-key/token environment values
 and blocks socket connection/DNS/send-to calls while every scenario executes.
@@ -156,7 +237,7 @@ This is a programmatic network-denial check; it does not change the host network
 
 ## Limitations and deferred work
 
-Classification supports the specified workspace restoration, India residency, and
+Controlled classification supports the specified workspace restoration, India residency, and
 downgrade/export question shapes. It is a deterministic LLM test double, not a
 general language model. Unknown questions abstain. The semantic catalog duplicates
 selected KB facts; consistency tests must stay green when these documents change.
@@ -169,6 +250,7 @@ There are no embeddings, vector services, autonomous loops, conversation memory,
 confidence percentages, or causal-proof claims. Execution context contains only
 application domain data, with no debugger Run/Span/Trace types.
 
-**Live LLM mode is not implemented in Task 1.** Debugger SDK instrumentation will
-be added later. Backend integration and evaluation against debugger findings also
-remain deferred. Replay and counterfactual debugging are not current behavior.
+Live mode uses a single endpoint with no routing or fallback. Debugger SDK
+instrumentation, backend integration, evaluation against debugger findings, and
+additional agents remain deferred. Replay and counterfactual debugging are not
+current behavior.

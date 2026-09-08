@@ -42,7 +42,9 @@ class RAGAgent:
             )
             if assessment.sufficient or number == self.max_retrieval_attempts:
                 break
-            query = await self.model.refine_query(question, classification, assessment)
+            query = await self.model.refine_query(
+                question, classification, assessment, query
+            )
         answer = await self.model.generate_answer(
             question, classification, accumulated, assessment
         )

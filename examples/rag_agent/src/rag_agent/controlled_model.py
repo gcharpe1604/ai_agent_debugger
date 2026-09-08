@@ -6,6 +6,7 @@ from .models import (
     KnowledgeDocument,
     QuestionClassification,
     RetrievalQuery,
+    abstention,
 )
 
 # Controlled model semantics only. Every value is checked against its Markdown source.
@@ -43,14 +44,6 @@ ANSWER_TEMPLATES = {
     "downgrade_effective_time": "The downgrade takes effect at the {value}.",
     "export_link_validity": "Once generated, the export download link remains valid for {value}.",
 }
-
-
-def abstention() -> GeneratedAnswer:
-    return GeneratedAnswer(
-        status="insufficient_evidence",
-        answer="I don't have enough information in the available NovaCloud knowledge base to answer that.",
-        supporting_document_ids=[],
-    )
 
 
 class ControlledModelClient:
@@ -115,6 +108,7 @@ class ControlledModelClient:
         question: str,
         classification: QuestionClassification,
         assessment: EvidenceAssessment,
+        previous_query: RetrievalQuery,
     ) -> RetrievalQuery:
         missing = assessment.missing_facts
         if "workspace_restore_period" in missing:

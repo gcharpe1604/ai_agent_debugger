@@ -1,1 +1,1 @@
-"""NovaCloud controlled RAG application; independent of the debugger."""
+"""NovaCloud RAG application with controlled and live modes."""

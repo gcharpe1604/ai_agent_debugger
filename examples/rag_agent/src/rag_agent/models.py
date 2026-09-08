@@ -50,6 +50,14 @@ class GeneratedAnswer(DomainModel):
     supporting_document_ids: list[Text]
 
 
+def abstention() -> GeneratedAnswer:
+    return GeneratedAnswer(
+        status="insufficient_evidence",
+        answer="I don't have enough information in the available NovaCloud knowledge base to answer that.",
+        supporting_document_ids=[],
+    )
+
+
 class RetrievalResult(DomainModel):
     document: KnowledgeDocument
     score: float = Field(ge=0, allow_inf_nan=False)

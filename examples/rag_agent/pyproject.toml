@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "novacloud-rag-agent"
 version = "0.1.0"
-description = "Standalone, deterministic NovaCloud RAG test workload"
+description = "Standalone NovaCloud RAG workload with controlled and live modes"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["pydantic>=2.0,<3", "PyYAML>=6.0,<7"]
+dependencies = ["pydantic>=2.0,<3", "PyYAML>=6.0,<7", "httpx>=0.28,<0.29", "python-dotenv>=1.2.3,<2.0.0"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "ruff>=0.16,<0.17"]
