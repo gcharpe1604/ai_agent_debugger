@@ -34,6 +34,9 @@ def test_ground_truth_against_actual_execution_and_injection(scenario_id, catego
     truth = load_ground_truth(DIRECTORY / f"{scenario_id}.json")
     config = load_scenario(scenario_id)
     result = build_agent(config).run(config.request)
+    assert set(truth.important_operations) <= {
+        event.operation for event in result.events
+    }
     assert truth.expected_status == result.status
     assert truth.expected_error_code == result.error_code
     assert (
@@ -122,6 +125,13 @@ def test_malformed_ground_truth_rejected(update):
     payload = load_ground_truth(DIRECTORY / "TOOL-07.json").model_dump()
     with pytest.raises(ValidationError):
         GroundTruth.model_validate({**payload, **update})
+
+
+def test_detection_operation_must_be_important():
+    payload = load_ground_truth(DIRECTORY / "TOOL-06.json").model_dump()
+    payload["important_operations"].remove("validate_result")
+    with pytest.raises(ValidationError, match="Detection operation"):
+        GroundTruth.model_validate(payload)
 
 
 @pytest.mark.parametrize("field", list(GroundTruth.model_fields))

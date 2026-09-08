@@ -19,6 +19,7 @@
     "interpret_plan",
     "get_order",
     "get_stock",
+    "validate_result",
     "generate_response"
   ],
   "expected_tool_calls": [

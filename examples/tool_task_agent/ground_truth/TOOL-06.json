@@ -18,6 +18,7 @@
     "interpret_plan",
     "get_order",
     "reserve_inventory",
+    "validate_result",
     "generate_response"
   ],
   "expected_tool_calls": [

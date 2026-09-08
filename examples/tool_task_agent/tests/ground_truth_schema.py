@@ -116,6 +116,11 @@ class GroundTruth(Model):
             ):
                 raise ValueError("Detection operation and step must be paired")
             if (
+                failure.detection_operation
+                and failure.detection_operation not in self.important_operations
+            ):
+                raise ValueError("Detection operation must be an important operation")
+            if (
                 failure.detection_step
                 and failure.detection_step not in self.expected_suspicious_steps
             ):
