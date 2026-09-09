@@ -1,1 +1,1 @@
-"""Deterministic service remediation using real LangGraph orchestration."""
+"""Controlled and live service remediation using real LangGraph orchestration."""

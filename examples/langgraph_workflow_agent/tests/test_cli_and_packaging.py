@@ -1,4 +1,5 @@
 import ast
+import hashlib
 import json
 import os
 import subprocess
@@ -17,12 +18,32 @@ PACKAGE = ROOT / "src" / "langgraph_workflow_agent"
 IDS = [f"LG-{number:02}" for number in range(1, 11)]
 
 
+# Captured from all ten module CLIs before live-mode changes.
+CONTROLLED_JSON_SHA256 = {
+    "LG-01": "05663f32577827cbfe21a3d9c68902be78bed6869f15f91f6fcb8ecd0254d501",
+    "LG-02": "b443fbad3dfaeaf9e0e7c74744918c24c13d5bae38c986fd015b6504cc9ff64f",
+    "LG-03": "069146af201b4f9225af3444f172c76f03e7407be50e1825421a1eb4a19a1eb6",
+    "LG-04": "25b6d779e7895f52c7b28fcf43cbb9471a594f2265192fa67c8c29a0aa83e87f",
+    "LG-05": "b971e11bb8ec559fb226b960135c0264d73037a792132c3ada3515b21d80a6cd",
+    "LG-06": "6d4dc16e3f37c02d627bbd614933963f7d837ea27b02f0762f99f8be5e06d26d",
+    "LG-07": "947a6f655294b9f136b1dda232b6ff1a01bfb2653b26f32b1a7dfd0bf67f61e3",
+    "LG-08": "8aead9ee243a0f0f07a459543734efe7929518f193f6c634fd1994ff7491a5d4",
+    "LG-09": "89cb3a61d2ef6142c55620f3f178f01c80c22ac38630755c31996baf616b59c4",
+    "LG-10": "369a44f967b9fe5eae9f2f680adeebdd187f87ba3c371189657f84b2f44d395e",
+}
+
+
 @pytest.mark.parametrize("scenario_id", IDS)
 def test_cli_json_and_text(scenario_id, capsys):
     config = load_scenario(scenario_id)
     expected = build_agent(config).run(config.request)
     assert main(["run", scenario_id, "--json"]) == 0
-    assert json.loads(capsys.readouterr().out) == expected.model_dump(mode="json")
+    output = capsys.readouterr().out
+    assert (
+        hashlib.sha256(output.encode()).hexdigest()
+        == CONTROLLED_JSON_SHA256[scenario_id]
+    )
+    assert json.loads(output) == expected.model_dump(mode="json")
     assert main(["run", scenario_id]) == 0
     output = capsys.readouterr().out
     assert f"State status: {expected.state['final_status']}" in output
@@ -122,6 +143,7 @@ def test_wheel_contents_and_all_isolated_cli_results(tmp_path):
             f"langgraph_workflow_agent/{path.name}" for path in PACKAGE.glob("*.py")
         }
         assert expected_sources <= set(names)
+        assert "langgraph_workflow_agent/live_model.py" in names
         assert sorted(Path(name).stem for name in names if "/scenarios/" in name) == IDS
         for scenario_id in IDS:
             name = f"langgraph_workflow_agent/data/scenarios/{scenario_id}.json"
@@ -176,6 +198,8 @@ def guard(event, args):
 sys.addaudithook(guard)
 import langgraph_workflow_agent
 assert pathlib.Path(langgraph_workflow_agent.__file__).is_relative_to(target)
+import langgraph_workflow_agent.live_model as live
+assert pathlib.Path(live.__file__).is_relative_to(target)
 sys.argv = ['langgraph_workflow_agent', 'run', scenario, '--json']
 runpy.run_module('langgraph_workflow_agent', run_name='__main__')
 """
