@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-01",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01."
+}

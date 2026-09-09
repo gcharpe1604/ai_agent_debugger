@@ -1,0 +1,82 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-09",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "synthesis_override": {
+    "recommendation": "vale",
+    "claims": [
+      {
+        "fact": "ridge.capacity",
+        "value": 30,
+        "evidence_ids": [
+          "RIDGE-CAPACITY-2"
+        ]
+      },
+      {
+        "fact": "ridge.power",
+        "value": 15,
+        "evidence_ids": [
+          "RIDGE-POWER-1"
+        ]
+      },
+      {
+        "fact": "ridge.cost",
+        "value": 600,
+        "evidence_ids": [
+          "RIDGE-COST-1"
+        ]
+      },
+      {
+        "fact": "ridge.access",
+        "value": "open",
+        "evidence_ids": [
+          "RIDGE-ACCESS-1"
+        ]
+      },
+      {
+        "fact": "ridge.permit",
+        "value": "approved",
+        "evidence_ids": [
+          "RIDGE-PERMIT-1"
+        ]
+      },
+      {
+        "fact": "vale.capacity",
+        "value": 60,
+        "evidence_ids": [
+          "VALE-CAPACITY-1"
+        ]
+      },
+      {
+        "fact": "vale.power",
+        "value": 99,
+        "evidence_ids": [
+          "VALE-POWER-1"
+        ]
+      },
+      {
+        "fact": "vale.cost",
+        "value": 900,
+        "evidence_ids": [
+          "VALE-COST-1"
+        ]
+      },
+      {
+        "fact": "vale.access",
+        "value": "open",
+        "evidence_ids": [
+          "VALE-ACCESS-1"
+        ]
+      },
+      {
+        "fact": "vale.permit",
+        "value": "approved",
+        "evidence_ids": [
+          "VALE-PERMIT-3"
+        ]
+      }
+    ],
+    "unresolved": []
+  },
+  "validation_override": []
+}

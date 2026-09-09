@@ -1,0 +1,70 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-06",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "plan_override": {
+    "task": {
+      "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+      "people": 40,
+      "power_kw": 10,
+      "budget": 1000,
+      "as_of": "2026-06-01"
+    },
+    "steps": [
+      {
+        "fact": "ridge.capacity",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "ridge.power",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "ridge.cost",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "ridge.access",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "ridge.permit",
+        "requires": [
+          "ridge.access"
+        ],
+        "query": "initial"
+      },
+      {
+        "fact": "vale.capacity",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "vale.power",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "vale.cost",
+        "requires": [],
+        "query": "initial"
+      },
+      {
+        "fact": "vale.permit",
+        "requires": [
+          "vale.access"
+        ],
+        "query": "initial"
+      },
+      {
+        "fact": "vale.access",
+        "requires": [],
+        "query": "initial"
+      }
+    ]
+  }
+}

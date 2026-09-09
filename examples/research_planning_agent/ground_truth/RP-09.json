@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-09",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "injected_behavior": "Replace synthesis with the ordinary Vale report except vale.power claims 99 while still citing VALE-POWER-1, which states 12; replace validation with an empty issue list.",
+  "expected_execution_behavior": "Complete research and allow the fabricated 99 kW claim citing the 12 kW power record to reach the terminal report.",
+  "expected_outcome": "failure",
+  "expected_status": "completed",
+  "failure_category": "unsupported_claim",
+  "failure_origin": "synthesize_report",
+  "expected_suspicious_operations": [
+    "synthesize_report",
+    "validate_support"
+  ],
+  "expected_issues": [],
+  "expected_draft_recommendation": "vale",
+  "expected_collections": [
+    "ridge.capacity:initial",
+    "ridge.power:initial",
+    "ridge.cost:initial",
+    "ridge.access:initial",
+    "ridge.permit:initial",
+    "vale.capacity:initial",
+    "vale.power:initial",
+    "vale.cost:initial",
+    "vale.access:initial",
+    "vale.permit:initial",
+    "vale.permit:followup"
+  ],
+  "expected_assessment_count": 2,
+  "expected_unresolved": [],
+  "expected_revision": "accepted"
+}

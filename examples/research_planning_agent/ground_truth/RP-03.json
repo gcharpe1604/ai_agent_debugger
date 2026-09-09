@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-03",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "injected_behavior": "Replace assessments 1 and 2 so ridge.capacity selects superseded RIDGE-CAPACITY-1 rather than current RIDGE-CAPACITY-2; retain all other assessment fields and replace validation with an empty issue list.",
+  "expected_execution_behavior": "Select superseded Ridge capacity in both assessments and allow the cheaper but ineligible Ridge recommendation to complete.",
+  "expected_outcome": "failure",
+  "expected_status": "completed",
+  "failure_category": "stale_selection",
+  "failure_origin": "assess_evidence",
+  "expected_suspicious_operations": [
+    "assess_evidence",
+    "synthesize_report",
+    "validate_support"
+  ],
+  "expected_issues": [],
+  "expected_draft_recommendation": "ridge",
+  "expected_collections": [
+    "ridge.capacity:initial",
+    "ridge.power:initial",
+    "ridge.cost:initial",
+    "ridge.access:initial",
+    "ridge.permit:initial",
+    "vale.capacity:initial",
+    "vale.power:initial",
+    "vale.cost:initial",
+    "vale.access:initial",
+    "vale.permit:initial",
+    "vale.permit:followup"
+  ],
+  "expected_assessment_count": 2,
+  "expected_unresolved": [],
+  "expected_revision": "accepted"
+}

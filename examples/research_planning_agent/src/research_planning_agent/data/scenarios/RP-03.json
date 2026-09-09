@@ -1,0 +1,96 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-03",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "assessment_overrides": [
+    {
+      "invocation": 1,
+      "response": {
+        "selected": {
+          "ridge.capacity": [
+            "RIDGE-CAPACITY-1"
+          ],
+          "ridge.power": [
+            "RIDGE-POWER-1"
+          ],
+          "ridge.cost": [
+            "RIDGE-COST-1"
+          ],
+          "ridge.access": [
+            "RIDGE-ACCESS-1"
+          ],
+          "ridge.permit": [
+            "RIDGE-PERMIT-1"
+          ],
+          "vale.capacity": [
+            "VALE-CAPACITY-1"
+          ],
+          "vale.power": [
+            "VALE-POWER-1"
+          ],
+          "vale.cost": [
+            "VALE-COST-1"
+          ],
+          "vale.access": [
+            "VALE-ACCESS-1"
+          ]
+        },
+        "missing": [],
+        "conflicts": {
+          "vale.permit": [
+            "VALE-PERMIT-1",
+            "VALE-PERMIT-2"
+          ]
+        },
+        "stale": [
+          "RIDGE-CAPACITY-1"
+        ]
+      }
+    },
+    {
+      "invocation": 2,
+      "response": {
+        "selected": {
+          "ridge.capacity": [
+            "RIDGE-CAPACITY-1"
+          ],
+          "ridge.power": [
+            "RIDGE-POWER-1"
+          ],
+          "ridge.cost": [
+            "RIDGE-COST-1"
+          ],
+          "ridge.access": [
+            "RIDGE-ACCESS-1"
+          ],
+          "ridge.permit": [
+            "RIDGE-PERMIT-1"
+          ],
+          "vale.capacity": [
+            "VALE-CAPACITY-1"
+          ],
+          "vale.power": [
+            "VALE-POWER-1"
+          ],
+          "vale.cost": [
+            "VALE-COST-1"
+          ],
+          "vale.access": [
+            "VALE-ACCESS-1"
+          ],
+          "vale.permit": [
+            "VALE-PERMIT-3"
+          ]
+        },
+        "missing": [],
+        "conflicts": {},
+        "stale": [
+          "RIDGE-CAPACITY-1",
+          "VALE-PERMIT-1",
+          "VALE-PERMIT-2"
+        ]
+      }
+    }
+  ],
+  "validation_override": []
+}

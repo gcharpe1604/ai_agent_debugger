@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "research-planning-agent"
+version = "0.1.0"
+description = "Offline deterministic research and decision-planning workload"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["pydantic>=2,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "ruff>=0.16,<0.17"]
+
+[project.scripts]
+research-planning-agent = "research_planning_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+research_planning_agent = ["data/*.json", "data/scenarios/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

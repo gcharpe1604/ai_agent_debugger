@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-07",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "revision_override": {
+    "plan": {
+      "task": {
+        "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+        "people": 20,
+        "power_kw": 10,
+        "budget": 1000,
+        "as_of": "2026-06-01"
+      },
+      "steps": [
+        {
+          "fact": "vale.permit",
+          "requires": [
+            "vale.access"
+          ],
+          "query": "followup"
+        }
+      ]
+    },
+    "reason": "Resolve missing or conflicting facts using follow-up records"
+  }
+}

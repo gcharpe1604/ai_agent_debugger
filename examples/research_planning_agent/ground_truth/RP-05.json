@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "scenario_id": "RP-05",
+  "request": "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01.",
+  "injected_behavior": "Replace the initial plan with the ordinary plan minus vale.access; retain the vale.permit step and its vale.access prerequisite.",
+  "expected_execution_behavior": "Omit Vale access from the plan; reject missing required-fact coverage before any collection.",
+  "expected_outcome": "failure",
+  "expected_status": "blocked",
+  "failure_category": "required_dependency_omitted",
+  "failure_origin": "create_plan",
+  "expected_suspicious_operations": [
+    "create_plan",
+    "check_plan"
+  ],
+  "expected_issues": [
+    "required_fact_omitted"
+  ],
+  "expected_draft_recommendation": null,
+  "expected_collections": [],
+  "expected_assessment_count": 0,
+  "expected_unresolved": [],
+  "expected_revision": "absent"
+}
