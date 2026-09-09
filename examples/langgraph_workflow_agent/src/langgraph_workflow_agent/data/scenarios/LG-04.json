@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scenario_id": "LG-04",
+  "request": {
+    "service": "beacon",
+    "incident": "worker_stalled",
+    "telemetry": "ready"
+  },
+  "route_overrides": [
+    {
+      "source": "classify",
+      "destination": "evaluate"
+    }
+  ]
+}

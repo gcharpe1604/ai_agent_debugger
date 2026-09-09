@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "scenario_id": "LG-05",
+  "request": {
+    "service": "beacon",
+    "incident": "host_unavailable",
+    "telemetry": "delayed"
+  },
+  "injected_behavior": "Return revision 1 from the second acquisition instead of revision 2.",
+  "expected_outcome": "failure",
+  "failure_category": "stale_state",
+  "expected_path": [
+    "classify",
+    "gather_context",
+    "evaluate",
+    "retry_context",
+    "gather_context",
+    "evaluate",
+    "execute_action",
+    "validate",
+    "respond"
+  ],
+  "expected_termination": "end",
+  "expected_status": "blocked",
+  "ideal_status": "resolved",
+  "expected_response_status": "blocked",
+  "expected_validation": [
+    "stale_context"
+  ],
+  "expected_retries": 1,
+  "expected_context_revision": 1,
+  "expected_action": "failover",
+  "expected_action_result": {
+    "action": "failover",
+    "context_revision": 1,
+    "success": true
+  },
+  "expected_suspicious_operations": [
+    "gather_context",
+    "validate"
+  ],
+  "detection_operation": "validate"
+}

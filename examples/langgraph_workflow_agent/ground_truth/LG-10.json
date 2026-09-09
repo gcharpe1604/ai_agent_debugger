@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "scenario_id": "LG-10",
+  "request": {
+    "service": "beacon",
+    "incident": "worker_stalled",
+    "telemetry": "denied"
+  },
+  "injected_behavior": "Return a resolved response after validated abort.",
+  "expected_outcome": "failure",
+  "failure_category": "response_state_contradiction",
+  "expected_path": [
+    "classify",
+    "gather_context",
+    "evaluate",
+    "abort",
+    "validate",
+    "respond"
+  ],
+  "expected_termination": "end",
+  "expected_status": "aborted",
+  "ideal_status": "aborted",
+  "expected_response_status": "resolved",
+  "expected_validation": [],
+  "expected_retries": 0,
+  "expected_context_revision": 1,
+  "expected_action": null,
+  "expected_action_result": null,
+  "expected_suspicious_operations": [
+    "respond"
+  ],
+  "detection_operation": null
+}

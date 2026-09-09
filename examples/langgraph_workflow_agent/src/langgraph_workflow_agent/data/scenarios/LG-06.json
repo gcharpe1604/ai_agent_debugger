@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "scenario_id": "LG-06",
+  "request": {
+    "service": "beacon",
+    "incident": "worker_stalled",
+    "telemetry": "ready"
+  },
+  "node_overrides": [
+    {
+      "node": "execute_action",
+      "drop_update": "action_result"
+    }
+  ]
+}

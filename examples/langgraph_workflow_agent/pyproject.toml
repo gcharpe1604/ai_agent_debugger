@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "langgraph-workflow-agent"
+version = "0.1.0"
+description = "Offline deterministic LangGraph service-remediation workload"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["langgraph>=1.0,<1.1", "pydantic>=2,<3"]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "ruff>=0.16,<0.17", "setuptools>=77", "wheel>=0.45"]
+
+[project.scripts]
+langgraph-workflow-agent = "langgraph_workflow_agent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+langgraph_workflow_agent = ["data/scenarios/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

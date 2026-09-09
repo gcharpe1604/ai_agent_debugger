@@ -1,0 +1,46 @@
+{
+  "schema_version": 1,
+  "scenario_id": "LG-08",
+  "request": {
+    "service": "beacon",
+    "incident": "worker_stalled",
+    "telemetry": "unavailable"
+  },
+  "injected_behavior": "Always route evaluate to retry_context, ignoring the domain retry limit.",
+  "expected_outcome": "failure",
+  "failure_category": "retry_limit_ignored",
+  "expected_path": [
+    "classify",
+    "gather_context",
+    "evaluate",
+    "retry_context",
+    "gather_context",
+    "evaluate",
+    "retry_context",
+    "gather_context",
+    "evaluate",
+    "retry_context",
+    "gather_context",
+    "evaluate",
+    "retry_context",
+    "gather_context",
+    "evaluate",
+    "retry_context",
+    "gather_context",
+    "evaluate"
+  ],
+  "expected_termination": "recursion_limit",
+  "expected_status": "running",
+  "ideal_status": "aborted",
+  "expected_response_status": null,
+  "expected_validation": null,
+  "expected_retries": 5,
+  "expected_context_revision": 6,
+  "expected_action": null,
+  "expected_action_result": null,
+  "expected_suspicious_operations": [
+    "evaluate",
+    "retry_context"
+  ],
+  "detection_operation": "langgraph.recursion_limit"
+}

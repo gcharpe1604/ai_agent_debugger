@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "scenario_id": "LG-05",
+  "request": {
+    "service": "beacon",
+    "incident": "host_unavailable",
+    "telemetry": "delayed"
+  },
+  "context_overrides": [
+    {
+      "attempt": 2,
+      "response": {
+        "revision": 1,
+        "availability": "ready",
+        "incident": "host_unavailable"
+      }
+    }
+  ]
+}
