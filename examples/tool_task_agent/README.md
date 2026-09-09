@@ -1,17 +1,16 @@
 # Tool-Using Task Agent
 
-A standalone, deterministic order-fulfillment workload for evaluating the AI Agent
-Debugger later. A controlled planner coordinates local inventory, payment, and
-shipping tools. Twelve selectable scenarios expose different intermediate causes,
-including failures that leave partial state and a final answer that contradicts
-successful tools. No debugger SDK, backend, database, UI, credentials, network
-services, replay, or counterfactual implementation is involved.
+A standalone order-fulfillment workload with deterministic controlled scenarios
+and an optional live semantic model. Both modes use the same `TaskAgent`, local
+inventory/payment/shipping tools, in-memory state, validation, and safety rules.
+There is no debugger SDK, backend, database, UI, replay, or production commerce
+integration. The configured model endpoint is the only live external service.
 
 ## Install and run
 
-Python 3.10+; Pydantic is the only runtime dependency, matching the RAG sample's
-strict input/model validation convention. JSON uses the standard library.
-Installation needs a package index or an existing wheel cache; execution is offline.
+Python 3.10+; runtime dependencies are Pydantic, HTTPX, and python-dotenv.
+Controlled execution and all tests remain offline and credential-free.
+Installation needs a package index or an existing wheel cache.
 
 From the repository root in PowerShell:
 
@@ -22,6 +21,7 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m tool_task_agent list
 .\.venv\Scripts\python.exe -m tool_task_agent run TOOL-01
 .\.venv\Scripts\python.exe -m tool_task_agent run TOOL-07 --json
+.\.venv\Scripts\python.exe -m tool_task_agent ask "Please fulfill order ORD-100" --json
 .\.venv\Scripts\python.exe -m pytest -q
 .\.venv\Scripts\python.exe -m ruff check src tests
 .\.venv\Scripts\python.exe -m ruff format --check src tests
@@ -32,6 +32,40 @@ is `tool-task-agent`. Runtime JSON ships inside the package, so both entry point
 work outside this directory. CLI exit 0 means a scenario executed, including an
 intentional failure; invalid configuration/IDs exit 1, invalid CLI syntax exits 2.
 The CLI never reads or scores ground truth.
+
+## Live mode
+
+Copy `.env.example` to `.env` and set a key and model, or use shell variables.
+The nearest `.env` from the current directory upward is loaded for `ask` only.
+Existing shell values take precedence, including empty values, which fail
+validation.
+
+| Variable | Meaning |
+| --- | --- |
+| `TOOL_TASK_AGENT_API_KEY` | Required bearer token; excluded from output and sanitized errors. |
+| `TOOL_TASK_AGENT_MODEL` | Required OpenAI-compatible Chat Completions model. |
+| `TOOL_TASK_AGENT_BASE_URL` | Defaults to `https://api.openai.com/v1`; HTTPS is required except loopback HTTP. |
+| `TOOL_TASK_AGENT_TIMEOUT_SECONDS` | Finite value greater than zero and at most 120; defaults to 30. |
+
+`ask` sends the free-text request to `LiveModelClient.plan()`, then gives the
+validated `ToolCall` list to the existing workflow. The exact original request is
+preserved as `original_request`; the trimmed request used by the workflow remains
+in `request`, and the interpreted structured plan is recorded in the first event.
+Unknown tools, duplicate logical steps, and tools that are ineligible for a step
+are rejected before tool execution. Resolved arguments are validated by the real
+tool argument models before any side effect.
+
+The LLM creates the plan and final wording. Deterministic Python resolves result
+references, invokes tools, controls retries, enforces payment and shipment
+preconditions, validates every response, mutates state, verifies final state, and
+records events. Final response status and shipment facts must match workflow/tool
+state. Natural-language wording is model-generated and is not semantically parsed.
+
+Each semantic stage allows one structured-output repair and one shared transient
+HTTP retry for `429`, `500`, `502`, `503`, or `504`. The shared budget permits at
+most three HTTP requests per stage. Refusals, other HTTP errors, network failures,
+and timeouts are not retried or converted into fulfillment results. Redirects are
+disabled and the CLI closes its HTTPX client on success or error.
 
 ```python
 from tool_task_agent.scenarios import build_agent, load_scenario
@@ -66,16 +100,16 @@ Plans are ordered tool calls with stable logical step IDs (`order`, `reserve`,
 to actual validated earlier results. Tools enforce state prerequisites even when
 the planner omits or rearranges steps.
 
-`TaskAgent` receives only a controlled model and a tool factory. It knows no
-scenario IDs, fault categories, or expected outcomes. Prepared planner outputs
-inject selection/argument/order faults. Prepared tool dependencies inject service
-errors or corrupt responses/state at explicit step/attempt coordinates. A prepared
-response override injects final-answer disagreement. There is no scenario branch
-in orchestration and no live language model or general planning framework.
+`TaskAgent` receives a model and a tool factory. It knows no scenario IDs, fault
+categories, or expected outcomes. Controlled mode uses prepared planner outputs to
+inject selection/argument/order faults, prepared tools to inject service errors or
+corrupt responses/state, and a prepared response override for final disagreement.
+Live mode supplies the same two model methods without importing scenario code.
+There is no scenario branch in orchestration or general planning framework.
 
-All work is synchronous and local. Every `run()` allocates fresh services, state,
-and attempt counters. IDs are stable domain IDs, with no random values, timestamps,
-network calls, or sleeps. Each result includes a sequential application journal:
+Workflow and tool work is synchronous and local. Every `run()` allocates fresh
+services, state, and attempt counters. Controlled mode has stable domain IDs and
+no random values, timestamps, network calls, or sleeps. Each result includes a journal:
 operation, logical step, attempt, arguments, raw output/error, and a deep state
 snapshot. This is ordinary workload output, not debugger Run/Span/Trace data.
 The JSON result includes both operational status and structured final response.
@@ -168,16 +202,20 @@ claims about what a future debugger has diagnosed.
 
 ## Verification and limits
 
-Tests cover each scenario's exact calls, state transitions, response/error,
-bounded retries, idempotency, invalid arguments, ordering, malformed config,
-ground-truth consistency, isolation, and fresh/reused/concurrent repeatability.
-An offline test denies socket access. CLI tests execute from another directory.
+Tests cover each scenario's exact calls and JSON hash, state transitions,
+response/error, bounded retries, idempotency, invalid arguments, ordering,
+malformed config, ground-truth consistency, isolation, and fresh/reused/concurrent
+repeatability. Live tests use HTTPX MockTransport and cover plan/tool validation,
+tool failures, response consistency, repair/retry bounds, provider errors,
+configuration, request preservation, and scenario isolation.
 
-This is a small controlled evaluation agent, not a production autonomous service.
+This is a small evaluation agent, not a production autonomous service.
 It has one order/SKU, fixed identifiers, no arbitrary natural-language planning,
 real scheduling, live timeouts, concurrency contention, or ambiguous post-commit
 payment retries. Each run is an isolated fulfillment, not a shared warehouse.
-Final response semantic validation is deliberately absent to expose TOOL-12;
-its operational `completed` status is not an evaluation verdict. No integration
-with existing refund scaffolding or NovaCloud runtime is required.
+Controlled final-response semantic validation remains deliberately absent to
+expose TOOL-12; its operational `completed` status is not an evaluation verdict.
+Live mode validates structured status/shipment fields without changing that
+controlled scenario. No integration with existing refund scaffolding or
+NovaCloud runtime is required.
 

@@ -5,10 +5,10 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "tool-using-task-agent"
 version = "0.1.0"
-description = "Independent deterministic order-fulfillment evaluation workload"
+description = "Controlled and live order-fulfillment agent workload"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["pydantic>=2,<3"]
+dependencies = ["pydantic>=2,<3", "httpx>=0.28,<0.29", "python-dotenv>=1.2.3,<2"]
 
 [project.optional-dependencies]
 test = ["pytest>=8,<10", "ruff>=0.16,<0.17"]

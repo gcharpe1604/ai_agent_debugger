@@ -1,1 +1,1 @@
-"""Deterministic, standalone tool-using task agent."""
+"""Controlled and live standalone tool-using task agent."""
