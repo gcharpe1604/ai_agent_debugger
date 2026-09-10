@@ -1,4 +1,5 @@
 import ast
+import hashlib
 import json
 import os
 import socket
@@ -15,6 +16,18 @@ from research_planning_agent.scenarios import build_agent, load_scenario
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src" / "research_planning_agent"
 IDS = [f"RP-{number:02}" for number in range(1, 11)]
+CONTROLLED_JSON_SHA256 = {
+    "RP-01": "9e26624f67cdcf27b45aabbb2e19e57069527b65b2a3eeb771b88c8063d1bc21",
+    "RP-02": "5e95f750806b3394430f06398fe2c9fca1d5c96a7401295a1e02c770e0a4e080",
+    "RP-03": "b85153458dc0bd813b673ebde725f72229273ba3a24c0882aa24befe8e1e2683",
+    "RP-04": "8b581d668d330e92aa971553ed5186c625477c91096e06495238f71925ca44a4",
+    "RP-05": "d479bb56244912174ebf4cab8bdaba3700ebb346564ae01c3ec5bfc5bb3d0579",
+    "RP-06": "1ca590d5ec4e481c7dd69167859826d81b56ab9d6150e6f1445cac465be1c38a",
+    "RP-07": "56186f510fc60175a8d9058b766afa36e72ed9e35594d1ec57591fa5a5fa1445",
+    "RP-08": "fb92da77a08a71f6e61992982d22f2611fae91ce4a1999950da684e42afdc014",
+    "RP-09": "c3ea3940334ba4f7168dec4369be7131f8b854866e3418e27ad7d826b032fcdc",
+    "RP-10": "75430acb74eaa7ca9fecce88dec178a403bbb12e95761db3fa4f976eb0c56eb9",
+}
 
 
 def test_all_scenarios_offline_without_ground_truth_reads(monkeypatch):
@@ -38,7 +51,13 @@ def test_all_scenarios_offline_without_ground_truth_reads(monkeypatch):
 
 
 def test_normal_runtime_has_no_injection_or_evaluation_dependencies():
-    for name in ("agent.py", "model_client.py", "models.py", "evidence.py"):
+    for name in (
+        "agent.py",
+        "model_client.py",
+        "models.py",
+        "evidence.py",
+        "live_model.py",
+    ):
         text = (PACKAGE / name).read_text(encoding="utf-8")
         tree = ast.parse(text)
         for node in ast.walk(tree):
@@ -58,7 +77,11 @@ def test_normal_runtime_has_no_injection_or_evaluation_dependencies():
 @pytest.mark.parametrize("scenario_id", IDS)
 def test_json_cli(scenario_id, capsys):
     assert main(["run", scenario_id, "--json"]) == 0
-    output = json.loads(capsys.readouterr().out)
+    text = capsys.readouterr().out
+    assert (
+        hashlib.sha256(text.encode()).hexdigest() == CONTROLLED_JSON_SHA256[scenario_id]
+    )
+    output = json.loads(text)
     assert output["status"] == (
         "incomplete"
         if scenario_id == "RP-02"
@@ -115,6 +138,7 @@ def test_wheel_contents_and_all_installed_cli_scenarios(tmp_path):
         )
         assert sorted(Path(name).stem for name in names if "/scenarios/" in name) == IDS
         assert "research_planning_agent/agent.py" in names
+        assert "research_planning_agent/live_model.py" in names
     target = tmp_path / "installed"
     install = subprocess.run(
         [
@@ -139,9 +163,6 @@ def test_wheel_contents_and_all_installed_cli_scenarios(tmp_path):
 import pathlib, runpy, socket, sys
 target, source, scenario = sys.argv[1:]
 sys.path = [target] + [p for p in sys.path if source.lower() not in p.lower()]
-def deny_network(*args, **kwargs):
-    raise AssertionError('Network is forbidden')
-socket.socket = socket.create_connection = deny_network
 def guard(event, args):
     if event == 'open' and isinstance(args[0], (str, bytes)):
         path = str(args[0]).lower()
@@ -149,7 +170,11 @@ def guard(event, args):
             raise AssertionError('Source tree or evaluation read forbidden: ' + path)
 sys.addaudithook(guard)
 import research_planning_agent
+import research_planning_agent.live_model
 assert pathlib.Path(research_planning_agent.__file__).is_relative_to(target)
+def deny_network(*args, **kwargs):
+    raise AssertionError('Network is forbidden')
+socket.socket = socket.create_connection = deny_network
 sys.argv = ['research_planning_agent', 'run', scenario, '--json']
 runpy.run_module('research_planning_agent', run_name='__main__')
 """

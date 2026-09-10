@@ -1,10 +1,10 @@
 # Meridian Research Planning Agent
 
-A standalone deterministic workload for research-plan debugging and evaluation.
-It compares two fictional field stations using local evidence, resolves a permit
-conflict through a plan revision, and checks whether the final decision follows
-all required facts. No network, credentials, real model, debugger SDK, database or
-sibling example imports are used at runtime.
+A standalone research-planning workload with deterministic controlled scenarios
+and an optional live semantic model. Both modes compare two fictional field
+stations using the same local evidence, workflow, revisions, and deterministic
+support validation. There is no debugger SDK, database, web search, or sibling
+example import. The configured model endpoint is the only live external service.
 
 ## Run
 
@@ -15,24 +15,54 @@ py -3 -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -e '.[test]'
 .\.venv\Scripts\python.exe -m research_planning_agent run RP-01
 .\.venv\Scripts\python.exe -m research_planning_agent run RP-09 --json
+.\.venv\Scripts\python.exe -m research_planning_agent ask "Recommend the cheapest eligible field station between Ridge and Vale for 40 people, requiring 10 kW, a daily budget of 1000 credits, open access and an approved permit as of 2026-06-01." --json
 ```
 
 With the environment activated, use `python -m research_planning_agent run RP-01`.
 The console entry point is `research-planning-agent`. On Unix, use `python3` and
 `.venv/bin/python`. Installation requires a package index or cached dependencies;
-all subsequent execution and tests are offline and credential-free.
+controlled execution and all tests are offline and credential-free.
 
 CLI exit 0 means execution succeeded, including an intentional blocked, incomplete,
 or incorrect completed scenario. Configuration errors return 1; invalid command syntax returns 2.
 The CLI does not evaluate ground truth. A blocked result retains its rejected
 draft, if synthesis was reached; that draft is not an approved recommendation.
 
+## Live mode
+
+Copy `.env.example` to `.env` and set a key and model, or use shell variables.
+The nearest `.env` from the current directory upward is loaded for `ask` only;
+existing shell values take precedence.
+
+| Variable | Meaning |
+| --- | --- |
+| `RESEARCH_PLANNING_AGENT_API_KEY` | Required bearer token; masked in models and omitted from results/errors. |
+| `RESEARCH_PLANNING_AGENT_MODEL` | Required OpenAI-compatible Chat Completions model. |
+| `RESEARCH_PLANNING_AGENT_BASE_URL` | Defaults to `https://api.openai.com/v1`; HTTPS is required except loopback HTTP. |
+| `RESEARCH_PLANNING_AGENT_TIMEOUT_SECONDS` | Finite value greater than zero and at most 120; defaults to 30. |
+
+`ask` preserves the exact input as `original_request` and retains the validated,
+trimmed request and extracted constraints in `task`. The live model supplies
+decomposition, the initial plan, evidence assessment, any revision, and the cited
+draft. Every response is strict Pydantic-validated JSON. Python verifies that
+normalized constraints occur in the original request, plans retain the task and
+dependencies, assessments match supplied evidence metadata, and reports cite only
+supported supplied evidence.
+
+Evidence loading and collection, prerequisite enforcement, current/superseded and
+as-of rules, revision limits, terminal status, and final support validation remain
+deterministic. Missing evidence produces an incomplete result with no unsupported
+recommendation. Each semantic stage permits one structured-output repair and one
+shared transient retry for `429`, `500`, `502`, `503`, or `504`, for at most three
+HTTP requests. Refusals, other HTTP errors, network failures, and timeouts remain
+errors rather than research outcomes.
+
 ## Architecture
 
 ```text
-CLI -> scenario loader -> factory -> ResearchPlanningAgent
-                                   |-> ModelClient (deterministic fake)
-                                   |-> EvidenceSource (local corpus)
+controlled CLI -> scenario loader -> factory --\
+live CLI -> LiveModelClient --------------------> ResearchPlanningAgent
+                                                |-> EvidenceSource (local corpus)
 
 request -> decompose -> plan -> required-fact coverage check
         -> resolve prerequisites / collect each fact
@@ -41,8 +71,10 @@ request -> decompose -> plan -> required-fact coverage check
 ```
 
 `agent.py` contains ordinary orchestration. `model_client.py` implements the six
-model boundaries: decomposition, planning, assessment, revision, synthesis and
-validation. `evidence.py` owns corpus loading and exact topic-based collection.
+controlled model boundaries: decomposition, planning, assessment, revision,
+synthesis and validation. Live mode replaces the first five and inherits the same
+deterministic support validation. `evidence.py` owns corpus loading and exact
+topic-based collection.
 `scenarios.py` owns configuration validation, prepared model responses and factory
 construction. It strips IDs and all scenario metadata before constructing runtime
 dependencies. Source exclusions prepare a fresh local corpus at the same boundary.
@@ -134,8 +166,10 @@ The wheel build requires setuptools >=77 in the environment when using
 `--no-build-isolation`. Packaging tests build offline, inspect the ZIP and execute
 all ten CLI scenarios from an isolated wheel installation outside this source
 tree. Only runtime code/config and evidence ship; tests, evaluation schema and
-ground truth do not. Test tools are optional development dependencies.
+ground truth do not. Mocked live tests cover grounding, revision, incomplete
+results, structured repair, provider failures, configuration, and isolation. Test
+tools are optional development dependencies.
 
-Scope is intentionally a bounded two-site comparison: no arbitrary-language
-research, live source discovery, iterative search engine, production planner,
-external services or instrumentation. No changes to the main debugger are needed.
+Scope is intentionally a bounded two-site comparison: no live source discovery,
+iterative search engine, production planner, provider registry, persistence, or
+instrumentation. No changes to the main debugger are needed.

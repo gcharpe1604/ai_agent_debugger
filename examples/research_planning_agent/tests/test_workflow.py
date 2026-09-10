@@ -168,6 +168,15 @@ def test_validation_rejects_unknown_wrong_fact_duplicate_and_omitted_citations()
     assert "ignored_evidence:vale.access" in issues
 
 
+def test_validation_rejects_unsupported_recommendation_with_valid_claims():
+    result = run()
+    report = result.draft.model_copy(deep=True)
+    report.recommendation = "ridge"
+    assert ModelClient().validate_support(result.task, report, result.evidence) == [
+        "recommendation_mismatch"
+    ]
+
+
 def test_plain_model_and_source_work_without_scenario_loader():
     request = load_scenario("RP-01").request
     agent = ResearchPlanningAgent(ModelClient(), EvidenceSource(load_evidence()))
