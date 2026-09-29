@@ -2,782 +2,373 @@
 
 ## Product Requirements Document
 
----
-
 ## 1. Document Information
 
-| Field | Details |
-| --- | --- |
-| Product Name | AI Agent Execution Debugging & Trace Analysis Platform |
-| Document Type | Product Requirements Document (PRD) |
-| Track | Generative AI |
-| Duration | 12 Weeks |
-| Stack | Python, FastAPI, React, JavaScript, PostgreSQL, LLM API |
-| Group | G172 |
-| Members | Govind Charpe - 25100010700021<br>Akhinish Chouhan - 251810700246 |
-
----
+| Field | Value |
+|---|---|
+| Product | AI Agent Execution Debugging & Trace Analysis Platform |
+| Stage | OJT MVP |
+| Primary user | AI application developer |
+| Backend | Python, FastAPI |
+| Instrumentation | Thin Python SDK built on OpenTelemetry |
+| Telemetry ingestion | Batched HTTPS/JSON → FastAPI → Kafka |
+| Telemetry storage | ClickHouse |
+| Transactional storage | PostgreSQL |
+| Authoritative knowledge | PostgreSQL + pgvector-compatible vector capability |
+| Frontend | React + JavaScript |
+| Semantic investigation | Existing capable LLM API |
 
 ## 2. Product Goal
 
-Enable developers to reconstruct and inspect supported AI-agent executions and identify the execution steps most worth investigating using structured trace data, deterministic trace validation, and evidence-grounded agentic analysis.
+Enable developers to understand supported AI-agent executions, identify the steps most worth investigating, and inspect the evidence behind those findings without requiring a known-good historical run.
 
----
+The platform records execution activity as structured traces, reconstructs the execution, uses one controlled LLM-based debugger investigator for semantic reasoning, validates cited evidence deterministically, and presents the results in a developer-facing interface.
+
+The product reports:
+
+> **Suspicious step(s) + explanation + supporting evidence + limitations**
+
+It does not claim guaranteed root-cause proof.
 
 ## 3. Problem Statement
 
-AI-agent applications can perform several connected operations before producing a final result, including model calls, tool interactions, retrieval operations, external API requests, orchestration steps, and state changes.
+AI-agent applications may involve models, tools, APIs, retrieval systems, databases, state, memory, and other agents. When the final result is wrong, ordinary logs often fail to answer four practical questions:
 
-For example, consider a customer-support refund agent:
+1. What actually happened during the execution?
+2. Which step first became suspicious or inconsistent?
+3. Was the problem caused by reasoning, retrieval, a tool, or an upstream agent?
+4. What recorded evidence supports that conclusion?
 
-```text
-Customer requests a refund for an order purchased 40 days ago
-      ↓
-Order Lookup
-order_age_days = 40
-      ↓
-Policy Retrieval
-"Refunds are allowed only within 30 days"
-      ↓
-Model Decision
-eligible = true
-      ↓
-Refund Tool
-refund issued successfully
-      ↓
-Unexpected Result
-```
+The problem becomes harder when executions are asynchronous, partially recorded, contain retries, or are internally consistent despite having retrieved incorrect knowledge.
 
-When the final result is incorrect, the last operation is not necessarily the most useful place to begin debugging. In this example, the refund tool may have executed correctly based on the instruction it received. The more relevant step to investigate is the earlier model decision, which appears inconsistent with the recorded order age and retrieved refund policy. In other executions, the useful investigation point may instead involve retrieved context, tool input, application state, or another earlier step.
-
-Developers face three main difficulties when investigating such executions:
-
-### 1. Execution information is fragmented.
-
-Model activity, tool calls, retrieval results, application events, and state changes may be recorded in different systems or formats.
-
-### 2. Execution relationships are difficult to reconstruct from ordinary logs.
-
-Request-arrival order or log order alone may not accurately represent nested operations, parent-child relationships, retries, or incomplete telemetry.
-
-### 3. The visible failure does not automatically reveal where investigation should begin.
-
-Developers may need to examine several earlier or related steps before understanding what contributed to the unexpected result.
-
-As a result, debugging an AI-agent execution often requires manually combining disconnected information before the developer can understand the execution path and determine which steps deserve closer investigation.
-
----
+The platform therefore needs both execution telemetry and controlled semantic investigation.
 
 ## 4. Target Users
 
 ### 4.1 Primary User — AI Application Developer
 
-The primary user is a developer who builds, tests, or maintains an application that uses one or more of the following:
+The primary user builds or maintains an AI-agent application and needs to investigate incorrect, unexpected, or suspicious outcomes.
 
-- large language models;
+Typical tasks include:
 
-- tools or function calls;
-
-- retrieval systems;
-
-- external APIs;
-
-- application or agent state;
-
-- agent-style orchestration.
-
-The developer uses the platform when an execution fails, produces an unexpected result, or needs to be inspected in more detail.
-
-#### Primary Tasks
-
-The developer should be able to:
-
-- instrument a supported Python application so that execution data is recorded;
-
-- browse previously captured agent runs;
-
-- inspect the structure of an individual execution;
-
-- examine model, tool, retrieval, API, state, and orchestration steps that were recorded;
-
-- inspect captured inputs, outputs, errors, timing, and execution relationships;
-
-- identify failed, timed-out, structurally invalid, or otherwise suspicious execution steps;
-
-- review the evidence explaining why a step was flagged;
-
-- use that information to decide where further debugging or application changes are needed.
-
-#### User Need
-
-The developer needs more than a collection of raw logs. They need an execution-oriented debugging view that preserves relationships between recorded operations and helps prioritize investigation without claiming that the system has automatically proven the root cause.
-
----
+- instrumenting an agent with minimal code changes;
+- browsing previous executions;
+- inspecting model, tool, retrieval, and agent steps;
+- understanding failures and retries;
+- identifying suspicious steps;
+- comparing agent-retrieved information with optional authoritative project knowledge;
+- validating debugger findings against exact evidence.
 
 ## 5. Product Scope
-
-The committed OJT product includes the capabilities required to capture, reconstruct, inspect, and analyze supported AI-agent executions.
-
-For this document:
-
-- A Run represents one logical execution of an instrumented AI application.
-
-- A Span represents one meaningful recorded operation within a Run, such as a model call, tool interaction, retrieval operation, API request, state change, or orchestration step.
-
-- A Finding represents an analysis result that identifies an execution step worth investigating and includes references to supporting recorded trace evidence. Agentic analysis produces candidate Findings; only candidates whose evidence references pass validation are presented as evidence-backed Findings.
 
 ### 5.1 In Scope
 
 #### Trace Instrumentation
 
-- Python instrumentation SDK.
-
-- Creation and recording of Runs.
-
-- Recording of supported Spans.
-
-- Parent-child execution context propagation.
-
-- Capture of structured execution metadata.
-
-- Export of trace data to the debugging backend.
+- Thin Python debugger SDK built on the OpenTelemetry API/SDK.
+- Root Run boundary represented by an OpenTelemetry trace for the supported SDK profile.
+- Spans for agent, model, tool, retrieval, API, state, and custom operations where instrumented.
+- Automatic parent-child context propagation through OpenTelemetry.
+- Explicit relationship metadata only when the application or instrumentation can establish it.
+- Capture controls, payload limits, redaction hooks, and known-secret exclusion.
 
 #### Trace Collection
 
-- Authenticated trace ingestion.
+- Batched HTTPS/JSON export from the SDK.
+- Project-authenticated FastAPI ingestion endpoint.
+- Validation of supported trace payloads before acceptance.
+- Kafka-backed ingestion buffer so receiving telemetry is decoupled from analytical storage writes.
+- At-least-once delivery semantics; duplicate delivery must not create misleading duplicate execution steps.
+- Support for late, out-of-order, and partial telemetry.
 
-- Validation of supported Run and Span payloads.
+#### Telemetry Storage
 
-- Run and Span lifecycle updates.
+- ClickHouse as the primary store for high-volume execution telemetry.
+- Core typed fields for project, trace, span, parent, operation type, status, and time.
+- Flexible model/tool/retrieval payloads and provider-specific metadata.
+- Efficient trace reconstruction and filtering by project, trace, operation type, status, time, and agent identity.
 
-- Safe handling of equivalent duplicate submissions.
+#### Transactional Platform Data
 
-- Support for Span data arriving in a different order from the actual execution order.
+PostgreSQL stores lower-volume transactional/control-plane data such as:
 
-- Preservation of valid partial trace data.
+- projects;
+- integration credentials;
+- project configuration;
+- analysis attempts;
+- findings;
+- evidence metadata;
+- authoritative document metadata and embeddings.
 
 #### Trace Reconstruction
 
-- Reconstruction of parent-child Span relationships from recorded identities.
+- Reconstruct hierarchy from trace/span identity and parentage.
+- Preserve incomplete traces rather than fabricating missing information.
+- Do not treat backend arrival order or timestamp order as proof of causality.
+- Preserve explicit relationships such as dependency, handoff, consumption, or retry where captured.
 
-- Identification of root and nested operations.
+#### Debugger Investigation
 
-- Ordering of execution steps using recorded execution metadata where needed.
+- One controlled LLM debugger investigator, not a multi-agent swarm.
+- Direct analysis for bounded runs.
+- Bounded read-only trace/knowledge access for large or structurally complex runs.
+- Structured candidate findings with cited evidence and explicit limitations.
 
-- Detection of supported structural problems such as missing parents, cycles, self-parenting, and invalid cross-Run relationships.
+#### Deterministic Validation and Grounding
 
-#### Trace Inspection
+Deterministic code remains responsible for objective checks such as:
 
-- Browse recorded Runs.
+- malformed or inconsistent structure;
+- explicit statuses/errors;
+- missing references;
+- evidence-reference validation;
+- stable presentation ordering.
 
-- Open an individual Run.
+It is not a large semantic rule engine.
 
-- View its reconstructed execution structure.
+#### Optional Authoritative Knowledge
 
-- Inspect individual Spans.
-
-- View captured inputs, outputs, errors, timing, status, metadata, and execution relationships where available.
-
-#### Deterministic Trace Validation
-
-- Detect objective trace conditions such as missing parents, self-parenting, cycles, invalid cross-Run relationships, explicit execution errors, and timeouts where the required telemetry is available.
-
-- Keep structural and directly verifiable trace checks deterministic.
-
-#### Agentic Trace Investigation
-
-- Allow a developer to trigger analysis of a reconstructed Run using an LLM-based trace investigator.
-
-- Identify candidate suspicious Spans by reasoning across recorded inputs, outputs, errors, metadata, and execution relationships.
-
-- Require structured candidate findings that reference the suspicious Span and supporting trace evidence.
-
-#### Grounding and Evidence Validation
-
-- Validate candidate finding structure, referenced Span identities, Run membership, and referenced fields or values against the recorded trace where applicable.
-
-- Present a finding as evidence-backed only after its trace references pass validation.
-
-- Preserve the recorded trace separately from validation and analysis results.
+- Project-specific document upload.
+- Text extraction, chunking, embeddings, and project-scoped vector retrieval.
+- Initial implementation uses PostgreSQL-compatible vector search such as pgvector.
+- Used when trace evidence alone cannot determine whether retrieved information was itself correct.
+- Not a general-purpose RAG or knowledge-management platform.
 
 #### Debugging Interface
 
 - Run Explorer.
-
-- Run Detail view.
-
-- Execution view for reconstructed trace structure.
-
+- Execution hierarchy/timeline view.
 - Step Inspector.
-
-- Analysis and Evidence panel.
-
-- Visual indication of failed and suspicious execution steps.
+- Findings with evidence and limitations.
+- Optional authoritative comparison.
 
 #### Controlled Evaluation
 
-- A controlled AI-agent workflow with deliberately constructed labeled failure scenarios and a correct reference scenario.
-
-- Expected suspicious Spans and important supporting evidence defined independently from the analyzer.
-
-- Comparison of actual analyzer outputs with the labeled expectations using defined evaluation metrics.
-
----
+Use the existing controlled agent workloads to evaluate expected suspicious-step identification, evidence validity, false positives, recovered retry handling, retrieval-vs-reasoning failures, stability, latency, and cost.
 
 ## 6. Feature Priorities
 
 | Priority | Capabilities |
-| --- | --- |
-| Must | Common Run/Span trace model, Python instrumentation, authenticated ingestion, trace persistence, partial/out-of-order trace handling, parent-child reconstruction, deterministic structural validation, Run Explorer, Step Inspector, developer-triggered agentic trace investigation, grounding/evidence validation, evidence-backed findings, controlled evaluation |
-| Should | Execution graph/timeline visualization, Run filtering/search, question-guided trace investigation, richer structural diagnostics, expected-vs-actual display for controlled scenarios |
-| Could | Tool-assisted Span retrieval for larger traces, additional Python framework adapters, richer analyzer/evaluation views, automatic analysis of selected Runs |
-| Future | Replay, checkpoint restoration, counterfactual interventions, original-versus-replay comparison |
-
----
+|---|---|
+| Must | OpenTelemetry-based SDK, batched ingestion, Kafka buffering, ClickHouse telemetry persistence, trace reconstruction, one controlled debugger investigator, evidence grounding, Run Explorer, Step Inspector, findings, PostgreSQL project/analysis persistence |
+| Should | Optional authoritative knowledge, bounded large-run investigation, project-scoped vector retrieval, analysis history, controlled evaluation metrics |
+| Could | Framework-specific adapters, historical comparison, background analysis, richer knowledge management |
+| Future | Replay, counterfactual execution, automatic remediation, enterprise IAM/compliance, multi-region observability infrastructure |
 
 ## 7. User Stories
 
 ### US-001 — Instrument an Agent
 
-As an AI application developer, I want to instrument my Python application so that its execution can be inspected after it runs.
+As a developer, I want to add the debugger SDK to a Python agent so that meaningful execution steps are captured without rewriting the application.
 
-#### Acceptance Criteria
+Acceptance criteria:
 
-- A Run can be created.
+- SDK initialization is small and explicit.
+- OpenTelemetry provides trace/span identity and context propagation.
+- The SDK can create run, agent, model, retrieval, and tool spans.
+- Instrumentation failure is fail-open and does not intentionally fail the observed agent.
 
-- Supported execution operations can be recorded as Spans.
+### US-002 — Submit Telemetry Reliably
 
-- Parent-child context can be preserved.
+As a developer, I want completed spans to be exported in batches so that debugging telemetry does not require one synchronous database write per span.
 
-- Recorded telemetry can be sent to the debugging platform.
+Acceptance criteria:
 
-### US-002 — Capture Execution Data Reliably
-
-As a developer, I want trace submissions to remain usable even when telemetry arrives out of order, is retried, or is incomplete so that instrumentation imperfections do not destroy useful debugging information.
-
-#### Acceptance Criteria
-
-- Equivalent retries do not create duplicate logical trace records.
-
-- Child Spans do not have to arrive after their parents.
-
-- Successfully accepted trace data remains available if later telemetry is missing.
+- SDK exports batches over authenticated HTTPS/JSON.
+- FastAPI validates the project and supported payload shape.
+- Accepted payloads are published to Kafka before the ingestion request is acknowledged.
+- Kafka/ClickHouse implementation details remain hidden from SDK users.
 
 ### US-003 — Browse Previous Runs
 
-As a developer, I want to browse recorded agent executions so that I can select a failed or unexpected run for investigation.
+As a developer, I want to browse captured runs and open one for investigation.
 
-#### Acceptance Criteria
+Acceptance criteria:
 
-- Recorded Runs can be listed.
-
-- A Run can be opened individually.
-
-- Important Run information such as status and timing is visible.
+- Runs are scoped by project.
+- Run summaries can be derived efficiently from ClickHouse telemetry.
+- Partial runs remain visible with an appropriate completeness indicator.
 
 ### US-004 — Understand Execution Structure
 
-As a developer, I want to see how the operations inside a Run relate to each other so that I can understand the execution path taken by the agent.
-
-#### Acceptance Criteria
-
-- Root and nested operations can be distinguished.
-
-- Recorded parent-child relationships are visible.
-
-- Request-arrival order is not presented as the execution structure when the recorded relationships indicate otherwise.
+As a developer, I want to see parent-child and explicitly observed relationships so I can understand the execution without assuming unsupported causality.
 
 ### US-005 — Inspect an Execution Step
 
-As a developer, I want to inspect an individual execution step so that I can understand what happened at that point in the Run.
-
-#### Acceptance Criteria
-
-Where captured, the developer can inspect:
-
-- operation type;
-
-- lifecycle status;
-
-- timing;
-
-- parent relationship;
-
-- input;
-
-- output;
-
-- error information;
-
-- execution metadata.
+As a developer, I want to inspect captured inputs, outputs, errors, attributes, events, and timing for a selected span.
 
 ### US-006 — Identify Suspicious Steps
 
-As a developer, I want the debugger to identify and prioritize execution steps that appear worth investigating so that I know where to begin debugging an unexpected agent execution.
+As a developer, I want one controlled debugger investigator to identify the steps most worth investigating and explain why.
 
-#### Acceptance Criteria
+Acceptance criteria:
 
-- Developer-triggered agentic analysis can produce structured candidate findings from a reconstructed Run.
+- Findings are structured.
+- Findings reference exact trace or authoritative evidence.
+- Findings include uncertainty/limitations.
+- Priority is investigation priority, not root-cause probability.
 
-- Candidate findings can be associated with relevant Spans and an investigation priority.
+### US-007 — Verify Evidence
 
-- If the available trace evidence is insufficient, the analyzer can return no supported finding rather than requiring a conclusion.
+As a developer, I want the platform to verify that evidence cited by the investigator actually exists and matches the analyzed sources.
 
-### US-007 — Understand Why a Step Was Flagged
+### US-008 — Debug Wrong Retrieval
 
-As a developer, I want to inspect the evidence behind a finding so that I can decide whether the flagged step is relevant to my investigation.
+As a developer, I want to optionally provide authoritative documents so that the debugger can distinguish a retrieval/knowledge mismatch from downstream reasoning that merely followed bad retrieved information.
 
-#### Acceptance Criteria
+### US-009 — Evaluate the Debugger
 
-- Every finding presented as evidence-backed includes supporting recorded trace evidence.
-
-- The evidence identifies the recorded observations that support the analysis and references the corresponding Spans.
-
-- Evidence references are validated against the analyzed Run before the finding is presented as evidence-backed.
-
-- The corresponding execution step can be inspected from the debugging interface.
-
-### US-008 — Inspect Imperfect Traces
-
-As a developer, I want incomplete or structurally imperfect traces to remain inspectable so that useful execution evidence is not lost.
-
-#### Acceptance Criteria
-
-- Valid recorded telemetry remains available.
-
-- Supported structural problems surfaced separately.
-
-- Analysis does not silently rewrite the recorded execution.
-
-### US-009 — Validate Debugger Behaviour
-
-As a project evaluator or developer, I want controlled labeled scenarios with known expected behaviour so that the debugger and agentic analyzer can be evaluated objectively.
-
-#### Acceptance Criteria
-
-- Deliberately constructed failure scenarios and at least one correct reference scenario are available.
-
-- Expected suspicious Spans and important supporting evidence are defined independently before comparing analyzer output.
-
-- Actual analyzer outputs can be compared with the labeled expectations using defined evaluation metrics.
-
----
+As an evaluator, I want controlled scenarios with hidden expected outcomes so that debugger quality can be measured objectively.
 
 ## 8. Functional Requirements
 
 ### FR-001 — Project-Authenticated Trace Submission
 
-The platform shall require a valid integration credential for protected trace-ingestion operations and associate accepted trace data with the Project identified by that authenticated credential.
+The platform shall require project-scoped integration credentials for trace submission.
 
-Trace payloads shall not be able to change Project ownership by supplying an arbitrary Project identifier.
+### FR-002 — OpenTelemetry Run and Span Model
 
-### FR-002 — Run Recording
+For the supported MVP SDK profile, one Debugger Run shall map to one OpenTelemetry trace. Nested operations shall be represented as spans in that trace when context propagation is preserved.
 
-The platform shall accept supported Run data representing one logical execution of an instrumented AI application.
+### FR-003 — Batched Export
 
-A Run shall support:
+The SDK shall batch completed spans before export and shall use bounded queues/timeouts so debugger unavailability does not block the application indefinitely.
 
-- a unique identity;
+### FR-004 — Ingestion Buffer
 
-- lifecycle status;
+Validated trace batches shall be published to Kafka before successful ingestion acknowledgement. Kafka is an internal backend boundary and is not exposed to SDK users.
 
-- start time;
+### FR-005 — Telemetry Persistence
 
-- optional completion time;
+A trace-writer consumer shall persist accepted execution telemetry into ClickHouse in batches suitable for analytical ingestion.
 
-- captured input, output, and error information where available;
+### FR-006 — Duplicate and Retry Handling
 
-- extensible execution metadata.
+The platform shall tolerate at-least-once delivery. Equivalent re-delivery shall not produce misleading duplicate execution steps. Application retries are separate execution attempts and shall remain distinguishable from transport duplicates.
 
-### FR-003 — Span Recording
+### FR-007 — Out-of-Order and Partial Trace Handling
 
-The platform shall accept supported Spans belonging to a Run.
+Late spans, missing parents, and out-of-order arrival shall not be rejected solely because execution order is incomplete.
 
-Each Span shall contain sufficient information to identify:
+### FR-008 — Trace Reconstruction
 
-- the Run;
-
-- the Span;
-
-- an optional parent Span;
-
-- operation type;
-
-- lifecycle status;
-
-- timing information;
-
-- optional execution sequence information;
-
-- captured input, output, error, and metadata where available.
-
-### FR-004 — Trace Lifecycle Validation
-
-Runs and Spans shall follow the lifecycle defined by the product:
-
-```text
-running
-   ├── success
-   ├── error
-   ├── timeout
-   └── cancelled
-```
-
-Terminal states shall not transition back to running or to another terminal state.
-
-Terminal records shall contain valid completion information.
-
-### FR-005 — Idempotent Submission
-
-Retrying an equivalent supported trace submission shall not create additional logical Runs or Spans.
-
-If the same trace identity is reused with conflicting execution facts, the system shall not silently overwrite previously accepted data.
-
-### FR-006 — Out-of-Order and Partial Trace Handling
-
-The platform shall not require HTTP arrival order to match execution order.
-
-A child Span may be accepted before its parent Span.
-
-Successfully accepted trace information shall remain available when later telemetry is absent or when the overall trace is incomplete.
-
-### FR-007 — Trace Reconstruction
-
-The platform shall reconstruct Span relationships primarily using:
-
-- Run identity;
-
-- Span identity;
-
-- explicit parent-Span identity.
-
-Timing and optional sequence information may be used for ordering, display, and validation, but shall not be used to invent unsupported parent-child relationships.
-
-The reconstructed trace shall expose:
-
-- root Spans;
-
-- parent-child relationships;
-
-- ordered execution information where supported;
-
-- detected structural problems.
-
-### FR-008 — Structural Trace Validation
-
-The platform shall identify supported structural conditions including:
-
-- missing parent references;
-
-- self-parent relationships;
-
-- cycles;
-
-- parent references to Spans belonging to another Run.
-
-Detection of such conditions shall not modify the original recorded trace.
+The platform shall reconstruct a safe execution view from stored telemetry without inferring causality from arrival order or timestamps alone.
 
 ### FR-009 — Run and Span Inspection
 
-The debugging interface shall allow a developer to:
+The platform shall expose project-scoped APIs for run browsing, trace detail, and step inspection.
 
-- browse recorded Runs;
+### FR-010 — Semantic Debugger Investigation
 
-- open an individual Run;
+The platform shall allow a developer to request analysis of a reconstructed run using one controlled LLM-based debugger investigator.
 
-- inspect its reconstructed execution structure;
+For bounded runs, the normalized run may be supplied directly. For larger runs, the same investigator may use a bounded set of read-only trace and authoritative-knowledge access capabilities.
 
-- select individual Spans;
+### FR-011 — Candidate Findings
 
-- inspect recorded fields associated with the selected Span.
+The investigator shall return structured candidate findings containing a suspicious step when applicable, category, explanation, cited evidence, and limitations.
 
-### FR-010 — Agentic Trace Investigation
+### FR-012 — Evidence Grounding
 
-The platform shall allow a developer to request agentic analysis of a reconstructed Run.
+Before a candidate is presented as grounded, deterministic code shall verify that cited trace spans/fields or authoritative passages exist and match the analyzed sources.
 
-The analysis backend shall construct a normalized analysis context from recorded Run data, reconstructed Span relationships, captured Span fields, and deterministic trace-validation output.
+### FR-013 — Stable Analysis Input
 
-The trace investigator may use an LLM to identify execution steps worth investigating by reasoning across the supplied trace information.
+Each analysis attempt shall correspond to a stable normalized input snapshot or equivalent immutable input representation so later telemetry does not silently change an earlier result.
 
-Version 1 analysis shall use the supplied trace context as its evidence source and shall not require external web or business information to support a finding.
+### FR-014 — Recorded vs Derived Data
 
-The analyzer shall not claim guaranteed root-cause identification or causal proof.
+Recorded execution telemetry in ClickHouse shall remain distinct from derived analysis data in PostgreSQL.
 
-### FR-011 — Analysis Scope and Candidate Findings
+### FR-015 — Authoritative Knowledge
 
-Agentic analysis shall return structured candidate findings rather than unrestricted free-text conclusions.
+When enabled, project-scoped authoritative documents shall be searchable by the investigator through a bounded read-only interface.
 
-The analyzer shall be instructed to use recorded trace content as data, avoid inventing missing facts, and return no supported finding when the available evidence is insufficient.
+### FR-016 — Findings and Priority
 
-Candidate findings may identify semantic or behavioural inconsistencies that are difficult to generalize through hardcoded application-specific rules, including inconsistencies across model decisions, retrieved context, tool inputs or outputs, and recorded state.
+Grounded findings shall be stored in PostgreSQL and may use High, Medium, or Low investigation priority. Priority shall not be presented as causal probability.
 
-Application-specific conclusions shall be presented as investigation hypotheses supported by trace evidence, not as generic facts or guaranteed root causes.
+### FR-017 — Controlled Evaluation
 
-### FR-012 — Analysis Findings
-
-Each candidate Finding shall contain, where applicable:
-
-- related suspicious Span;
-
-- finding category;
-
-- investigation priority;
-
-- human-readable explanation;
-
-- supporting evidence references;
-
-- optional suggested investigation.
-
-A candidate Finding shall not be presented as evidence-backed until its trace references pass the grounding and evidence-validation requirements.
-
-### FR-013 — Grounding and Evidence Validation
-
-The platform shall validate candidate findings before presenting them as evidence-backed.
-
-Validation shall verify, where applicable:
-
-- the required structured-output schema;
-
-- that the suspicious Span exists in the analyzed Run;
-
-- that referenced evidence Spans exist and belong to the analyzed Run;
-
-- that referenced fields exist; and
-
-- that explicitly cited recorded values match the stored trace.
-
-Findings with invalid or unsupported evidence references shall not be presented as validated evidence-backed findings.
-
-Evidence validation confirms that cited trace facts are grounded in the recorded execution; it does not prove that the analyzer's causal interpretation is correct.
-
-### FR-014 — Analysis Data Separation
-
-Analysis executions and their Findings shall be stored separately from original Run and Span data.
-
-Running analysis shall not rewrite recorded execution facts.
-
-### FR-015 — Evidence Inspection
-
-The interface shall allow the developer to:
-
-- view Findings associated with a Run;
-
-- inspect the evidence behind each Finding;
-
-- identify the corresponding suspicious Span when applicable.
-
-### FR-016 — Suspicious-Step Visualization
-
-Execution steps associated with validated findings shall be visually distinguishable in the debugging interface.
-
-The interface shall present any assigned priority as investigation priority, not as guaranteed causal proof or calibrated root-cause probability.
-
-### FR-017 — Controlled Evaluation Workflow
-
-The project shall contain at least one controlled AI-agent workflow with deliberately created labeled scenarios, including failure cases and a correct reference case.
-
-Each controlled scenario shall define expected suspicious Spans and important supporting evidence independently from the analyzer. Actual analyzer outputs shall be compared against these labels using defined metrics such as expected-Span detection, evidence validity, evidence coverage, unsupported-finding behaviour, false-positive behaviour, and repeated-run stability where practical.
-
----
+The platform shall support repeatable controlled agent executions and evaluation of expected suspicious-step hit rate, evidence validity, false positives, retry handling, and retrieval-vs-reasoning classification where authority exists.
 
 ## 9. Product States
 
-The product tracks the lifecycle of recorded agent execution separately from the lifecycle of debugger analysis.
+### 9.1 Run State
 
-### 9.1 Run and Span States
+The platform distinguishes the observed application state from telemetry completeness. A completed agent run may still have incomplete telemetry, and a failed child span does not automatically make the whole run failed.
 
-Runs and Spans use the following lifecycle:
+### 9.2 Analysis State
 
-```text
-running
-   ├── success
-   ├── error
-   ├── timeout
-   └── cancelled
-```
+Analysis attempts may be:
 
-running is the only non-terminal state.
+- pending;
+- running;
+- completed;
+- failed.
 
-success, error, timeout, and cancelled are terminal states.
-
-A terminal Run or Span shall not transition back to running or to another terminal state.
-
-Incomplete telemetry is not treated as a separate execution status. If completion telemetry is never received, a Run or Span may remain running, while reconstruction can independently identify missing or incomplete trace information.
-
-### 9.2 Analysis States
-
-An analysis execution uses the following lifecycle:
-
-```text
-running
-   ├── completed
-   └── failed
-```
-
-A completed analysis may contain zero validated findings when the available trace evidence does not support a suspicious-step conclusion.
-
-The status of the AI-agent execution and the status of debugger analysis are independent.
-
-For example:
-
-```text
-Agent Run     = error
-Analysis Run  = completed
-```
-
-is a valid result because the debugger may successfully analyze a failed agent execution.
-
-Similarly:
-
-```text
-Agent Run     = success
-Analysis Run  = failed
-```
-
-is possible if the recorded execution completed successfully but the debugger could not complete its analysis.
-
----
+A completed analysis may contain zero grounded findings.
 
 ## 10. Product Principles
 
-The following principles guide version 1 product behaviour.
+### 10.1 Preserve Debugging Capability While Minimizing Complexity
 
-### 10.1 Record Facts Before Interpretation
+Reuse solved infrastructure and add components only when they provide a concrete debugging capability.
 
-The trace layer records observable execution information such as:
+### 10.2 Record Facts Before Interpretation
 
-- operation type;
+Captured execution facts remain separate from derived analysis.
 
-- status;
+### 10.3 Evidence Before Conclusion
 
-- timing;
+A presented finding must be tied to recorded trace evidence or explicitly provided authoritative knowledge.
 
-- input and output where captured;
+### 10.4 Arrival Order Is Not Execution Order
 
-- errors;
+Kafka arrival order, HTTP arrival order, ClickHouse insertion order, and timestamps do not by themselves establish causality.
 
-- execution relationships;
+### 10.5 Fail Open at the Agent Boundary
 
-- metadata.
+Debugger outages should not intentionally cause the developer's agent to fail.
 
-Interpretations about suspicious behaviour belong to the analysis layer rather than the original trace.
+### 10.6 Separate Workloads by Storage Type
 
-### 10.2 Evidence Before Conclusion
+High-volume analytical telemetry belongs in ClickHouse. Transactional application and analysis data belongs in PostgreSQL.
 
-Every Finding presented as evidence-backed must be supported by recorded trace information and validated references to the analyzed Run.
+### 10.7 Queueing Decouples Ingestion from Persistence
 
-The system shall prefer no supported finding over presenting an analysis conclusion whose evidence cannot be grounded in the recorded trace.
+Kafka absorbs bursts and prevents the ingestion API from requiring synchronous ClickHouse writes for every incoming span batch.
 
-### 10.3 Preserve the Original Trace
+### 10.8 Semantic Reasoning Is LLM-Based; Grounding Is Deterministic
 
-Analysis shall not modify the recorded Run or Span data from which it was produced.
-
-Recorded execution facts and derived analysis results remain separate.
-
-### 10.4 Prefer Conservative Findings
-
-When available evidence does not justify a specific conclusion, the system should avoid guessing.
-
-A less-specific supported finding is preferable to an unsupported root-cause claim.
-
-### 10.5 Arrival Order Is Not Execution Order
-
-The order in which trace requests reach the backend shall not be assumed to represent the actual structure of the agent execution.
-
-Explicit execution relationships and recorded execution metadata take priority.
-
-### 10.6 Partial Information Can Still Be Useful
-
-Valid trace information should remain inspectable even when some execution telemetry is missing.
-
-An incomplete trace should not automatically be discarded.
-
-### 10.7 Evidence-Grounded Agentic Analysis
-
-Version 1 uses agentic reasoning for semantic trace investigation while requiring structured findings and explicit references to recorded evidence.
-
-Deterministic code remains responsible for objective trace validation and evidence-reference verification. Agentic conclusions remain investigation guidance rather than guaranteed root-cause claims.
-
----
+The investigator handles arbitrary semantic inconsistencies. Deterministic code handles objective structure and evidence validation.
 
 ## 11. Out of Scope
 
-The following capabilities are outside the committed OJT version.
+The OJT MVP does not require:
 
-### Instrumentation and Framework Support
-
-- automatic instrumentation of arbitrary applications without an SDK or supported adapter;
-
-- support for every AI-agent framework;
-
-- universal support for non-Python applications;
-
-- access to hidden internal model reasoning that is not exposed by model providers.
-
-### Analysis
-
-- guaranteed root-cause identification;
-
-- mathematical proof of causality;
-
-- ML-based anomaly detection as a committed version 1 analysis mechanism;
-
-- unrestricted autonomous debugging conclusions that are not grounded in recorded trace evidence;
-
-- guaranteed understanding of application-specific business rules that are not represented in the recorded trace or supplied analysis context;
-
-- guaranteed byte-for-byte or wording-identical LLM analysis across repeated executions;
-
-- analysis of arbitrarily large traces without version 1 trace-size limits or later retrieval tooling.
-
-### Replay and Counterfactual Debugging
-
-- arbitrary execution replay;
-
-- checkpoint restoration;
-
-- frozen or live replay;
-
-- prompt intervention experiments;
-
-- model intervention experiments;
-
-- tool-result interventions;
-
-- retrieved-context interventions;
-
-- repeated counterfactual trials;
-
-- original-versus-replay divergence analysis.
-
-These capabilities remain possible future extensions but are not required for completion of the OJT product.
-
----
+- universal framework compatibility;
+- production-scale Kafka clusters or multi-region replication;
+- Kubernetes;
+- microservice decomposition beyond the minimal Kafka consumer boundary;
+- enterprise DLP, SSO, billing, or compliance certification;
+- model training or fine-tuning;
+- dedicated debugger memory products;
+- a separate vector-database service;
+- automatic remediation;
+- replay or counterfactual execution as required functionality.
 
 ## 12. Success Criteria
 
-The project will be considered successful when the committed debugging workflow operates correctly from instrumentation through developer investigation.
-
-Success will be evaluated using controlled tests and deliberately constructed agent scenarios.
-
-| Area | Success Criterion |
-| --- | --- |
-| Trace Instrumentation | A supported Python agent can create Runs and record supported Spans with parent-child execution context. |
-| Authenticated Ingestion | Valid integration credentials can submit trace data, while invalid credentials cannot create or modify protected trace records. |
-| Idempotency | Repeating an equivalent supported trace submission does not create additional logical Runs or Spans in the defined duplicate-submission test cases. |
-| Out-of-Order Handling | Controlled traces remain usable when child Spans are submitted before their parents. |
-| Partial Trace Preservation | Valid accepted telemetry remains inspectable when later execution telemetry is missing. |
-| Trace Reconstruction | Expected parent-child relationships are reconstructed correctly for the labeled controlled trace scenarios. |
-| Structural Validation | The mandatory structural test cases defined for version 1 produce the expected structural validation results. |
-| Agentic Analysis | For the defined controlled failure scenarios, developer-triggered analysis can produce structured candidate findings associated with recorded execution steps. |
-| Evidence Grounding | Findings presented as evidence-backed contain trace references that pass validation against the analyzed Run. |
-| Run Inspection | A developer can navigate from the Run list to a selected Run and inspect its reconstructed execution steps. |
-| Evidence Inspection | A developer can open a validated Finding, inspect its supporting evidence, and relate it to the corresponding suspicious Span where applicable. |
-| End-to-End Workflow | At least one controlled agent execution successfully travels through SDK → ingestion → storage → reconstruction → trace validation → agentic analysis → evidence validation → debugging interface. |
-| Controlled Evaluation | A labeled controlled evaluation set can compare expected suspicious Spans and important evidence with actual analyzer outputs using defined metrics. |
-| Deployment | The completed application can be started and demonstrated using the documented deployment procedure. |
-
-The evaluation measures whether the system correctly records, reconstructs, validates, and supports evidence-grounded investigation of the execution conditions it was explicitly designed to handle.
-
-It does not claim universal real-world root-cause accuracy, deterministic semantic conclusions, or identical natural-language output across repeated analysis runs.
+| Area | Success criterion |
+|---|---|
+| Instrumentation | A sample agent produces a correct OpenTelemetry trace with run/agent/model/tool/retrieval spans and captured evidence. |
+| Ingestion | Batched telemetry is accepted through FastAPI and can be published to Kafka without one DB write per span. |
+| Storage | A Kafka consumer persists trace telemetry to ClickHouse and the trace can be queried by project/trace ID. |
+| Reconstruction | Parent-child structure and partial-trace warnings are reconstructed correctly. |
+| Investigation | The LLM debugger produces structured candidate findings for controlled scenarios. |
+| Grounding | Invalid evidence references are rejected or marked ungrounded. |
+| Authority | At least one controlled scenario distinguishes wrong retrieval from downstream reasoning using uploaded authoritative knowledge. |
+| UI | A developer can browse a run, inspect steps, and view grounded findings/evidence. |
+| Evaluation | Controlled scenarios report expected suspicious-step hit, evidence validity, false positives, and basic latency/cost. |
+| End-to-End | At least one execution successfully travels through SDK → FastAPI → Kafka → ClickHouse → reconstruction → investigator → grounding → PostgreSQL findings → UI. |

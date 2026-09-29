@@ -1,0 +1,2 @@
+opentelemetry-api<2,>=1
+opentelemetry-sdk<2,>=1

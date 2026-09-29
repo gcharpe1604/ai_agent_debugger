@@ -1,18 +1,32 @@
 flowchart LR
     DEV[Developer]
+    subgraph APP[Developer Environment]
+        AGENT[AI Agent Application]
+        EXT[Models / Tools / APIs / Retrieval / Agent Memory]
+        SDK[Thin Debugger SDK<br/>OpenTelemetry]
+        AGENT --> EXT
+        AGENT --> SDK
+    end
 
-    AGENT[AI Agent Application]
+    subgraph PLATFORM[AI Agent Debugging Platform]
+        INGEST[FastAPI Trace Ingestion]
+        KAFKA[(Kafka)]
+        WRITER[Trace Writer]
+        CH[(ClickHouse Telemetry)]
+        PG[(PostgreSQL<br/>Projects / Analysis / Knowledge)]
+        INVEST[Debugger Investigator]
+        GROUND[Evidence Grounding]
+        UI[Debugging UI]
 
-    EXT[LLM / Tool / Retrieval Services]
+        INGEST --> KAFKA --> WRITER --> CH
+        CH --> INVEST
+        PG --> INVEST
+        INVEST --> GROUND
+        GROUND --> PG
+        CH --> UI
+        PG --> UI
+    end
 
-    DEBUGGER["AI Agent Execution Debugging & Trace Analysis Platform"]
-
-    DEV -->|Builds, runs and tests| AGENT
-
-    AGENT -->|Uses models, tools and retrieval| EXT
-
-    AGENT -->|Sends structured execution traces through instrumentation| DEBUGGER
-
-    DEV -->|Inspects runs, traces and analysis findings| DEBUGGER
-
-    DEBUGGER -->|Presents execution structure and evidence| DEV
+    SDK -->|Batched HTTPS/JSON| INGEST
+    DEV -->|Optional authoritative docs| PG
+    DEV -->|Investigates runs| UI

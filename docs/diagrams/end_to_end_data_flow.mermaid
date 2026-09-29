@@ -1,29 +1,26 @@
-flowchart LR
-    A[Agent Execution]
-    B[SDK Captures Execution Activity]
-    C[Structured Run / Span Data]
-    D[FastAPI Trace Ingestion]
-    E[(PostgreSQL Trace & Analysis Storage)]
-    F[Trace Reconstruction]
-    G[Deterministic Trace Analysis]
-    H[Findings and Evidence]
-    R[Trace and Analysis APIs]
-    I[React Debugging Interface]
-    J[Developer Investigation]
+flowchart TD
+    A[Developer Agent]
+    B[Thin SDK + OpenTelemetry]
+    C[Batched HTTPS/JSON Export]
+    D[FastAPI Ingestion]
+    E[(Kafka)]
+    F[Trace Writer]
+    G[(ClickHouse)]
+    H[Trace Reconstruction]
+    I{Run size / complexity}
+    J[Direct Run Analysis]
+    K[Bounded Read-Only Investigation]
+    L[(PostgreSQL + Vector Knowledge)]
+    M[LLM Debugger Investigator]
+    N[Evidence Grounding]
+    O[Findings / Analysis History]
+    P[React Debugging UI]
 
-    A --> B
-    B --> C
-    C -->|HTTPS| D
-    D -->|Validate and Persist| E
-
-    E -->|Load Run and Spans| F
-    F -->|Execution Structure| G
-    F -->|Reconstructed Trace| R
-
-    G --> H
-    H -->|Persist Analysis Results| E
-
-    E -->|Stored Trace and Analysis Data| R
-
-    R -->|REST Responses| I
-    I --> J
+    A --> B --> C --> D --> E --> F --> G --> H --> I
+    I -->|Bounded| J --> M
+    I -->|Large / complex| K --> M
+    G --> K
+    L --> K
+    M --> N --> O --> L
+    G --> P
+    L --> P
