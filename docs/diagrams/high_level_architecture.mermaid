@@ -1,34 +1,32 @@
 flowchart LR
-    DEV[Developer]
+    AGENT[Developer AI Agent]
 
-    AGENT[AI Agent Application]
-    SDK[Python Instrumentation SDK]
-
-    subgraph BACKEND["FastAPI Backend — Modular Monolith"]
-        INGEST[Trace Collection API]
-        TRACE[Trace Service]
-        RECON[Trace Reconstruction]
-        ANALYSIS[Deterministic Trace Analysis Engine]
-        READ[Trace and Analysis APIs]
+    subgraph SDKBOX[Instrumentation]
+        SDK[Thin Python Debugger SDK]
+        OTEL[OpenTelemetry API / SDK]
+        EXPORT[Batched HTTPS/JSON Export]
+        SDK --> OTEL --> EXPORT
     end
 
-    DB[(PostgreSQL Trace & Analysis Store)]
+    subgraph BACKEND[Hosted Platform]
+        INGEST[FastAPI Ingestion]
+        KAFKA[(Kafka)]
+        WRITER[Trace Writer Consumer]
+        CH[(ClickHouse<br/>Trace Telemetry)]
+        PG[(PostgreSQL<br/>Control / Analysis / Knowledge)]
+        RECON[Trace Reconstruction]
+        INVEST[Debugger Investigator]
+        GROUND[Evidence Grounding]
+        API[Debugging APIs]
+    end
 
-    UI[React JavaScript Debugging UI]
+    UI[React Debugging UI]
 
-    AGENT -->|Execution activity| SDK
-    SDK -->|Structured runs and spans over HTTPS| INGEST
-
-    INGEST --> TRACE
-    TRACE -->|Persist trace data| DB
-
-    DB -->|Load stored run and spans| RECON
-    RECON -->|Reconstructed execution structure| ANALYSIS
-    RECON -->|Reconstructed execution information| READ
-
-    ANALYSIS -->|Persist findings and analysis metadata| DB
-    DB -->|Run, span and analysis data| READ
-
-    READ -->|REST responses| UI
-
-    DEV -->|Investigates agent runs| UI
+    AGENT --> SDK
+    EXPORT --> INGEST --> KAFKA --> WRITER --> CH
+    CH --> RECON --> INVEST
+    PG --> INVEST
+    INVEST --> GROUND --> PG
+    CH --> API
+    PG --> API
+    API --> UI
