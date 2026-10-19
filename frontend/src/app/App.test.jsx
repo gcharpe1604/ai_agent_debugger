@@ -1,0 +1,150 @@
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, within, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import App from './App.jsx'
+import { fixtureRepository } from '../data/runRepository.js'
+
+async function open(repository = fixtureRepository) {
+  const user = userEvent.setup()
+  render(<App repository={repository} />)
+  await screen.findByRole('link', { name: 'refund-policy-review R-1042' })
+  return user
+}
+describe('Milestone 1 Run Explorer', () => {
+  it('retains keyboard focus while sorting and when Next reaches the last page', async () => {
+    const user = await open()
+    const sort = screen.getByRole('button', { name: 'Sort by duration' })
+    await user.click(sort)
+    await waitFor(() => expect(document.activeElement).toBe(sort))
+    await user.selectOptions(screen.getByLabelText('Rows per page'), '5')
+    const next = screen.getByRole('button', { name: 'Next page' })
+    await user.click(next)
+    await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(3))
+    expect(document.activeElement).toBe(next)
+    expect(next.getAttribute('aria-disabled')).toBe('true')
+    const refresh = screen.getByRole('button', { name: 'Refresh' })
+    await user.click(refresh)
+    await waitFor(() => expect(document.activeElement).toBe(refresh))
+  })
+  it('keeps keyboard focus on search after committing a query and on Filters after applying', async () => {
+    const user = await open()
+    const input = screen.getByRole('searchbox', { name: 'Search runs' })
+    await user.type(input, 'refund{Enter}')
+    await waitFor(() => expect(document.activeElement).toBe(input))
+    await user.click(screen.getByText('Filters', { exact: true }))
+    await user.click(screen.getByLabelText('With recorded errors'))
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await waitFor(() => expect(document.activeElement.textContent).toContain('Filters'))
+  })
+  it('discloses sample data and keeps execution/capture/error/investigation independent', async () => {
+    await open()
+    expect(screen.getAllByText('Sample data').length).toBeGreaterThan(0)
+    const row = screen.getByRole('link', { name: 'order-status-lookup R-1040' }).closest('tr')
+    expect(within(row).getAllByRole('cell')[2].textContent.trim()).toBe('Completed'); expect(within(row).getByText('Recovered')).toBeTruthy()
+    expect(within(row).getByText('1')).toBeTruthy(); expect(within(row).getByText('0 findings')).toBeTruthy()
+  })
+  it('commits search on Enter, filters and clears without losing time', async () => {
+    const user = await open()
+    await user.type(screen.getByRole('searchbox', { name: 'Search runs' }), 'inventory')
+    expect(screen.getByRole('link', { name: 'refund-policy-review R-1042' })).toBeTruthy()
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.queryByRole('link', { name: 'refund-policy-review R-1042' })).toBeNull())
+    expect(screen.getByRole('link', { name: 'inventory-availability-check R-1038' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Clear filters' }))
+    await screen.findByRole('link', { name: 'refund-policy-review R-1042' })
+    await user.selectOptions(screen.getByLabelText('Execution outcome'), 'Failed')
+    await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(1))
+  })
+  it('sorts and paginates the actual table', async () => {
+    const user = await open()
+    await user.selectOptions(screen.getByLabelText('Rows per page'), '5')
+    await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(5))
+    await user.click(screen.getByRole('button', { name: 'Next page' }))
+    await screen.findByRole('link', { name: 'field-station-research-brief R-1036' })
+    expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(3)
+    await user.click(screen.getByRole('button', { name: 'Sort by duration' }))
+    await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })[0].textContent).toContain('inventory-availability-check'))
+  })
+  it('changes projects without cross-project data and presents a first-use empty state', async () => {
+    const user = await open()
+    await user.selectOptions(screen.getByLabelText('Project'), 'sandbox')
+    await screen.findByRole('link', { name: 'sandbox-policy-check R-2042' })
+    expect(screen.queryByRole('link', { name: /R-1042/ })).toBeNull()
+    await user.selectOptions(screen.getByLabelText('Project'), 'new-integration')
+    await screen.findByRole('heading', { name: 'No runs recorded' })
+  })
+  it('opens a scoped trace and restores the Runs query on return', async () => {
+    const user = await open()
+    await user.type(screen.getByRole('searchbox', { name: 'Search runs' }), 'c416{Enter}')
+    await user.click(await screen.findByRole('link', { name: 'refund-eligibility-check R-1041' }))
+    await screen.findByRole('tree', { name: 'Execution spans' })
+    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
+    await screen.findByRole('searchbox', { name: 'Search runs' })
+    expect(screen.getByRole('searchbox', { name: 'Search runs' }).value).toBe('c416')
+  })
+  it('persists appearance and sidebar choices across remounts', async () => {
+    const user = userEvent.setup(); const { unmount } = render(<App />)
+    await user.selectOptions(screen.getByLabelText('Appearance'), 'dark')
+    await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    unmount(); render(<App />)
+    expect(screen.getByLabelText('Appearance').value).toBe('dark')
+    expect(screen.getByRole('button', { name: 'Expand sidebar' }).getAttribute('aria-expanded')).toBe('false')
+  })
+  it('follows system appearance changes while respecting an explicit override', async () => {
+    let dark = false
+    const listeners = new Set()
+    window.matchMedia.mockImplementation(() => ({ get matches() { return dark }, addEventListener(_, listener) { listeners.add(listener) }, removeEventListener(_, listener) { listeners.delete(listener) } }))
+    const user = await open()
+    expect(screen.getByLabelText('Appearance').value).toBe('system')
+    dark = true; listeners.forEach(listener => listener())
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
+    await user.selectOptions(screen.getByLabelText('Appearance'), 'light')
+    dark = false; listeners.forEach(listener => listener())
+    dark = true; listeners.forEach(listener => listener())
+    expect(document.documentElement.dataset.theme).toBe('light')
+  })
+  it('does not let a late response put another project in the current table', async () => {
+    let release
+    const repository = { ...fixtureRepository, listRuns: ({ projectId, ...request }) => projectId === 'agent-examples' ? new Promise(resolve => { release = resolve }) : fixtureRepository.listRuns({ projectId, ...request }) }
+    const user = userEvent.setup(); render(<App repository={repository} />)
+    await user.selectOptions(screen.getByLabelText('Project'), 'sandbox')
+    await screen.findByRole('link', { name: 'sandbox-policy-check R-2042' })
+    release({ items: [{ id: 'R-9000', name: 'wrong project' }], total: 1, page: 1, pageSize: 25 })
+    await waitFor(() => expect(screen.queryByText('wrong project')).toBeNull())
+    expect(screen.getByRole('link', { name: 'sandbox-policy-check R-2042' })).toBeTruthy()
+  })
+  it('validates duration filters and distinguishes no matches from first use', async () => {
+    const user = await open()
+    await user.click(screen.getByText('Filters', { exact: true }))
+    await user.type(screen.getByLabelText('Minimum'), '5000')
+    await user.type(screen.getByLabelText('Maximum'), '1000')
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }))
+    expect(screen.getByRole('alert').textContent).toContain('maximum')
+    await user.clear(screen.getByLabelText('Minimum'))
+    await user.clear(screen.getByLabelText('Maximum'))
+    await user.click(screen.getByLabelText('Running', { exact: true }))
+    await user.click(screen.getByRole('button', { name: 'Apply filters' }))
+    await screen.findByRole('heading', { name: 'No matching runs' })
+    expect(screen.queryByRole('heading', { name: 'No runs recorded' })).toBeNull()
+  })
+  it('exposes actual loading, failure and retry states through the replaceable repository', async () => {
+    let reject
+    const repository = { ...fixtureRepository, listRuns: vi.fn().mockImplementationOnce(() => new Promise((_, no) => { reject = no })).mockImplementation(fixtureRepository.listRuns) }
+    const user = userEvent.setup(); render(<App repository={repository} />)
+    expect(screen.getByRole('status').textContent).toContain('Loading')
+    await waitFor(() => expect(reject).toBeTypeOf('function'))
+    reject(new Error('Fixture read interrupted'))
+    await screen.findByRole('alert')
+    await user.click(screen.getByRole('button', { name: 'Retry' }))
+    await screen.findByRole('link', { name: 'refund-policy-review R-1042' })
+  })
+  it('labels previously loaded results after a failed refresh and retains the query', async () => {
+    const repository = { ...fixtureRepository, listRuns: vi.fn().mockImplementationOnce(fixtureRepository.listRuns).mockRejectedValueOnce(new Error('Local fixture read failed')) }
+    const user = await open(repository)
+    await user.click(screen.getByRole('button', { name: 'Refresh' }))
+    const error = await screen.findByRole('alert')
+    expect(error.textContent).toContain('Previously loaded sample data is shown')
+    expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(8)
+  })
+})

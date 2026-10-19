@@ -1,0 +1,96 @@
+.investigation-control { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
+.investigation-link { color: var(--interactive); font-weight: 600; }
+.investigation-details > summary { color: var(--secondary); }
+.investigation-details .trace-popover { white-space: normal; }
+.investigation-details .trace-popover h2 { font-size: 14px; margin-top: 12px; }
+.investigation-details .trace-popover p { margin: 8px 0; overflow-wrap: anywhere; }
+.evidence-page { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+.evidence-attempt { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; min-height: 32px; margin: 0 16px 8px; border-bottom: 1px solid var(--border); padding-bottom: 6px; font-size: 12px; line-height: 18px; color: var(--secondary); }
+.evidence-attempt label { display: flex; align-items: center; gap: 8px; }
+.evidence-attempt select { max-width: 230px; height: 28px; font-size: 12px; }
+.evidence-reference-state { margin-left: auto; }
+.evidence-attempt-details { position: relative; }
+.evidence-attempt-details > div { position: absolute; top: 28px; right: 0; z-index: 30; padding: 12px; width: 320px; max-width: 80vw; border: 1px solid var(--control); border-radius: 6px; background: var(--panel); box-shadow: 0 4px 16px #0002; }
+.evidence-attempt-details p { margin: 8px 0; }
+.evidence-workspace { margin: 0 16px 16px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); min-width: 0; min-height: 0; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+.finding-detail { flex-shrink: 0; padding: 10px 12px 12px; }
+.finding-eyebrow { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-size: 12px; line-height: 18px; color: var(--secondary); }
+.finding-priority { background: var(--subtle); border: 1px solid var(--border); border-radius: 3px; padding: 0 5px; white-space: nowrap; }
+.finding-detail h2 { margin-top: 4px; font-size: 14px; line-height: 22px; font-weight: 600; }
+.finding-detail p { margin: 6px 0 0; font-size: 14px; line-height: 22px; }
+.finding-detail .finding-limitation { color: var(--secondary); font-size: 12px; line-height: 18px; margin-top: 10px; }
+.finding-selector { margin: 0 16px 8px; display: flex; align-items: center; gap: 12px; font-size: 12px; }
+.finding-selector select { max-width: 100%; min-width: 0; }
+.evidence-citations { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 12px; min-height: 40px; border-block: 1px solid var(--border); flex-shrink: 0; font-size: 12px; color: var(--secondary); }
+.evidence-citations .button { gap: 6px; font-size: 12px; padding-inline: 6px; height: 28px; min-height: 28px; }
+.evidence-citations .button[aria-pressed="true"] { background: var(--selected); border-color: var(--control); }
+.citation-slot { border-left: 1px solid var(--control); padding-left: 5px; }
+.compare-action { margin-left: auto; }
+.evidence-sources { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 8px; padding: 12px; background: var(--canvas); min-height: 0; min-width: 0; flex: 1; }
+.evidence-sources[data-single="true"], .evidence-sources[data-focused="true"] { grid-template-columns: minmax(0,1fr); }
+.source-pane { min-width: 0; min-height: 0; border: 1px solid var(--control); border-radius: 4px; background: var(--panel); display: flex; flex-direction: column; overflow: hidden; }
+.source-pane[hidden] { display: none; }
+.source-assignment { display: flex; align-items: center; padding: 4px 8px; gap: 8px; min-height: 36px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+.source-assignment label { display: flex; align-items: center; min-width: 0; flex: 1; gap: 8px; font-size: 12px; white-space: nowrap; }
+.source-assignment select { flex: 1; min-width: 0; height: 26px; min-height: 26px; padding: 1px 4px; font-size: 12px; }
+.source-assignment .trace-icon-button { height: 24px; min-width: 24px; flex-basis: 24px; }
+.source-identity { padding: 8px 10px 6px; flex-shrink: 0; }
+.source-identity > div { display: flex; align-items: baseline; gap: 8px; }
+.source-identity h3 { margin: 0; font-size: 14px; line-height: 20px; flex: 1; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+.source-identity span, .source-identity details { color: var(--secondary); font-size: 12px; line-height: 18px; }
+.source-identity details { flex-shrink: 0; }
+.source-identity details[open] { max-width: 60%; }
+.source-identity details > div { max-width: 220px; overflow-wrap: anywhere; }
+.source-identity details p { margin: 4px 0; }
+.source-field { margin: 5px 0 0; font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+.source-cited { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 10px; background: var(--subtle); border-block: 1px solid var(--border); flex-shrink: 0; font-size: 12px; line-height: 18px; }
+.source-cited > mark { font-size: 16px; line-height: 24px; font-weight: 600; padding: 0 3px; overflow-wrap: anywhere; }
+.source-cited > button { margin-left: auto; flex-shrink: 0; font-size: 12px; min-height: 24px; }
+.source-cited > select { margin-left: auto; min-width: 0; max-width: 124px; height: 26px; min-height: 26px; font-size: 12px; padding: 1px 4px; }
+.source-cited > select + button { margin-left: 0; }
+.evidence-workspace mark { color: var(--text); background: var(--selected); box-decoration-break: clone; }
+.evidence-reading { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: 12px; font-size: 14px; line-height: 22px; overflow-wrap: anywhere; }
+.evidence-fields { margin: 0; }
+.evidence-fields > div { display: grid; grid-template-columns: minmax(96px, 40%) minmax(0,1fr); gap: 12px; border-bottom: 1px solid var(--border); padding: 6px 0; }
+.evidence-fields dt { color: var(--secondary); font-size: 12px; }
+.evidence-fields dd { margin: 0; min-width: 0; }
+.evidence-fields mark { padding: 1px 3px; font-weight: 600; }
+.evidence-fields .evidence-fields > div { display: block; }
+.evidence-json { font-size: 13px; line-height: 20px; }
+.evidence-json-line { white-space: pre-wrap; overflow-wrap: anywhere; }
+.evidence-json-line mark { display: inline; }
+.evidence-passage p { white-space: pre-wrap; }
+.source-context { margin-top: 16px; }
+.source-context > summary { font-size: 12px; color: var(--secondary); cursor: pointer; min-height: 24px; }
+.source-context .readable-prose { margin-top: 8px; }
+.source-effective { padding-top: 12px; border-top: 1px solid var(--border); margin-top: 16px; font-size: 12px; color: var(--secondary); }
+.source-footer { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; padding: 4px 10px; font-size: 12px; line-height: 18px; color: var(--secondary); border-top: 1px solid var(--border); flex-shrink: 0; flex-wrap: wrap; }
+.source-footer a { white-space: nowrap; }
+.source-unavailable { flex: 1; min-height: 0; overflow: auto; padding: 16px; font-size: 14px; line-height: 22px; }
+.source-unavailable p { margin-top: 8px; }
+.source-unavailable button { margin-top: 12px; }
+.source-resolution-warning { margin: 0; padding: 6px 10px; border-bottom: 1px solid var(--control); font-size: 12px; line-height: 18px; flex-shrink: 0; }
+.evidence-state { margin: 0 16px; }
+@media (max-width: 1023px) {
+  .evidence-page { overflow: auto; display: block; }
+  .evidence-workspace { overflow: visible; }
+  .evidence-sources { grid-template-columns: minmax(0,1fr); }
+  .source-pane { min-height: 400px; }
+  .evidence-reading { min-height: 220px; max-height: 480px; }
+  .evidence-attempt-details > div { right: auto; left: 0; }
+  .trace-run-actions .investigation-control { white-space: normal; }
+}
+@media (max-width: 500px) {
+  .evidence-attempt, .evidence-workspace { margin-inline: 8px; }
+  .evidence-sources { padding: 8px; }
+  .evidence-fields > div { display: block; }
+  .source-cited { flex-wrap: wrap; }
+  .source-cited > button { margin-left: 0; }
+  .finding-selector { flex-direction: column; align-items: stretch; }
+  .source-assignment select { height: 32px; }
+}
+@media (max-width: 767px) {
+  .evidence-citations .button, .source-cited > select, .source-assignment select, .source-assignment .trace-icon-button { min-height: 44px; height: auto; }
+  .source-assignment .trace-icon-button { min-width: 44px; }
+  .source-context > summary, .source-cited > button, .source-footer a { min-height: 44px; display: inline-flex; align-items: center; }
+}
