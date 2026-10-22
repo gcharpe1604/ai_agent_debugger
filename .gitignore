@@ -1,4 +1,12 @@
+# Local environment and secrets
 .env
+.env.*
+!.env.example
+!.env.*.example
+!.env.sample
+!.env.template
+*.local
+
 # Logs
 logs
 *.log
@@ -9,15 +17,17 @@ pnpm-debug.log*
 lerna-debug.log*
 folder_structure.txt
 
-node_modules
-dist
-dist-ssr
-*.local
+# JavaScript dependencies and build output
+node_modules/
+dist/
+dist-ssr/
+coverage/
+.vite/
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
+.idea/
 .DS_Store
 *.suo
 *.ntvs*
@@ -30,3 +40,19 @@ dist-ssr
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
+build/
+
+# Generated browser captures and QA reports; retain authored notes and source.
+/docs/frontend/design-preview/screenshots/
+/docs/frontend/design-preview/*browser-qa.json
+/frontend/verification/**/*.png
+/frontend/verification/**/*.jpg
+/frontend/verification/**/*.jpeg
+/frontend/verification/**/*.webp
+/frontend/verification/**/*.json

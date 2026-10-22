@@ -9,11 +9,16 @@ def _ask(request):
     from .evidence import EvidenceSource, load_evidence
     from .live_model import LiveConfig, LiveModelClient, LiveResult
 
+    from ai_agent_debugger_sdk import TraceSession
+
     config = LiveConfig.from_env()
-    with httpx.Client() as client:
-        result = ResearchPlanningAgent(
-            LiveModelClient(config, client), EvidenceSource(load_evidence())
-        ).run(request)
+    with TraceSession.local("research-planning-agent", model=config.model, provider=config.base_url, local_dependencies=True) as tracing, httpx.Client() as client:
+        tracing.instrument(client, {"post": ("api", "POST chat/completions")})
+        model = tracing.instrument(LiveModelClient(config, client), {"_request": ("model", "model.request"), "validate_support": ("custom", "validate_support")})
+        source = tracing.instrument(EvidenceSource(load_evidence()), {"collect": ("retrieval", "EvidenceSource.collect")})
+        with tracing.operation("agent", "ResearchPlanningAgent.run"):
+            result = ResearchPlanningAgent(model, source).run(request)
+        tracing.record_result(result)
         return LiveResult(**result.model_dump(), original_request=request)
 
 
@@ -36,7 +41,15 @@ def main(argv=None):
             from .scenarios import build_agent, load_scenario
 
             scenario = load_scenario(args.scenario_id)
-            result = build_agent(scenario).run(scenario.request)
+            from ai_agent_debugger_sdk import TraceSession
+
+            with TraceSession.local("research-planning-agent", execution_mode="controlled", local_dependencies=True) as tracing:
+                agent = build_agent(scenario)
+                tracing.instrument(agent.model, {name: ("custom", "controlled." + name) for name in ("decompose", "create_plan", "assess_evidence", "revise_plan", "synthesize_report", "validate_support")})
+                tracing.instrument(agent.evidence_source, {"collect": ("retrieval", "EvidenceSource.collect")})
+                with tracing.operation("agent", "ResearchPlanningAgent.run"):
+                    result = agent.run(scenario.request)
+                tracing.record_result(result)
     except (ValueError, OSError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1

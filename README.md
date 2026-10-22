@@ -4,6 +4,10 @@ A developer-focused platform for debugging AI agent executions through structure
 
 The project aims to help developers understand how an AI agent reached a particular result by capturing and visualizing model calls, tool calls, retrieved context, state changes, and other execution steps.
 
+## Run the current integration
+
+[Start FastAPI/React and execute the four live agents with uv](docs/local-development.md). Real provider calls emit SDK spans; local memory storage is explicitly temporary. `refund-agent` is excluded.
+
 ## Project Status
 
 🚧 **In Development**

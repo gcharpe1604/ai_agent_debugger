@@ -1,31 +1,40 @@
-from contextlib import contextmanager
 from collections.abc import Iterator
+from contextlib import contextmanager
 
+from opentelemetry import trace
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import (
-    ConsoleSpanExporter,
-    SimpleSpanProcessor
-)
-from opentelemetry.trace import Span, Tracer
+from opentelemetry.sdk.trace.export import ConsoleSpanExporter, SimpleSpanProcessor
+from opentelemetry.trace import Tracer
 
+from ai_agent_debugger_sdk.capture import CaptureConfig
 from ai_agent_debugger_sdk.span import SpanHandle
 
-class Debugger:
-    def __init__(self, service_name: str) -> None:
-        resource = Resource.create(
-            {
-                "service.name": service_name,
-            }
-        )
 
-        self._provider = TracerProvider(resource=resource)
-        self._provider.add_span_processor(
-            SimpleSpanProcessor(ConsoleSpanExporter())
+class Debugger:
+    def __init__(
+        self,
+        service_name: str,
+        *,
+        capture: CaptureConfig | None = None,
+        tracer_provider: trace.TracerProvider | None = None,
+    ) -> None:
+        self._capture = capture if capture is not None else CaptureConfig()
+        if type(self._capture) is not CaptureConfig:
+            raise TypeError("capture must be a CaptureConfig")
+        provider = (
+            tracer_provider
+            if tracer_provider is not None
+            else trace.get_tracer_provider()
         )
-        self._tracer: Tracer = self._provider.get_tracer(
-            "ai_agent_debugger_sdk"
-        )
+        if tracer_provider is None and isinstance(provider, trace.ProxyTracerProvider):
+            resource = Resource.create({"service.name": service_name})
+            provider = TracerProvider(resource=resource)
+            provider.add_span_processor(SimpleSpanProcessor(ConsoleSpanExporter()))
+        # Host-owned providers retain their resource, processors and lifecycle.
+        # Never register/replace the global provider or shut down a supplied one.
+        self._provider = provider
+        self._tracer: Tracer = self._provider.get_tracer("ai_agent_debugger_sdk")
 
     @contextmanager
     def _operation(
@@ -38,7 +47,7 @@ class Debugger:
                 "debugger.operation.type",
                 operation_type,
             )
-            yield SpanHandle(span)
+            yield SpanHandle(span, self._capture)
 
     @contextmanager
     def run(self, name: str) -> Iterator[SpanHandle]:
