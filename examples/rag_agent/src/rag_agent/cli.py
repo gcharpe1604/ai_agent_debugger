@@ -17,12 +17,19 @@ async def _ask(question: str):
     from .live_model import LiveConfig, LiveModelClient
     from .retrieval import LocalRetriever
 
+    from ai_agent_debugger_sdk import TraceSession
+
     config = LiveConfig.from_env()
     kb = KnowledgeBase(Path(__file__).with_name("data") / "knowledge_base")
-    async with httpx.AsyncClient() as client:
-        return await RAGAgent(LiveModelClient(config, client), LocalRetriever(kb)).run(
-            question
-        )
+    with TraceSession.local("rag-agent", model=config.model, provider=config.base_url, local_dependencies=True) as tracing:
+        async with httpx.AsyncClient() as client:
+            tracing.instrument(client, {"post": ("api", "POST chat/completions")})
+            model = tracing.instrument(LiveModelClient(config, client), {"_request": ("model", "model.request")})
+            retriever = tracing.instrument(LocalRetriever(kb), {"search": ("retrieval", "LocalRetriever.search")})
+            with tracing.operation("agent", "RAGAgent.run"):
+                result = await RAGAgent(model, retriever).run(question)
+            tracing.record_result(result)
+            return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -58,7 +65,15 @@ def main(argv: list[str] | None = None) -> int:
             )
             if scenario.scenario_id != args.scenario_id:
                 raise ValueError("Scenario filename and scenario_id disagree")
-            result = asyncio.run(build_agent(scenario, kb).run(scenario.question))
+            from ai_agent_debugger_sdk import TraceSession
+
+            with TraceSession.local("rag-agent", execution_mode="controlled", local_dependencies=True) as tracing:
+                agent = build_agent(scenario, kb)
+                tracing.instrument(agent.model, {name: ("custom", "controlled." + name) for name in ("classify_question", "formulate_query", "assess_evidence", "refine_query", "generate_answer")})
+                tracing.instrument(agent.retriever, {"search": ("retrieval", "ScenarioAwareRetriever.search")})
+                with tracing.operation("agent", "RAGAgent.run"):
+                    result = asyncio.run(agent.run(scenario.question))
+                tracing.record_result(result)
             heading = f"Scenario: {scenario.scenario_id}\nMode: controlled"
     except (OSError, ValueError, yaml.YAMLError, LiveModelError) as exc:
         print(f"Error: {exc}", file=sys.stderr)

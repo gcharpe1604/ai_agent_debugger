@@ -122,7 +122,7 @@ class PreparedDependencies(LocalDependencies):
         return super().respond(state)
 
 
-def build_agent(config: RuntimeScenario) -> WorkflowAgent:
+def build_agent(config: RuntimeScenario, *, tracing=None) -> WorkflowAgent:
     prepared = RuntimeScenario.model_validate(config.model_dump())
     dependencies = PreparedDependencies(
         routes=prepared.route_overrides,
@@ -142,4 +142,15 @@ def build_agent(config: RuntimeScenario) -> WorkflowAgent:
         nodes = {"execute_action": lose_action_update}
     else:
         nodes = None
+    if tracing is not None:
+        # Compose with scenario fault wrappers; capture actual graph execution.
+        overrides = nodes or {}
+        names = ("classify", "gather_context", "evaluate", "retry_context", "execute_action", "abort", "validate", "respond")
+        def wrap_node(name):
+            def wrap(function):
+                if name in overrides:
+                    function = overrides[name](function)
+                return tracing.wrap_callable(function, "custom", "node." + name)
+            return wrap
+        nodes = {name: wrap_node(name) for name in names}
     return WorkflowAgent(dependencies, nodes=nodes)
