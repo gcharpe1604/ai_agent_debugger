@@ -27,6 +27,19 @@ jobs:
           uv run --python ${{ matrix.python }} --project sdk/python --locked --extra test
           python -B -m pytest -q -p no:cacheprovider sdk/python/tests
 
+  integration:
+    name: Backend + SDK integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      # The test puts backend/src and sdk/python/src on sys.path, so the
+      # backend env also needs the SDK's OpenTelemetry dependencies.
+      - run: >
+          uv run --project backend --locked
+          --with "opentelemetry-api>=1,<2" --with "opentelemetry-sdk>=1,<2"
+          python -B -m unittest tests/integration/test_telemetry.py
+
   frontend:
     name: Frontend lint, test, build
     runs-on: ubuntu-latest
