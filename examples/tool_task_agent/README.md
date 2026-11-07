@@ -1,10 +1,17 @@
 # Tool-Using Task Agent
 
+## Platform integration
+
+Both `ask` and `run SCENARIO` entry points send spans from actual execution through the local debugger SDK to FastAPI at `127.0.0.1:8008` by default. `ask` calls the configured live model; `run` retains the existing controlled workload and is explicitly marked `controlled` (its deterministic methods are not labeled model/API calls). React reads received spans, with no seeded telemetry or log replay. Set `AGENT_DEBUGGER_ENDPOINT` to override the loopback endpoint, or set it to an empty string to disable export. [Normal backend/frontend and uv commands](../../docs/local-development.md).
+
+From this agent directory, use `uv sync --locked` and `uv run --locked python -m tool_task_agent ask "<your request>"`. The SDK source is declared in `tool.uv.sources`; a standalone pip install also requires installing the repository SDK first. Add `--extra test` to uv when deliberately running the test tools described below.
+
+The earlier domain-workload documentation follows. Model calls are live; the existing tools/evidence remain local.
+
 A standalone order-fulfillment workload with deterministic controlled scenarios
 and an optional live semantic model. Both modes use the same `TaskAgent`, local
 inventory/payment/shipping tools, in-memory state, validation, and safety rules.
-There is no debugger SDK, backend, database, UI, replay, or production commerce
-integration. The configured model endpoint is the only live external service.
+There is no production commerce integration or durable debugger storage in this workload. The configured model endpoint is the only live external service.
 
 ## Install and run
 
