@@ -53,3 +53,4 @@ build/
 /docs/frontend/design-preview/*browser-qa.json
 # Local verification artifacts are not needed to run or build the application.
 /frontend/verification/
+/docs/claude
