@@ -84,4 +84,4 @@ Full capture completeness is not inferred from root arrival. Raw `UNSET`/`OK`/`E
 
 Implementation: SDK `transport.py` / `session.py`; backend `api/routes/{ingestion,runs}.py` and `traces/{schemas,repository,service}.py`; frontend `data/apiRepository.js`; the four agents' existing `cli.py` files. The separate demo app/exporter/launcher/adapter and demo evidence were removed.
 
-Verification results and exact captured IDs: [agent integration evidence](../frontend/verification/agent-integration/README.md).
+Historical agent-integration verification artifacts were removed during repository cleanup.

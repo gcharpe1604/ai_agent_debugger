@@ -51,9 +51,5 @@ build/
 # Generated browser captures and QA reports; retain authored notes and source.
 /docs/frontend/design-preview/screenshots/
 /docs/frontend/design-preview/*browser-qa.json
-/frontend/verification/**/*.png
-/frontend/verification/**/*.jpg
-/frontend/verification/**/*.jpeg
-/frontend/verification/**/*.webp
+# Local verification artifacts are not needed to run or build the application.
 /frontend/verification/
-/frontend/verification/**/*.json
