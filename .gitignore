@@ -55,4 +55,5 @@ build/
 /frontend/verification/**/*.jpg
 /frontend/verification/**/*.jpeg
 /frontend/verification/**/*.webp
+/frontend/verification/
 /frontend/verification/**/*.json
