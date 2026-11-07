@@ -23,7 +23,7 @@
 - **Out of scope for the OJT MVP: replay and counterfactual debugging.** Future extension only. (The 2026-10-17 "build the full replay product" reversal is withdrawn; see §9.)
 - **Architecture is fixed** (per design docs): Python SDK on OpenTelemetry → FastAPI → **Kafka** → trace-writer consumer → **ClickHouse** (spans) · **PostgreSQL** (projects, keys, analysis attempts, findings, evidence) · React frontend · one controlled LLM investigator with deterministic evidence grounding. Do not revert to PostgreSQL-only or deterministic-only designs.
 - **Kafka and ClickHouse are required by the program** (user-stated; no formal mentor confirmation on file).
-- **LLM provider: AWS Bedrock** (user decision: college provides AWS credits, no AI-provider credits). Details and unknowns in §6.
+- **LLM provider: UNDECIDED.** User, 2026-11-07: no AWS credits are currently available (earlier Bedrock decision assumed them), and no AI-provider credits. The investigator starts behind a provider interface with a deterministic stub; the real provider (Bedrock once credits exist, a local model, or a low-cost hosted API) is decided before action 8. A stub validates orchestration, grounding and abstention, not real-model debugging quality. Details in §6.
 - **Deferred:** pgvector / authoritative knowledge base (not on the critical path), replay, multi-framework adapters, MSK/ECS-style production infra.
 - **Product rules:** not a general observability platform, not a commercial SaaS. Smallest reliable end-to-end workflow first.
 
@@ -41,25 +41,25 @@ Evaluation framework the user pasted (saved at `claude/ojt-evaluation-rubric.md`
 
 **Candid framing:** 75–85% by feature count is not reachable by Nov 15–22. The defensible viva position is "working durable vertical slice (SDK → Kafka → ClickHouse → UI) plus investigator in progress". Confirm what the viva actually measures.
 
-## 3. Implementation status (verified 2026-11-07)
+## 3. Implementation status (verified 2026-11-07; updated 2026-11-08)
 
 ### 3.1 Matrix
 
 | Component | Status | Evidence |
 |---|---|---|
-| Python SDK (`sdk/python/src/ai_agent_debugger_sdk`) | **IMPLEMENTED + TESTED**, local-only | `TraceSession` with `BatchSpanProcessor(256 / 64 / 1000 ms)`; `HttpSpanExporter` hard-locked to loopback. **54 SDK tests passed** |
+| Python SDK (`sdk/python/src/ai_agent_debugger_sdk`) | **IMPLEMENTED + TESTED**, local-only; on `main` via PR #2 (2026-11-08) | `TraceSession` with `BatchSpanProcessor(256 / 64 / 1000 ms)`; `HttpSpanExporter` hard-locked to loopback. **54 SDK tests passed** |
 | SDK payload capture | **PARTIAL** | `CaptureConfig` exists (`capture_inputs/outputs` default True, 16 KiB, depth 8, 512 nodes, `secret_fields`) but the exporter whitelists 10 metadata attributes only; payloads are not exported |
-| FastAPI local ingestion + read API | **LOCAL-DEMO-ONLY** | `/api/v1/local/*`, in-memory `LocalMemoryRepository`, loopback + header + origin gating. **Integration suite: 5 passed, 7 subtests** |
+| FastAPI local ingestion + read API | **LOCAL-DEMO-ONLY**; on `main` via PR #3 (2026-11-08) | `/api/v1/local/*`, in-memory `LocalMemoryRepository`, loopback + header + origin gating. **Integration suite: 5 passed, 7 subtests** |
 | Auth / API keys | **PLANNED** | No auth on ingest. Frontend `accessAdapters.js` is a disconnected adapter |
-| Kafka | **PLANNED** | No dependency, no compose service, no code |
-| ClickHouse | **PLANNED** | No dependency, no compose service, no schema |
+| Kafka | **SCAFFOLD** (infra only) | `compose.yaml`: `apache/kafka:4.3.2`, single-node KRaft; listeners `localhost:9092` (host) and `kafka:29092` (containers); auto topic creation off; `kafka-init` creates `spanhelix.traces.v1` (3 partitions) and `spanhelix.traces.v1.dlq`. Healthy and both topics created on the user's machine 2026-11-08. No producer/consumer code or Python dependency |
+| ClickHouse | **SCAFFOLD** (infra only) | `compose.yaml`: `clickhouse/clickhouse-server:26.8`, database `spanhelix`, HTTP `:8123`, native `:9000`. Healthy on the user's machine 2026-11-08. No schema, no client code or dependency |
 | PostgreSQL | **SCAFFOLD** | `compose.yaml` has `postgres:17` only; `/health` runs `SELECT 1`; `db/models.py`, `db/base.py` empty; `backend/migrations/versions/` empty; no alembic dependency |
 | Trace reconstruction (backend) | **SCAFFOLD** | `traces/reconstruction.py` is 0 bytes. Tree/timeline are built **in the frontend** from parent IDs |
 | Investigator (backend) | **SCAFFOLD** | `analysis/{engine,models,repository,service}.py`, `analysis/rules/*`, `routes/analysis.py` all 0 bytes |
 | Frontend (React/Vite, `frontend/`, 92 tracked files) | **IMPLEMENTED + TESTED** | **137 vitest tests passed, 15 files.** Run Explorer, virtualized tree, timeline, inspector, evidence UI. `apiRepository.js` reads real local runs; `investigationRepository.js` is **fixture-based**; auth adapter disconnected |
 | Example agents (`examples/`) | Present, own tests **not run** | Use OpenAI-compatible `*_API_KEY/*_BASE_URL/*_MODEL` env vars |
 | Bedrock integration | **PLANNED** | No `boto3`/Bedrock code anywhere |
-| CI (`.github/workflows/ci.yml`) | **SCAFFOLD** | 0 bytes |
+| CI (`.github/workflows/ci.yml`) | **IMPLEMENTED** | Jobs: SDK tests (py3.10, py3.12), backend+SDK integration, frontend lint/test/build. All green on `main` `8b34c54` (GitHub check runs, 2026-11-08) |
 | Dockerfile (`backend/Dockerfile`) | **SCAFFOLD** | 0 bytes |
 | Deployment | **Not started. DEPLOYED: none** | — |
 
@@ -104,7 +104,7 @@ Everything off this line (pgvector, knowledge, extra frontend polish, replay) wa
 
 ## 6. AWS Bedrock: verified vs unverified
 
-- **Decided (user):** use Bedrock because AWS credits exist and no AI-provider credits do.
+- **Superseded 2026-11-07 (user):** the Bedrock decision assumed AWS credits; none are currently available. Bedrock is now one candidate provider, not the decision (see §1).
 - **UNKNOWN:** AWS region; which models are enabled; IAM permissions; quotas; whether Anthropic models need an access/use-case request. **Nothing is configured as far as the record shows.**
 - **Repo state:** no Bedrock/boto3 code or env vars. Current examples use OpenAI-compatible variables.
 - **Proposal (not a decision):** Bedrock Converse API with tool-use to get schema-validated structured output; keep the provider behind a thin interface so a stub provider drives tests and demos when Bedrock is unavailable.
@@ -113,7 +113,7 @@ Everything off this line (pgvector, knowledge, extra frontend polish, replay) wa
 
 ## 7. Deployment (proposal, not a decision)
 
-Single EC2 instance (≥ ~8 GB RAM, since ClickHouse and Kafka are memory-hungry) running `docker compose`, instead of MSK/ECS. Region, instance, domain/TLS: UNKNOWN. A Dockerfile and a compose profile for the backend, trace-writer and frontend are required (both currently absent).
+**Hosting is UNRESOLVED (2026-11-07):** no AWS credits currently, and local Docker does not satisfy the Nov 25 public deployment link. Earlier proposal: single EC2 instance (≥ ~8 GB RAM, since ClickHouse and Kafka are memory-hungry) running `docker compose`, instead of MSK/ECS. Region, instance, domain/TLS: UNKNOWN. A Dockerfile and a compose profile for the backend, trace-writer and frontend are required (both currently absent).
 
 ## 8. Next 10 actions
 
@@ -121,10 +121,10 @@ Single EC2 instance (≥ ~8 GB RAM, since ClickHouse and Kafka are memory-hungry
 
 | # | Action | Depends on | Acceptance criteria | Est. |
 |---|---|---|---|---|
-| 1 | **Hygiene + CI baseline.** Fix `.env.example` (port 5432 vs compose 5433), correct any README text claiming durable storage, minimal CI running SDK + integration + frontend tests, work on a feature branch | — | CI green on a PR; README matches reality | 2–3 h |
-| 2 | **Compose: Kafka (KRaft) + ClickHouse + Postgres** with healthchecks and a topic init | 1 | `docker compose up` brings all three healthy; documented in `local-development.md` | 2–4 h |
-| 3 | **ClickHouse schema + writer** (user writes). Storage interface replacing direct `LocalMemoryRepository` use; insert, dedup, read-by-trace | 2 | Tests: duplicate span insert = one logical row; out-of-order and late spans stored; validate sort-key hypothesis with a query | 6–10 h |
-| 4 | **Durable ingest: `POST /api/v1/traces` (protocol `"1"`) → Kafka producer; trace-writer consumer → ClickHouse** | 3 | 202 only after broker ack; consumer commits after CH persist; kill-consumer/restart and redelivery tests pass; data survives backend restart | 8–12 h |
+| 1 | **DONE 2026-11-08** (PRs #2, #3; CI green on `8b34c54`). **Hygiene + CI baseline.** Fix `.env.example` (port 5432 vs compose 5433), correct any README text claiming durable storage, minimal CI running SDK + integration + frontend tests, work on a feature branch | — | CI green on a PR; README matches reality | 2–3 h |
+| 2 | **DONE 2026-11-08** (all three healthy, topics created, user's machine). **Compose: Kafka (KRaft) + ClickHouse + Postgres** with healthchecks and a topic init | 1 | `docker compose up` brings all three healthy; documented in `local-development.md` | 2–4 h |
+| 3 | **ClickHouse schema + writer** (user writes). Storage interface replacing direct `LocalMemoryRepository` use; insert, dedup, read-by-trace. Start with a standalone producer → topic → consumer → ClickHouse proof outside FastAPI | 2 | Tests: identical redelivery = one logical row; conflicting content under the same span identity is **detected and surfaced, not silently merged** (`database.md` §5, `trace-protocol.md` §13.3); out-of-order and late spans stored; canonical `content_hash` is key-order independent; validate the ordering key with a query. *Proposal under test (not a decision):* `ReplacingMergeTree(ingested_at) ORDER BY (project_id, trace_id, span_id, content_hash)`, because the `ORDER BY` columns are the dedup key and must not include `started_at` or omit the hash | 6–10 h |
+| 4 | **Durable ingest: `POST /api/v1/traces` (protocol `"1"`) → Kafka producer; trace-writer consumer → ClickHouse** | 3 | Mixed batches split per `(project_id, trace_id)` and keyed by trace; 202 only after **every** message is broker-acked; consumer commits only after CH persist; transient CH failure → retry/backoff without commit; invalid message → DLQ, commit only after the DLQ publish succeeds; injected crash **after insert, before commit** yields one logical row; acknowledged records survive tested process/container restarts with volumes preserved (single broker, RF 1: not disk-loss durable) | 8–12 h |
 | 5 | **Durable read API + backend reconstruction** from parent IDs; point `apiRepository.js` at it | 4 | UI shows a run from ClickHouse after full restart; reconstruction tests for missing parent, multiple roots, cycle | 8–12 h |
 | 6 | **API-key auth + Postgres `projects`/`api_keys`** with Alembic migration; `project_id` derived from the credential | 4 (parallel with 5) | Invalid/missing key → 401; keys stored hashed; cross-project reads blocked (test) | 6–8 h |
 | 7 | **SDK → durable contract:** new exporter target `/api/v1/traces`, API key config, **payload capture + redaction + size policy**, remove loopback lock for the durable mode | 4, 6 | SDK test against the real endpoint; secrets-field redaction test; decision recorded on payload storage | 6–8 h |
@@ -159,8 +159,8 @@ Single EC2 instance (≥ ~8 GB RAM, since ClickHouse and Kafka are memory-hungry
 1. Docs specify `/api/v1/traces` + protocol `"1"` + auth; code implements only `/api/v1/local/traces` + `local-1` + loopback gating (§3.3).
 2. Docs/handoffs imply durable storage; code has no Kafka/ClickHouse/Alembic dependencies and an in-memory store. Any README claim of a durable ClickHouse/PostgreSQL path is unsupported by the code.
 3. SDK `CaptureConfig` defaults to capturing inputs/outputs, but nothing is exported and the backend rejects payload attributes.
-4. `.env.example` points to Postgres on `:5432`; `compose.yaml` publishes `:5433`. `config.py` only reads `database_url`; the health route is the only DB consumer.
-5. `ci.yml`, `backend/Dockerfile`, `db/*`, `analysis/*`, `traces/reconstruction.py`, `routes/analysis.py` and four SDK modules are empty files.
+4. *(Resolved 2026-11-07: `.env.example` now uses `:5433`.)* `.env.example` pointed to Postgres on `:5432`; `compose.yaml` publishes `:5433`. `config.py` only reads `database_url`; the health route is the only DB consumer.
+5. *(`ci.yml` resolved 2026-11-08.)* `backend/Dockerfile`, `db/*`, `analysis/*`, `traces/reconstruction.py`, `routes/analysis.py` and four SDK modules are empty files.
 6. Backend reconstruction is documented as a backend responsibility; today it exists only in the frontend.
 7. Design docs name an ordering key as a hypothesis; it is unvalidated against real queries.
 8. The Claude Project's own instructions describe `handoff.md` as "historical context"; it is now the current-state document. (Project settings text, outside the repo; user to update.)
@@ -212,3 +212,4 @@ This project uses **Claude and ChatGPT** as general-purpose engineering collabor
 - 2026-11-07: Handoff rewritten as the single current-state document; old handoffs archived.
 - 2026-11-07: Added §11 multi-assistant collaboration rules (user decision); made the file model-agnostic.
 - 2026-11-07: Copied into the repo at `docs/handoff.md` so Claude Code loads it via `CLAUDE.md`. From here the repo copy is authoritative; the claude.ai Project copy is a stale mirror.
+- 2026-11-08: Actions 1–2 marked done with evidence (PRs #2/#3, green CI on `8b34c54`; compose Kafka/ClickHouse/Postgres healthy). LLM provider and hosting marked undecided (no AWS credits currently, user 2026-11-07). Actions 3–4 acceptance criteria tightened: conflict detection, insert-before-commit crash test, DLQ commit rule, partial-ack rule, precise durability wording.
