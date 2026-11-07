@@ -1,9 +1,17 @@
 # Meridian Research Planning Agent
 
+## Platform integration
+
+Both `ask` and `run SCENARIO` entry points send spans from actual execution through the local debugger SDK to FastAPI at `127.0.0.1:8008` by default. `ask` calls the configured live model; `run` retains the existing controlled workload and is explicitly marked `controlled` (its deterministic methods are not labeled model/API calls). React reads received spans, with no seeded telemetry or log replay. Set `AGENT_DEBUGGER_ENDPOINT` to override the loopback endpoint, or set it to an empty string to disable export. [Normal backend/frontend and uv commands](../../docs/local-development.md).
+
+From this agent directory, use `uv sync --locked` and `uv run --locked python -m research_planning_agent ask "<your request>"`. The SDK source is declared in `tool.uv.sources`; a standalone pip install also requires installing the repository SDK first. Add `--extra test` to uv when deliberately running the test tools described below.
+
+The earlier domain-workload documentation follows. Model calls are live; the existing tools/evidence remain local.
+
 A standalone research-planning workload with deterministic controlled scenarios
 and an optional live semantic model. Both modes compare two fictional field
 stations using the same local evidence, workflow, revisions, and deterministic
-support validation. There is no debugger SDK, database, web search, or sibling
+support validation. There is no database, web search, or sibling
 example import. The configured model endpoint is the only live external service.
 
 ## Run

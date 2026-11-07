@@ -1,5 +1,13 @@
 # NovaCloud RAG Support Agent
 
+## Platform integration
+
+Both `ask` and `run SCENARIO` entry points send spans from actual execution through the local debugger SDK to FastAPI at `127.0.0.1:8008` by default. `ask` calls the configured live model; `run` retains the existing controlled workload and is explicitly marked `controlled` (its deterministic methods are not labeled model/API calls). React reads received spans, with no seeded telemetry or log replay. Set `AGENT_DEBUGGER_ENDPOINT` to override the loopback endpoint, or set it to an empty string to disable export. [Normal backend/frontend and uv commands](../../docs/local-development.md).
+
+From this agent directory, use `uv sync --locked` and `uv run --locked python -m rag_agent ask "<your request>"`. The SDK source is declared in `tool.uv.sources`; a standalone pip install also requires installing the repository SDK first. Add `--extra test` to uv when deliberately running the test tools described below.
+
+The earlier domain-workload documentation follows. Model calls are live; the existing tools/evidence remain local.
+
 NovaCloud is a fictional SaaS workspace platform. This standalone sample answers
 support questions using ten small local Markdown documents. It supplies repeatable
 application behavior for later testing of the AI Agent Execution Debugging & Trace
@@ -250,7 +258,6 @@ There are no embeddings, vector services, autonomous loops, conversation memory,
 confidence percentages, or causal-proof claims. Execution context contains only
 application domain data, with no debugger Run/Span/Trace types.
 
-Live mode uses a single endpoint with no routing or fallback. Debugger SDK
-instrumentation, backend integration, evaluation against debugger findings, and
+Live mode uses a single endpoint with no routing or fallback. SDK capture is described above. Evaluation against debugger findings and
 additional agents remain deferred. Replay and counterfactual debugging are not
 current behavior.

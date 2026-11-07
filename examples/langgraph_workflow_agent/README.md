@@ -1,9 +1,17 @@
 # LangGraph Workflow Agent
 
+## Platform integration
+
+Both `ask` and `run SCENARIO` entry points send spans from actual execution through the local debugger SDK to FastAPI at `127.0.0.1:8008` by default. `ask` calls the configured live model; `run` retains the existing controlled workload and is explicitly marked `controlled` (its deterministic methods are not labeled model/API calls). React reads received spans, with no seeded telemetry or log replay. Set `AGENT_DEBUGGER_ENDPOINT` to override the loopback endpoint, or set it to an empty string to disable export. [Normal backend/frontend and uv commands](../../docs/local-development.md).
+
+From this agent directory, use `uv sync --locked` and `uv run --locked python -m langgraph_workflow_agent ask "<your request>"`. The SDK source is declared in `tool.uv.sources`; a standalone pip install also requires installing the repository SDK first. Add `--extra test` to uv when deliberately running the test tools described below.
+
+The earlier domain-workload documentation follows. Model calls are live; the existing tools/evidence remain local.
+
 Standalone Beacon incident-remediation workload with deterministic controlled
 mode and optional live semantic decisions. LangGraph runs the same nodes,
 conditional edges, state merges and loops in both modes. Context collection and
-actions remain local simulations; there is no debugger SDK, database or
+actions remain local simulations; there is no database or
 persistent service state.
 
 ## Install and run
