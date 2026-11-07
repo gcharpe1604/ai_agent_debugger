@@ -1,13 +1,11 @@
-import { projects, runs, sampleWindow } from './fixtures.js'
-
 /** In-process read interface only. Replacing this adapter does not define an HTTP API.
  * listRuns({projectId, query, signal}) resolves {items,total,projectTotal,page,pageSize}.
  * All outcome, capture, count and investigation values remain independently supplied.
  */
-export function selectRuns(records, projectId, query) {
+export function selectRuns(records, projectId, query, timeWindow = null) {
   const projectRuns = records.filter(run => run.projectId === projectId)
   const needle = query.search.trim().toLocaleLowerCase('en')
-  const lower = query.time === 'recent' ? '2026-10-15T10:30:00Z' : sampleWindow.start
+  const lower = query.time === 'recent' ? timeWindow?.recentStart : timeWindow?.start
   const filtered = projectRuns.filter(run =>
     (!needle || run.name.toLocaleLowerCase('en').includes(needle) || run.traceId.toLowerCase().includes(needle)) &&
     (!query.outcomes.length || query.outcomes.includes(run.outcome)) &&
@@ -16,7 +14,7 @@ export function selectRuns(records, projectId, query) {
     (!query.hasErrors || run.recordedErrorCount > 0) &&
     (query.minMs === null || (run.durationMs !== null && run.durationMs >= query.minMs)) &&
     (query.maxMs === null || (run.durationMs !== null && run.durationMs <= query.maxMs)) &&
-    (query.time === 'all' || (run.startedAt >= lower && run.startedAt <= sampleWindow.end)))
+    (!timeWindow || query.time === 'all' || (run.startedAt >= lower && run.startedAt <= timeWindow.end)))
   filtered.sort((a, b) => {
     const left = a[query.sort], right = b[query.sort]
     if (left == null || right == null) return left == null && right == null ? a.id.localeCompare(b.id) : left == null ? 1 : -1
@@ -26,13 +24,3 @@ export function selectRuns(records, projectId, query) {
   const page = Math.min(query.page, Math.max(1, Math.ceil(filtered.length / query.pageSize)))
   return { items: filtered.slice((page - 1) * query.pageSize, page * query.pageSize), total: filtered.length, projectTotal: projectRuns.length, page, pageSize: query.pageSize }
 }
-export const fixtureRepository = Object.freeze({
-  projects,
-  async listRuns({ projectId, query, signal }) {
-    signal?.throwIfAborted()
-    if (!projects.some(project => project.id === projectId)) throw new Error('Project unavailable')
-    await Promise.resolve()
-    signal?.throwIfAborted()
-    return selectRuns(runs, projectId, query)
-  },
-})

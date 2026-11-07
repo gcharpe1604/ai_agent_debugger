@@ -1,9 +1,9 @@
 # OJT Agent Debugger — Langfuse UI Comparison & Targeted Refinement Review
 
-**Review date:** 15 October 2026  
-**Status:** Proposed refinements to an approved design direction; **not** a new frontend architecture or permission to implement production React.  
-**Recommended repository destination:** `docs/frontend/langfuse-comparison-review.md`  
-**Primary local source of truth:** `docs/frontend/design-spec.md` (latest version in original repository).  
+**Review date:** 15 October 2026
+**Status:** Proposed refinements to an approved design direction; **not** a new frontend architecture or permission to implement production React.
+**Recommended repository destination:** `docs/frontend/langfuse-comparison-review.md`
+**Primary local source of truth:** `docs/frontend/design-spec.md` (latest version in original repository).
 **Evidence reviewed:** Twelve supplied visual-preview JPGs at 1440×900 and 1280×800, light and dark, across Run Explorer, Trace Detail, Evidence Focus. These are static captures, so behavioral proposals below are **not** claims of implemented interaction.
 
 ## 1. Sources and evidence boundary

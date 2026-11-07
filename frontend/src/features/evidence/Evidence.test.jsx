@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import App from '../../app/App.jsx'
+import App from '../../test/FixtureApp.jsx'
 import { investigationRepository } from '../../data/investigationRepository.js'
 
 const hash = (run = 'R-1042', query = '') => `#/projects/agent-examples/runs/${run}/evidence${query ? '?' + query : ''}`

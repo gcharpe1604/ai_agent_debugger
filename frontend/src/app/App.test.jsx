@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import App from './App.jsx'
-import { fixtureRepository } from '../data/runRepository.js'
+import App from '../test/FixtureApp.jsx'
+import { fixtureRepository } from '../test/fixtureRepository.js'
 
 async function open(repository = fixtureRepository) {
   const user = userEvent.setup()
@@ -36,9 +36,9 @@ describe('Milestone 1 Run Explorer', () => {
     await user.click(screen.getByRole('button', { name: 'Apply filters' }))
     await waitFor(() => expect(document.activeElement.textContent).toContain('Filters'))
   })
-  it('discloses sample data and keeps execution/capture/error/investigation independent', async () => {
+  it('keeps execution/capture/error/investigation independent with explicitly injected data', async () => {
     await open()
-    expect(screen.getAllByText('Sample data').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Sample data')).toBeNull()
     const row = screen.getByRole('link', { name: 'order-status-lookup R-1040' }).closest('tr')
     expect(within(row).getAllByRole('cell')[2].textContent.trim()).toBe('Completed'); expect(within(row).getByText('Recovered')).toBeTruthy()
     expect(within(row).getByText('1')).toBeTruthy(); expect(within(row).getByText('0 findings')).toBeTruthy()
@@ -144,7 +144,7 @@ describe('Milestone 1 Run Explorer', () => {
     const user = await open(repository)
     await user.click(screen.getByRole('button', { name: 'Refresh' }))
     const error = await screen.findByRole('alert')
-    expect(error.textContent).toContain('Previously loaded sample data is shown')
+    expect(error.textContent).toContain('Previously loaded data is shown')
     expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(8)
   })
 })

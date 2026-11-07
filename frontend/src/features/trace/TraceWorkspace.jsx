@@ -91,7 +91,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     writeUrl({ span: id, panel: ui.mode })
   }
   function jump(id) {
-    if (!index.byId.has(id)) { patch({ pending: id, notice: `Span ${id} is not in loaded structure.${total === null ? ' Total structure size is unknown; lookup covers loaded spans only.' : data.spans.length < total ? ' Load more local spans to continue.' : ' It is unavailable in this fixture.'}` }); return }
+    if (!index.byId.has(id)) { patch({ pending: id, notice: `Span ${id} is not in loaded structure.${total === null ? ' Total structure size is unknown; lookup covers loaded spans only.' : data.spans.length < total ? ' Load more local spans to continue.' : ' It is unavailable in the received trace.'}` }); return }
     const path = ancestors(index, id).map(parent => parent.id)
     const currentVisible = view.rows.some(row => row.id === id)
     const reveal = !currentVisible && view.filtered ? { search: ui.search, type: ui.type, status: ui.status } : ui.reveal
@@ -113,7 +113,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   function toggleBranch(id) {
     if (!(index.children.get(id)?.length)) {
       const operation = index.byId.get(id)
-      patch({ notice: `Children are not loaded for ${operation.name}. ${knownCount(operation.childCount) === null ? 'Child total is unknown.' : `${operation.childCount} children recorded.`} Additional child reads are not connected in this sample.` })
+      patch({ notice: `Children are not loaded for ${operation.name}. ${knownCount(operation.childCount) === null ? 'Child total is unknown.' : `${operation.childCount} children recorded.`} Additional child reads are not connected.` })
       return
     }
     dispatch({ type: 'toggle', id })

@@ -1,11 +1,9 @@
 import { useRef } from 'react'
 import Icon from '../../components/Icon.jsx'
-import { runsHref } from '../../app/routes.jsx'
-import { returnQuery } from './traceState.js'
 import { types, typeLabel } from './treeModel.js'
 import { FitSelected } from './TimelineControls.jsx'
 
-export default function TraceToolbar({ ui, filter, patch, index, jump, projectId, search, wide, switchView, timing, timeWindowChange }) {
+export default function TraceToolbar({ ui, filter, patch, index, jump, wide, switchView, timing, timeWindowChange }) {
   const jumpInput = useRef(null)
   const activeFilters = Number(!!ui.type) + Number(!!ui.status)
   return <div className="trace-toolbar">
@@ -24,8 +22,6 @@ export default function TraceToolbar({ ui, filter, patch, index, jump, projectId
       <button className="button small" disabled={!!(ui.search || ui.type || ui.status)} title="Matching ancestor paths stay expanded while filtering" onClick={() => patch({ collapsed: index.spans.map(span => span.id), scrollTop: 0, anchor: null })}>Collapse loaded branches</button>
       <label className="trace-check" title={ui.view === 'timeline' ? 'The optional ID column is a Tree presentation. IDs remain searchable and copyable in Details.' : !wide ? 'The ID column requires at least 840 px of explorer width. IDs remain available in Details and search.' : undefined}><input type="checkbox" checked={ui.showIds || false} disabled={!wide} onChange={event => patch({ showIds: event.target.checked })}/>Span ID column</label>
       <form onSubmit={event => { event.preventDefault(); jump(jumpInput.current.value.trim().toLowerCase()) }}><label>Jump to loaded span ID<input className="trace-text-input mono" ref={jumpInput} placeholder="Full span ID"/></label><button className="button small" type="submit">Jump to span</button></form>
-      {projectId === 'agent-examples' && <a className="text-button" href={runsHref(projectId, returnQuery(search), 'R-6008')}>Timing edge cases</a>}
-      {projectId === 'agent-examples' && <div className="fixture-links"><strong>Sample trace studies</strong>{[100, 1000, 2100].map(size => <a key={size} href={runsHref(projectId, returnQuery(search), `R-${6000 + size}`)}>{size.toLocaleString('en')} spans{size === 2100 ? ' · partial capture' : ''}</a>)}</div>}
     </div></details>
   </div>
 }

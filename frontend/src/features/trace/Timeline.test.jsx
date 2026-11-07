@@ -1,7 +1,7 @@
 import { beforeEach, it, expect, vi } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import App from '../../app/App.jsx'
+import App from '../../test/FixtureApp.jsx'
 import { traceRepository } from '../../data/traceRepository.js'
 
 beforeEach(() => window.history.replaceState(null, '', '/#/projects/agent-examples/runs/R-1040?search=order'))

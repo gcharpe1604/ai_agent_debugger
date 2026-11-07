@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { accountHref, safeReturn, runsHref } from '../../app/routes.jsx'
+import { accountHref, safeReturn } from '../../app/routes.jsx'
 import { failureKind } from '../../data/accessAdapters.js'
 import { useTheme } from '../../app/preferences.js'
 import AccessState from './AccessState.jsx'
@@ -72,7 +72,7 @@ export default function AccountPage({ route, adapter }) {
   const state = failure || (route.account === 'session-expired' ? 'expired' : route.account === 'access-denied' ? 'forbidden' : null)
   return <div className="account-shell">
     <a className="skip-link" href="#account-content" onClick={event => { event.preventDefault(); main.current?.focus() }}>Skip to content</a>
-    <header className="account-header"><a className="account-brand" href={runsHref('agent-examples')}><span className="brand-mark"><Icon name="branch"/></span>Agent Debugger</a><div className="account-utilities"><label className="sr-only" htmlFor="account-appearance">Appearance</label><select id="account-appearance" value={theme.preference} onChange={event => theme.setPreference(event.target.value)}><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></div></header>
+    <header className="account-header"><a className="account-brand" href="#/projects"><span className="brand-mark"><Icon name="branch"/></span>Agent Debugger</a><div className="account-utilities"><label className="sr-only" htmlFor="account-appearance">Appearance</label><select id="account-appearance" value={theme.preference} onChange={event => theme.setPreference(event.target.value)}><option value="light">Light</option><option value="dark">Dark</option><option value="system">System</option></select></div></header>
     <main id="account-content" ref={main} tabIndex="-1" className="account-main" data-registration={register && !state}>{state ? <AccessState kind={state} target={target}/> : <section className="account-form" aria-labelledby="account-title">
       <h1 id="account-title">{register ? 'Create an account' : 'Sign in'}</h1>
       <p className="account-description">{register ? step === 1 ? 'Start with your name and email.' : <>Create credentials for <strong className="registration-email">{email.trim()}</strong>.</> : 'Continue to your projects and executions.'}</p>
@@ -99,7 +99,7 @@ export default function AccountPage({ route, adapter }) {
         </div>
         <span className="sr-only" role="status">{busy ? register ? 'Submitting registration' : 'Submitting sign in' : ''}</span>
       </form>
-      <div className="account-links"><span>{register ? 'Already have an account?' : 'New to Agent Debugger?'} <a href={accountHref(register ? 'login' : 'register', target)}>{register ? 'Sign in' : 'Register'}</a></span><a className="sample-entry" href={runsHref('agent-examples')}>Explore sample runs<Icon name="arrow"/></a></div>
+      <div className="account-links"><span>{register ? 'Already have an account?' : 'New to Agent Debugger?'} <a href={accountHref(register ? 'login' : 'register', target)}>{register ? 'Sign in' : 'Register'}</a></span><a className="sample-entry" href="#/projects">Back to projects<Icon name="arrow"/></a></div>
     </section>}</main>
     <footer className="account-footer">Development preview · Authentication is not connected.{register && ' Terms are not published yet.'}</footer>
   </div>

@@ -1,7 +1,7 @@
 import { beforeEach, describe, it, expect, vi } from 'vitest'
 import { render, screen, within, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import App from '../../app/App.jsx'
+import App from '../../test/FixtureApp.jsx'
 import { traceRepository } from '../../data/traceRepository.js'
 import { flushSync } from 'react-dom'
 

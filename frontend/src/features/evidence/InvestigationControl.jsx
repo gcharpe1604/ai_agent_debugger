@@ -5,7 +5,7 @@ import './evidence.css'
 
 export function InvestigationState({ data }) {
   const attempt = data.attempts[0]
-  if (data.state === 'Not requested') return <><h2>Investigation not requested</h2><p>Requesting investigation is unavailable in this fixture-only frontend.</p></>
+  if (data.state === 'Not requested') return <><h2>Investigation not requested</h2><p>Requesting investigation is not connected.</p></>
   if (data.state === 'Pending') return <><h2>Investigation pending</h2><p>No findings are available for this supplied pending attempt.</p></>
   if (data.state === 'Running') return <><h2>Investigation running</h2><p>This supplied attempt is in progress. No completed findings are available yet.</p></>
   if (data.state === 'Failed') return <><h2>Investigation failed</h2><p>{attempt?.error}</p><p>Retry is unavailable without an approved investigation integration.</p></>

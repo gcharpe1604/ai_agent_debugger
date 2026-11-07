@@ -1,4 +1,4 @@
-// Relative milliseconds supplied by the fixture adapter. Never infer dependencies.
+// Relative milliseconds supplied by the data adapter. Never infer dependencies.
 export function interval(span) {
   if (span.start == null) return { state: 'missing', reason: 'Start not recorded' }
   if (!Number.isFinite(span.start)) return { state: 'invalid', reason: 'Invalid recorded start' }

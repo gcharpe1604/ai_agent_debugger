@@ -9,7 +9,7 @@ function Search({ value, onSearch }) {
   useEffect(() => { if (input.current.value !== value) input.current.value = value }, [value])
   return <form className="search-form" role="search" onSubmit={event => { event.preventDefault(); onSearch(input.current.value.trim()) }}><div className="search-field"><Icon name="search"/><input ref={input} type="search" aria-label="Search runs" placeholder="Search name or trace ID…" defaultValue={value} maxLength={256}/><button className="search-submit" type="submit" aria-label="Search">↵</button></div></form>
 }
-function AdvancedFilters({ query, onChange }) {
+function AdvancedFilters({ query, onChange, live }) {
   const details = useRef(null)
   const form = useRef(null)
   const [error, setError] = useState('')
@@ -26,11 +26,11 @@ function AdvancedFilters({ query, onChange }) {
   }
   return <details className="filter-disclosure" ref={details}><summary className="button" onClick={() => setError('')}><Icon name="filter"/>Filters{active > 0 && <span className="count">{active}</span>}</summary><form ref={form} className="filter-panel" onSubmit={submit} aria-label="Additional run filters">
     <fieldset><legend>Duration · milliseconds</legend><div className="duration-fields"><label>Minimum<input name="minimum" type="number" min="0" step="any" defaultValue={query.minMs ?? ''} aria-describedby={error ? 'duration-error' : undefined}/></label><label>Maximum<input name="maximum" type="number" min="0" step="any" defaultValue={query.maxMs ?? ''} aria-describedby={error ? 'duration-error' : undefined}/></label></div>{error && <p className="inline-error" id="duration-error" role="alert">{error}</p>}</fieldset>
-    <fieldset><legend>Investigation · match any selected</legend>{investigationOptions.map(value => <label className="check-field" key={value}><input type="checkbox" name="investigation" value={value} defaultChecked={query.investigations.includes(value)}/>{value}</label>)}</fieldset>
+    {!live && <fieldset><legend>Investigation · match any selected</legend>{investigationOptions.map(value => <label className="check-field" key={value}><input type="checkbox" name="investigation" value={value} defaultChecked={query.investigations.includes(value)}/>{value}</label>)}</fieldset>}
     <label className="check-field"><input type="checkbox" name="errors" defaultChecked={query.hasErrors}/>With recorded errors</label><button type="submit" className="button solid">Apply filters</button>
   </form></details>
 }
-export default function RunToolbar({ query, onChange, onReset }) {
+export default function RunToolbar({ query, onChange, onReset, live = false }) {
   const chips = [
     ...(query.search ? [{ label: `Search: ${query.search}`, patch: { search: '' } }] : []),
     ...query.outcomes.map(value => ({ label: `Outcome: ${value}`, patch: { outcomes: query.outcomes.filter(item => item !== value) } })),
@@ -41,9 +41,9 @@ export default function RunToolbar({ query, onChange, onReset }) {
   ]
   return <><div className="query-toolbar">
     <Search value={query.search} onSearch={search => onChange({ search })}/>
-    <label className="sr-only" htmlFor="time-window">Sample time window</label><select id="time-window" className="time-filter" value={query.time} onChange={event => onChange({ time: event.target.value })}><option value="window">15 Oct · 09:00–11:00 UTC</option><option value="recent">15 Oct · 10:30–11:00 UTC</option><option value="all">All sample times</option></select>
+    {live && <><label className="sr-only" htmlFor="time-window">Local captured times</label><select id="time-window" className="time-filter" disabled value="all"><option value="all">All locally captured times</option></select></>}
     <label className="sr-only" htmlFor="outcome">Execution outcome</label><select id="outcome" value={query.outcomes.length > 1 ? 'multiple' : query.outcomes[0] || ''} onChange={event => onChange({ outcomes: event.target.value ? [event.target.value] : [] })}><option value="">All outcomes</option>{query.outcomes.length > 1 && <option value="multiple" disabled>Multiple outcomes</option>}{['Completed', 'Failed', 'Unknown'].map(value => <option key={value}>{value}</option>)}</select>
     <label className="sr-only" htmlFor="capture">Telemetry completeness</label><select id="capture" value={query.completeness.length > 1 ? 'multiple' : query.completeness[0] || ''} onChange={event => onChange({ completeness: event.target.value ? [event.target.value] : [] })}><option value="">All completeness</option>{query.completeness.length > 1 && <option value="multiple" disabled>Multiple capture states</option>}{['Complete', 'Partial', 'Unknown'].map(value => <option key={value}>{value}</option>)}</select>
-    <AdvancedFilters query={query} onChange={onChange}/>
-  </div>{(chips.length > 0 || query.time !== 'window') && <div className="active-filters" aria-label="Active run filters">{chips.map(chip => <button className="filter-chip" key={chip.label} aria-label={`Remove ${chip.label}`} onClick={() => onChange(chip.patch)}>{chip.label}<span aria-hidden="true">×</span></button>)}{chips.length > 0 && <button className="text-button" onClick={() => onChange({ search: '', outcomes: [], completeness: [], investigations: [], minMs: null, maxMs: null, hasErrors: false })}>Clear filters</button>}<button className="text-button secondary" onClick={onReset}>Reset query</button></div>}</>
+    <AdvancedFilters live={live} query={query} onChange={onChange}/>
+  </div>{(chips.length > 0 || query.time !== (live ? 'all' : 'window')) && <div className="active-filters" aria-label="Active run filters">{chips.map(chip => <button className="filter-chip" key={chip.label} aria-label={`Remove ${chip.label}`} onClick={() => onChange(chip.patch)}>{chip.label}<span aria-hidden="true">×</span></button>)}{chips.length > 0 && <button className="text-button" onClick={() => onChange({ search: '', outcomes: [], completeness: [], investigations: [], minMs: null, maxMs: null, hasErrors: false })}>Clear filters</button>}<button className="text-button secondary" onClick={onReset}>Reset query</button></div>}</>
 }

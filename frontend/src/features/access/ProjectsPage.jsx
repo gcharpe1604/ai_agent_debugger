@@ -45,13 +45,16 @@ export default function ProjectsPage({ route, project, state, adapter }) {
   if (state.error) return <AccessState kind={state.error} retry={state.retry} target={route.path}/>
   if (state.busy) return <section className="project-page"><h1>Projects</h1><p role="status">Loading projects…</p></section>
   const creating = route.projectsPage === 'new'
+  const canCreate = typeof adapter.createProject === 'function'
+  const canUpdate = typeof adapter.updateProject === 'function'
+  if ((creating && !canCreate) || (route.settings && project && !canUpdate)) return <AccessState kind="disconnected"/>
   if (route.settings && !project) return <AccessState kind="unavailable"/>
   return <section className="project-page">
-    <div className="project-heading"><h1>{creating ? 'Create project' : project ? 'Project settings' : 'Projects'}</h1>{!creating && !project && state.projects.length > 0 && <a className="button" href="#/projects/new">Create project</a>}</div>
+    <div className="project-heading"><h1>{creating ? 'Create project' : project ? 'Project settings' : 'Projects'}</h1>{canCreate && !creating && !project && state.projects.length > 0 && <a className="button" href="#/projects/new">Create project</a>}</div>
     <p className="project-description secondary">{creating ? 'A dedicated place for your agent’s executions.' : project ? 'Manage your project’s name and identity.' : 'Your workspaces for agent debugging.'}</p>
     {creating || project ? <ProjectForm key={project?.id || 'new'} project={project} adapter={adapter} onSaved={updated => { state.accept(updated); if (!project) window.location.hash = runsHref(updated.id).slice(1) }}/>
-      : state.projects.length ? <ul className="project-list" aria-label="Available sample projects">{state.projects.map(item => <li key={item.id}><a href={runsHref(item.id)}><span className="project-avatar" aria-hidden="true">{item.initial || item.name[0]}</span><span><strong>{item.name}</strong><span className="secondary mono">{item.id}</span></span></a><a className="button small" href={settingsHref(item.id)} aria-label={`Settings for ${item.name}`}>Settings</a></li>)}</ul>
+      : state.projects.length ? <ul className="project-list" aria-label="Available projects">{state.projects.map(item => <li key={item.id}><a href={runsHref(item.id)}><span className="project-avatar" aria-hidden="true">{item.initial || item.name[0]}</span><span><strong>{item.name}</strong><span className="secondary mono">{item.id}</span></span></a>{canUpdate && <a className="button small" href={settingsHref(item.id)} aria-label={`Settings for ${item.name}`}>Settings</a>}</li>)}</ul>
         : <div className="project-empty"><span className="access-symbol" aria-hidden="true"><Icon name="branch"/></span><h2>Create your first project</h2><p className="secondary">Keep related executions and investigations together in one workspace.</p><a className="button solid" href="#/projects/new">Create project<Icon name="arrow"/></a></div>}
-    <p className="development-notice">Development preview · Project changes reset on reload. No ownership or access is established.</p>
+    <p className="development-notice">{adapter.mode === 'fixture' ? 'Development preview · Project changes reset on reload. No ownership or access is established.' : 'Project management is not connected. This local workspace identifies temporary SDK captures only.'}</p>
   </section>
 }

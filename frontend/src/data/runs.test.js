@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { selectRuns, fixtureRepository } from './runRepository.js'
+import { selectRuns } from './runRepository.js'
+import { fixtureRepository, fixtureTimeWindow } from '../test/fixtureRepository.js'
 import { parseQuery, queryString, changeQuery } from '../features/runs/query.js'
 
 const items = [
@@ -23,7 +24,7 @@ describe('project-scoped run query', () => {
     const result = selectRuns(items, 'one', q({ pageSize: 2, page: 9 }))
     expect(result.items.map(r => r.id)).toEqual(['a']); expect(result.page).toBe(2); expect(result.total).toBe(3)
   })
-  it('applies an explicit fixed sample time window, not the computer clock', () => expect(selectRuns(items, 'one', q({ time: 'recent' })).total).toBe(0))
+  it('applies an explicit fixed sample time window, not the computer clock', () => expect(selectRuns(items, 'one', q({ time: 'recent' }), fixtureTimeWindow).total).toBe(0))
   it('returns distinct first-use empty and no-match counts', () => {
     expect(selectRuns(items, 'one', q({ search: 'missing' })).projectTotal).toBe(3)
     expect(selectRuns(items, 'absent', q()).projectTotal).toBe(0)

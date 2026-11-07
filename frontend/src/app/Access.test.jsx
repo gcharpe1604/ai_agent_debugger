@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import App from './App.jsx'
-import { fixtureRepository } from '../data/runRepository.js'
+import App from '../test/FixtureApp.jsx'
+import { fixtureRepository } from '../test/fixtureRepository.js'
 
 const at = path => window.history.replaceState(null, '', '/#' + path)
 
@@ -106,7 +106,8 @@ describe('Milestone 4A access and projects', () => {
     expect(await screen.findByRole('heading', { name: 'Session expired' })).toBeTruthy()
     await user.click(screen.getByRole('link', { name: 'Sign in' }))
     expect(window.location.hash).not.toContain('evil')
-    await user.click(screen.getByRole('link', { name: 'Explore sample runs' }))
+    await user.click(screen.getByRole('link', { name: 'Back to projects' }))
+    await user.click(await screen.findByRole('link', { name: /^Agent examples/ }))
     await screen.findByRole('link', { name: 'refund-policy-review R-1042' })
     window.location.hash = '/account/access-denied'
     expect(await screen.findByRole('heading', { name: 'Access denied' })).toBeTruthy()
@@ -123,7 +124,7 @@ describe('Milestone 4A access and projects', () => {
     await user.click(screen.getByRole('button', { name: 'Create project' }))
     await screen.findByRole('heading', { name: 'No runs recorded' })
     expect(screen.getByLabelText('Project').selectedOptions[0].textContent).toBe('Research lab')
-    expect(screen.getAllByText('Sample data').length).toBeGreaterThan(0)
+    expect(screen.queryByText('Sample data')).toBeNull()
     expect(localStorage.getItem('projects')).toBeNull()
   })
 

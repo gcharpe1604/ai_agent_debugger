@@ -72,8 +72,8 @@
 .tree-disclosure:hover { background: var(--hover); }
 .trace-name-stack { min-width: 0; flex: 1; }
 .trace-operation-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; line-height: 16px; }
-.trace-inline-type { display: none; font-size: 12px; line-height: 14px; color: var(--secondary); }
-.trace-child-count { color: var(--muted); font: 12px/16px Consolas,monospace; }
+.trace-inline-type { display: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; line-height: 14px; color: var(--secondary); }
+.trace-child-count { min-width: 0; max-width: 40%; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font: 12px/16px Consolas,monospace; }
 .trace-type-cell, .trace-status-cell { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trace-id-cell { overflow: hidden; text-overflow: ellipsis; }
 .trace-retry-glyph { color: var(--secondary); }

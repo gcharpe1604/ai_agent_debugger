@@ -4,7 +4,7 @@
 
 **Status:** focused documentation/static-preview pass, with 24 matched before/after desktop pairs and two long-response captures. All 26 final after images and eight representative before comparisons were opened at native resolution. The final 24 desktop JPEGs were regenerated after the reading-state repairs and were byte-identical to the already inspected versions. This is not a production frontend, backend integration, performance benchmark or accessibility-conformance claim.
 
-The independent UX audit supplied by the user in this conversation was read completely. Its reported 1280 partial-pinned defect was reproduced locally at 96 px / three full rows. Its competitor observations remain attributed audit evidence. For visual quality, the retained [Langfuse official image](../research/LF-06-official-overview-2026-10-15.jpg) and [LangSmith official trace image](../research/LS-02-official-trace.jpg) were visually reviewed; this pass does not claim a new live competitor verification or adopt their branding.
+The independent UX audit supplied by the user in this conversation was read completely. Its reported 1280 partial-pinned defect was reproduced locally at 96 px / three full rows. Its competitor observations remain attributed audit evidence. For visual quality, the retained Langfuse official image (capture removed during cleanup) and [LangSmith official trace image](../research/LS-02-official-trace.jpg) were visually reviewed; this pass does not claim a new live competitor verification or adopt their branding.
 
 The sections dated 15 October below are historical. Their geometry, manual payload-load step and analyzed-span navigation are superseded here; their screenshots/research remain preserved. Live preview URLs render the latest study.
 
@@ -80,7 +80,7 @@ Long response reading captures: [light 1280×800](screenshots/space-efficiency/a
 
 ### Inspectable sources and remaining decisions
 
-Updated files: [design-spec.md](../design-spec.md), [preview.js](preview.js), [preview.css](preview.css), [trace-preview.js](trace-preview.js), [trace-preview.css](trace-preview.css), this log and [density-browser-qa.json](density-browser-qa.json). Open through the unchanged [index.html](index.html) / [local server](serve.mjs). Original fixtures, scale-fixture generator, prior QA and screenshot sets remain preserved.
+Updated files: [design-spec.md](../design-spec.md), [preview.js](preview.js), [preview.css](preview.css), [trace-preview.js](trace-preview.js), [trace-preview.css](trace-preview.css), this log and density-browser-qa.json (historical report removed during cleanup). Open through the unchanged [index.html](index.html) / [local server](serve.mjs). Original fixtures, scale-fixture generator, prior QA and screenshot sets remain preserved.
 
 Useful review URLs: [ordinary Explore](http://127.0.0.1:8766/?screen=trace&size=1000&theme=dark), [partial pinned timeline](http://127.0.0.1:8766/?screen=trace&size=2100&view=timeline&span=a1&panel=pinned&from=0&to=43600&theme=light), [multiple-findings authored variant](http://127.0.0.1:8766/?screen=evidence&run=1042&variant=multiple-findings&theme=light), [raw-status authored variant](http://127.0.0.1:8766/?screen=trace&size=100&variant=raw-statuses&theme=dark).
 
@@ -109,7 +109,7 @@ Use the existing `node docs/frontend/design-preview/serve.mjs` command from the 
 | Entry and shared renderer integration | [docs/frontend/design-preview/index.html](index.html), [preview.js](preview.js) |
 | Trace-only layout and interactions | [docs/frontend/design-preview/trace-preview.css](trace-preview.css), [trace-preview.js](trace-preview.js) |
 | Authored scale fixtures | [docs/frontend/design-preview/trace-fixtures.js](trace-fixtures.js) |
-| Current measurements and interaction evidence | [docs/frontend/design-preview/trace-browser-qa.json](trace-browser-qa.json) |
+| Current measurements and interaction evidence | docs/frontend/design-preview/trace-browser-qa.json (historical report removed during cleanup) |
 | Current screenshots | `docs/frontend/design-preview/screenshots/trace-explore/` |
 
 `preview.css`, the original `fixtures.js`, earlier screenshots and research captures are preserved. The new module is a design study, not a proposed production component or dependency choice.
@@ -198,20 +198,20 @@ Append `review=1` to expose separate scenario/accent controls, hidden from basel
 | Local rendering/interactions | [docs/frontend/design-preview/preview.js](preview.js) |
 | Authored fixtures | [docs/frontend/design-preview/fixtures.js](fixtures.js) |
 | Read-only artifact server | [docs/frontend/design-preview/serve.mjs](serve.mjs) |
-| Measurements/local checks | [docs/frontend/design-preview/browser-qa.json](browser-qa.json) |
+| Measurements/local checks | docs/frontend/design-preview/browser-qa.json (historical report removed during cleanup) |
 | Research URLs and 20 captures | [docs/frontend/research/evidence-register.md](../research/evidence-register.md) |
 
 The requested `langfuse-comparison-review.md` was absent. The uppercase file above contains that execution brief; it was read completely and preserved unchanged. The full specification, existing previews, HLD/PRD context and prior research were inspected before refinement.
 
 ## Independently verified references
 
-The [official tracing image](https://langfuse.com/images/docs/tracing-overview.png) visibly separates selected-operation identity and stacks input/output ([LF-06](../research/LF-06-official-overview-2026-10-15.jpg)). Its exact release marker was not independently verified. The [overview](https://langfuse.com/docs/observability/overview), [March 2025 announcement](https://langfuse.com/changelog/2025-03-19-new-trace-view), [August 2026 timeline announcement](https://langfuse.com/changelog/2026-08-28-responsive-timeline), [agent-graph documentation](https://langfuse.com/docs/observability/features/agent-graphs) and [demo entry](https://langfuse.com/docs/demo) were accessible and checked as documentation claims.
+The [official tracing image](https://langfuse.com/images/docs/tracing-overview.png) visibly separates selected-operation identity and stacks input/output (LF-06 (capture removed during cleanup)). Its exact release marker was not independently verified. The [overview](https://langfuse.com/docs/observability/overview), [March 2025 announcement](https://langfuse.com/changelog/2025-03-19-new-trace-view), [August 2026 timeline announcement](https://langfuse.com/changelog/2026-08-28-responsive-timeline), [agent-graph documentation](https://langfuse.com/docs/observability/features/agent-graphs) and [demo entry](https://langfuse.com/docs/demo) were accessible and checked as documentation claims.
 
-The shared live trace showed v4.59.0. Selecting `chat` and switching Formatted → Raw → Timeline retained that observation ([LF-07](../research/LF-07-model-2026-10-15.jpg), [LF-08](../research/LF-08-timeline-2026-10-15.jpg)): directly observed behavior. One Raw tab measured 12/12 px system sans-serif, not a full typography audit. Official images support hierarchy, historical announcements are not current deployment proof. No competitor scale, retry or accessibility test was performed. Documented timing/nesting-based graph inference conflicts with our recorded-only rule and was not adopted. No Langfuse equivalent is claimed for our evidence workspace.
+The shared live trace showed v4.59.0. Selecting `chat` and switching Formatted → Raw → Timeline retained that observation (LF-07 (capture removed during cleanup), LF-08 (capture removed during cleanup)): directly observed behavior. One Raw tab measured 12/12 px system sans-serif, not a full typography audit. Official images support hierarchy, historical announcements are not current deployment proof. No competitor scale, retry or accessibility test was performed. Documented timing/nesting-based graph inference conflicts with our recorded-only rule and was not adopted. No Langfuse equivalent is claimed for our evidence workspace.
 
 ## Concrete before / after
 
-The [previous measurements](screenshots/before-p0-p1/browser-qa.json) and all 12 previous images remain under `screenshots/before-p0-p1/`, with the same filenames as the revised set.
+The previous measurement report was removed during documentation cleanup. The 12 superseded screenshots were removed during documentation cleanup; the revised images are linked below.
 
 | Area | Before | Revised result |
 |---|---|---|
