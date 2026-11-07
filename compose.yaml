@@ -1,3 +1,7 @@
+# Local development infrastructure for the durable pipeline:
+#   FastAPI -> Kafka -> trace-writer -> ClickHouse, PostgreSQL for control-plane data.
+# Dev-only credentials. Do not reuse them anywhere reachable from outside this machine.
+
 services:
   postgres:
     image: postgres:17
@@ -16,5 +20,88 @@ services:
       timeout: 5s
       retries: 5
 
+  # Single-node KRaft: one process is both broker and controller. No ZooKeeper.
+  # Two client listeners, because "where is the broker?" has two answers:
+  #   HOST     -> localhost:9092  for processes on Windows (uvicorn, tests, scripts)
+  #   INTERNAL -> kafka:29092     for other containers on the compose network
+  kafka:
+    image: apache/kafka:4.3.2
+    container_name: agent-debugger-kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # Fixed so the formatted log dir in the volume matches across restarts.
+      CLUSTER_ID: "TqBMhjDQRcCSjbFREjzraQ"
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: HOST://0.0.0.0:9092,INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: HOST://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: HOST:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      # One broker, so every internal topic can only have one replica.
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_MIN_INSYNC_REPLICAS: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      # Topics are created explicitly by kafka-init; a typo in a topic name should fail, not create a new topic.
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_HEAP_OPTS: "-Xms512m -Xmx1g"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 > /dev/null 2>&1"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+      start_period: 20s
+
+  # One-shot: creates topics, then exits 0. Safe to re-run (--if-not-exists).
+  kafka-init:
+    image: apache/kafka:4.3.2
+    container_name: agent-debugger-kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    entrypoint: ["/bin/bash", "-c"]
+    command:
+      - |
+        set -e
+        T=/opt/kafka/bin/kafka-topics.sh
+        B=kafka:29092
+        $$T --bootstrap-server $$B --create --if-not-exists --topic spanhelix.traces.v1 --partitions 3 --replication-factor 1
+        $$T --bootstrap-server $$B --create --if-not-exists --topic spanhelix.traces.v1.dlq --partitions 1 --replication-factor 1
+        $$T --bootstrap-server $$B --list
+    restart: "no"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:26.8
+    container_name: agent-debugger-clickhouse
+    environment:
+      CLICKHOUSE_DB: spanhelix
+      CLICKHOUSE_USER: spanhelix
+      CLICKHOUSE_PASSWORD: spanhelix
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    ports:
+      - "8123:8123"   # HTTP interface (clickhouse-connect uses this)
+      - "9000:9000"   # native protocol (clickhouse-client)
+    ulimits:
+      nofile:
+        soft: 262144
+        hard: 262144
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test: ["CMD", "clickhouse-client", "--user", "spanhelix", "--password", "spanhelix", "--query", "SELECT 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
 volumes:
   postgres_data:
+  kafka_data:
+  clickhouse_data:

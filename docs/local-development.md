@@ -85,3 +85,24 @@ Full capture completeness is not inferred from root arrival. Raw `UNSET`/`OK`/`E
 Implementation: SDK `transport.py` / `session.py`; backend `api/routes/{ingestion,runs}.py` and `traces/{schemas,repository,service}.py`; frontend `data/apiRepository.js`; the four agents' existing `cli.py` files. The separate demo app/exporter/launcher/adapter and demo evidence were removed.
 
 Historical agent-integration verification artifacts were removed during repository cleanup.
+
+## Durable-pipeline infrastructure (Docker)
+
+`compose.yaml` runs the infrastructure for the planned durable path. No backend code uses Kafka or ClickHouse yet; the local profile above still stores in memory.
+
+```powershell
+docker compose up -d
+docker compose ps                  # postgres, kafka, clickhouse: healthy
+docker compose logs kafka-init     # lists spanhelix.traces.v1 and spanhelix.traces.v1.dlq
+```
+
+| Service | From the host (Windows) | From other containers |
+|---|---|---|
+| PostgreSQL 17 | `localhost:5433` | `postgres:5432` |
+| Kafka 4.3.2 (single-node KRaft) | `localhost:9092` | `kafka:29092` |
+| ClickHouse 26.8 | HTTP `localhost:8123`, native `localhost:9000` | `clickhouse:8123` |
+
+- Topics are created only by `kafka-init` (auto-creation is off). It is idempotent and exits after listing topics.
+- Dev-only credentials: see `compose.yaml` and `.env.example`. Do not reuse them outside this machine.
+- Data persists in named volumes across `docker compose down` / `up`. `docker compose down -v` deletes it.
+- Kafka here is one broker with replication factor 1: restarts keep acknowledged data, losing the volume does not.
