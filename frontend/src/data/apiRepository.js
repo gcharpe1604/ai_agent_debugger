@@ -11,6 +11,16 @@ function runView(run) {
     outcome: run.status === 'OK' ? 'Completed' : run.status === 'ERROR' ? 'Failed' : 'Unknown',
     completeness: 'Unknown', recordedErrorCount: run.recorded_error_spans, executionMode: run.execution_mode, localDependencies: run.local_dependencies,
     recovered: run.recorded_recovered_retry === true, investigation: 'Unavailable', findingCount: null,
+    firstError: firstErrorView(run.first_error),
+  }
+}
+
+// Earliest ERROR span with no ERROR children (backend rule). A pointer, not a cause.
+function firstErrorView(value) {
+  if (!value || typeof value.span_id !== 'string') return null
+  return {
+    spanId: value.span_id, spanName: value.span_name, operationType: value.operation_type,
+    exceptionType: value.exception_type ?? null, leafErrorCount: value.originating_error_span_count,
   }
 }
 

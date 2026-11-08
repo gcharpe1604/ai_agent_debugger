@@ -85,13 +85,15 @@ describe('Milestone 3.1 repairs', () => {
     } }
     const user = userEvent.setup(); render(<App traceRepository={repository}/> )
     const tree = await screen.findByRole('tree', { name: 'Execution spans' })
-    expect(await screen.findByText('10 loaded · total unknown')).toBeTruthy()
-    expect(within(tree).getByText('1 loaded · total unknown')).toBeTruthy()
+    expect(await screen.findByText('10 loaded')).toBeTruthy()
+    expect(within(tree).getByText('1 loaded')).toBeTruthy()
+    // Visible text is shorter; the accessible description still states the unknown total.
+    expect(within(tree).getAllByRole('treeitem')[0].getAttribute('aria-description')).toContain('total unknown')
     expect(within(tree).getByText('0/2 children')).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Expand record-decision' }))
     expect(await screen.findByText(/Children are not loaded.*record-decision/)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Timeline', exact: true }))
-    expect(within(tree).getByText(/1 loaded · total unknown/)).toBeTruthy()
+    expect(within(tree).getByText(/· 1 loaded$/)).toBeTruthy()
     await user.click(screen.getByLabelText('Execution options'))
     await user.type(screen.getByLabelText('Jump to loaded span ID'), '00000000000000ff')
     await user.click(screen.getByRole('button', { name: 'Jump to span' }))

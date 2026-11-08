@@ -1,6 +1,6 @@
-# SpanHelix — Authoritative Project Handoff
+# AI Agent Debugger — Authoritative Project Handoff
 
-**Project:** AI Agent Execution Debugging & Trace Analysis Platform (product name **SpanHelix**, accepted 2026-10-17). OJT software-engineering project.
+**Project:** AI Agent Execution Debugging & Trace Analysis Platform. Product name: not approved (user decision 2026-11-08; supersedes the 2026-10-17 acceptance). Use 'ai-agent-debugger' or the PRD name. 'SpanHelix' was a candidate only. OJT software-engineering project.
 **Repo:** `C:\Users\govin\Desktop\My_Projects\ai-agent-debugger` · GitHub `gcharpe1604/ai_agent_debugger`
 **This file:** the only active handoff, model-agnostic, for any assistant (Claude, ChatGPT or other) and for the user. Written **2026-11-07** from a read-only repo audit, the project docs, test runs on a scratch copy, and user-confirmed decisions. Previous handoffs are archived at `claude/archive/` and are **not authoritative**. (The `claude/` folder name is historical; its contents are not assistant-specific.)
 
@@ -49,14 +49,14 @@ Evaluation framework the user pasted (saved at `claude/ojt-evaluation-rubric.md`
 |---|---|---|
 | Python SDK (`sdk/python/src/ai_agent_debugger_sdk`) | **IMPLEMENTED + TESTED**, local-only; on `main` via PR #2 (2026-11-08) | `TraceSession` with `BatchSpanProcessor(256 / 64 / 1000 ms)`; `HttpSpanExporter` hard-locked to loopback. **54 SDK tests passed** |
 | SDK payload capture | **PARTIAL** | `CaptureConfig` exists (`capture_inputs/outputs` default True, 16 KiB, depth 8, 512 nodes, `secret_fields`) but the exporter whitelists 10 metadata attributes only; payloads are not exported |
-| FastAPI local ingestion + read API | **LOCAL-DEMO-ONLY**; on `main` via PR #3 (2026-11-08) | `/api/v1/local/*`, in-memory `LocalMemoryRepository`, loopback + header + origin gating. **Integration suite: 5 passed, 7 subtests** |
+| FastAPI local ingestion + read API | **LOCAL-DEMO-ONLY**; on `main` via PR #3 (2026-11-08) | `/api/v1/local/*`, in-memory `LocalMemoryRepository`, loopback + header + origin gating. **Integration suite: 5 passed, 7 subtests** (main). Branch `feat/ui-failure-surfacing` (2026-11-08, not merged): run summary adds `first_error` (earliest ERROR span with no ERROR descendants); **integration suite 12 passed** |
 | Auth / API keys | **PLANNED** | No auth on ingest. Frontend `accessAdapters.js` is a disconnected adapter |
-| Kafka | **SCAFFOLD** (infra only) | `compose.yaml`: `apache/kafka:4.3.2`, single-node KRaft; listeners `localhost:9092` (host) and `kafka:29092` (containers); auto topic creation off; `kafka-init` creates `spanhelix.traces.v1` (3 partitions) and `spanhelix.traces.v1.dlq`. Healthy and both topics created on the user's machine 2026-11-08. No producer/consumer code or Python dependency |
-| ClickHouse | **SCAFFOLD** (infra only) | `compose.yaml`: `clickhouse/clickhouse-server:26.8`, database `spanhelix`, HTTP `:8123`, native `:9000`. Healthy on the user's machine 2026-11-08. No schema, no client code or dependency |
-| PostgreSQL | **SCAFFOLD** | `compose.yaml` has `postgres:17` only; `/health` runs `SELECT 1`; `db/models.py`, `db/base.py` empty; `backend/migrations/versions/` empty; no alembic dependency |
+| Kafka | **SCAFFOLD** (infra only) | `compose.yaml`: `apache/kafka:4.3.2`, single-node KRaft; listeners `localhost:9092` (host) and `kafka:29092` (containers); auto topic creation off; `kafka-init` creates `agentdbg.traces.v1` (3 partitions) and `agentdbg.traces.v1.dlq`. Healthy and both topics created on the user's machine 2026-11-08. **Round-trip verified 2026-11-08** (§3.4): console producer → `agentdbg.traces.v1` → console consumer (group `fix3-verify-20261108T115409Z`) read it at partition 0, offset 0; group lag 0. That one non-envelope test message stays in the topic. No producer/consumer code or Python dependency |
+| ClickHouse | **SCAFFOLD** (infra only) | `compose.yaml`: `clickhouse/clickhouse-server:26.8`, database `telemetry` (created by hand on the existing volume 2026-11-08, §3.4), HTTP `:8123`, native `:9000`. Healthy on the user's machine 2026-11-08; `SELECT version()` over HTTP `:8123` → `26.8.36.3` (2026-11-08, §3.4). No schema, no client code or dependency. Span-record contract: **PROPOSAL only**, `docs/proposals/clickhouse-span-record.md` (2026-11-08; DDL parsed in `clickhouse local`, not applied) |
+| PostgreSQL | **SCAFFOLD** | `compose.yaml` has `postgres:17` only (container healthy 2026-11-08, `docker compose ps`); `/health` runs `SELECT 1`; `db/models.py`, `db/base.py` empty; `backend/migrations/versions/` empty; no alembic dependency |
 | Trace reconstruction (backend) | **SCAFFOLD** | `traces/reconstruction.py` is 0 bytes. Tree/timeline are built **in the frontend** from parent IDs |
 | Investigator (backend) | **SCAFFOLD** | `analysis/{engine,models,repository,service}.py`, `analysis/rules/*`, `routes/analysis.py` all 0 bytes |
-| Frontend (React/Vite, `frontend/`, 92 tracked files) | **IMPLEMENTED + TESTED** | **137 vitest tests passed, 15 files.** Run Explorer, virtualized tree, timeline, inspector, evidence UI. `apiRepository.js` reads real local runs; `investigationRepository.js` is **fixture-based**; auth adapter disconnected |
+| Frontend (React/Vite, `frontend/`, 92 tracked files) | **IMPLEMENTED + TESTED** | **137 vitest tests passed, 15 files** (main). Branch `feat/ui-failure-surfacing` (2026-11-08, not merged): **166 passed, 18 files**; lint and build pass; run list shows "First error", opening a failed run selects it, "Error spans" column, all-unknown columns hidden, Controlled/Live badge, one duration formatter. Manually checked at 1440×900 and 1280×800 against controlled TOOL-03/05, RAG-01, RP-01, LG-03. Run Explorer, virtualized tree, timeline, inspector, evidence UI. `apiRepository.js` reads real local runs; `investigationRepository.js` is **fixture-based**; auth adapter disconnected |
 | Example agents (`examples/`) | Present, own tests **not run** | Use OpenAI-compatible `*_API_KEY/*_BASE_URL/*_MODEL` env vars |
 | Bedrock integration | **PLANNED** | No `boto3`/Bedrock code anywhere |
 | CI (`.github/workflows/ci.yml`) | **IMPLEMENTED** | Jobs: SDK tests (py3.10, py3.12), backend+SDK integration, frontend lint/test/build. All green on `main` `8b34c54` (GitHub check runs, 2026-11-08) |
@@ -83,6 +83,29 @@ Example agent → SDK (OTel spans, batched) → `POST /api/v1/local/traces` (loo
 | Ack semantics | synchronous | HTTP 202 after broker accepts; at-least-once; consumer commits offsets only after ClickHouse persist |
 
 The durable contract exists **only in docs**. Local-1 was a deliberate stepping stone; the durable path must not silently reuse its loopback gating or its payload rejection.
+
+### 3.4 Compose stack verification (2026-11-08, user's machine, branch `feat/ui-failure-surfacing`)
+
+Infra only. This proves the containers work; it says nothing about producer/consumer/writer code (none exists).
+
+| Check | Command | Outcome |
+|---|---|---|
+Re-run after the 2026-11-08 identifier rename (topics `agentdbg.*`, ClickHouse database `telemetry`, dev user `agentdbg`; prefix not an approved product name).
+
+| Check | Command | Outcome |
+|---|---|---|
+| Start | `docker compose up -d` | exit 0; clickhouse and kafka-init recreated (config changed); postgres and kafka kept running |
+| Health | `docker compose ps -a` | postgres, kafka, clickhouse `Up (healthy)`; kafka-init `Exited (0)` |
+| Topics | `docker compose logs kafka-init` | `Created topic agentdbg.traces.v1.` and `Created topic agentdbg.traces.v1.dlq.` |
+| Old topics | `kafka-topics.sh --delete --topic <old>` for the two pre-rename trace topics (one leftover test message, no real data) | both exit 0; `--list` now shows only `__consumer_offsets`, `agentdbg.traces.v1`, `agentdbg.traces.v1.dlq` |
+| ClickHouse | `curl -u agentdbg:… "http://127.0.0.1:8123/?query=SELECT%20version()"` | `26.8.36.3`; the pre-rename user now gets HTTP 403 |
+| Kafka produce | `docker exec -i agent-debugger-kafka /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic agentdbg.traces.v1` with `{"verification":"fix-3","marker":"20261108T115409Z"}` | exit 0 |
+| Kafka consume | `kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic agentdbg.traces.v1 --group fix3-verify-20261108T115409Z --from-beginning --timeout-ms 15000` | read the marker at partition 0, offset 0; "Processed a total of 1 messages" |
+| Consumed? | `kafka-consumer-groups.sh --describe --group fix3-verify-20261108T115409Z` | committed offset 1 on partition 0, lag 0 on all 3 partitions |
+
+**Side effects to know about:**
+- `agentdbg.traces.v1` partition 0 offset 0 holds that non-envelope JSON. A new trace-writer group reading from the earliest offset will see it first. It should be rejected to the DLQ, which makes it a ready-made invalid-message test.
+- **ClickHouse database:** the image creates `CLICKHOUSE_DB` only on an empty data volume, so on the existing volume it was done by hand (user decision 2026-11-08). The pre-rename database had 0 tables. `CREATE DATABASE IF NOT EXISTS telemetry` and `DROP DATABASE` of the old one both succeeded. `SHOW DATABASES` now lists `INFORMATION_SCHEMA`, `default`, `information_schema`, `system`, `telemetry`. No volume was renamed.
 
 ## 4. Architecture pointers (not duplicated here)
 
@@ -122,8 +145,8 @@ Everything off this line (pgvector, knowledge, extra frontend polish, replay) wa
 | # | Action | Depends on | Acceptance criteria | Est. |
 |---|---|---|---|---|
 | 1 | **DONE 2026-11-08** (PRs #2, #3; CI green on `8b34c54`). **Hygiene + CI baseline.** Fix `.env.example` (port 5432 vs compose 5433), correct any README text claiming durable storage, minimal CI running SDK + integration + frontend tests, work on a feature branch | — | CI green on a PR; README matches reality | 2–3 h |
-| 2 | **DONE 2026-11-08** (all three healthy, topics created, user's machine). **Compose: Kafka (KRaft) + ClickHouse + Postgres** with healthchecks and a topic init | 1 | `docker compose up` brings all three healthy; documented in `local-development.md` | 2–4 h |
-| 3 | **ClickHouse schema + writer** (user writes). Storage interface replacing direct `LocalMemoryRepository` use; insert, dedup, read-by-trace. Start with a standalone producer → topic → consumer → ClickHouse proof outside FastAPI | 2 | Tests: identical redelivery = one logical row; conflicting content under the same span identity is **detected and surfaced, not silently merged** (`database.md` §5, `trace-protocol.md` §13.3); out-of-order and late spans stored; canonical `content_hash` is key-order independent; validate the ordering key with a query. *Proposal under test (not a decision):* `ReplacingMergeTree(ingested_at) ORDER BY (project_id, trace_id, span_id, content_hash)`, because the `ORDER BY` columns are the dedup key and must not include `started_at` or omit the hash | 6–10 h |
+| 2 | **DONE 2026-11-08** (all three healthy, topics created, user's machine; re-verified 2026-11-08 with a Kafka produce/consume round-trip and ClickHouse `SELECT version()`, §3.4). **Compose: Kafka (KRaft) + ClickHouse + Postgres** with healthchecks and a topic init | 1 | `docker compose up` brings all three healthy; documented in `local-development.md` | 2–4 h |
+| 3 | **ClickHouse schema + writer** (user writes). *2026-11-08: span-record contract drafted as a PROPOSAL (`docs/proposals/clickhouse-span-record.md`); awaiting the user's answers to its §7 open questions. No schema applied, no writer code.* Storage interface replacing direct `LocalMemoryRepository` use; insert, dedup, read-by-trace. Start with a standalone producer → topic → consumer → ClickHouse proof outside FastAPI | 2 | Tests: identical redelivery = one logical row; conflicting content under the same span identity is **detected and surfaced, not silently merged** (`database.md` §5, `trace-protocol.md` §13.3); out-of-order and late spans stored; canonical `content_hash` is key-order independent; validate the ordering key with a query. *Proposal under test (not a decision):* `ReplacingMergeTree(ingested_at) ORDER BY (project_id, trace_id, span_id, content_hash)`, because the `ORDER BY` columns are the dedup key and must not include `started_at` or omit the hash | 6–10 h |
 | 4 | **Durable ingest: `POST /api/v1/traces` (protocol `"1"`) → Kafka producer; trace-writer consumer → ClickHouse** | 3 | Mixed batches split per `(project_id, trace_id)` and keyed by trace; 202 only after **every** message is broker-acked; consumer commits only after CH persist; transient CH failure → retry/backoff without commit; invalid message → DLQ, commit only after the DLQ publish succeeds; injected crash **after insert, before commit** yields one logical row; acknowledged records survive tested process/container restarts with volumes preserved (single broker, RF 1: not disk-loss durable) | 8–12 h |
 | 5 | **Durable read API + backend reconstruction** from parent IDs; point `apiRepository.js` at it | 4 | UI shows a run from ClickHouse after full restart; reconstruction tests for missing parent, multiple roots, cycle | 8–12 h |
 | 6 | **API-key auth + Postgres `projects`/`api_keys`** with Alembic migration; `project_id` derived from the credential | 4 (parallel with 5) | Invalid/missing key → 401; keys stored hashed; cross-project reads blocked (test) | 6–8 h |
@@ -143,7 +166,7 @@ Everything off this line (pgvector, knowledge, extra frontend polish, replay) wa
 
 ## 9. History (concise; none of this overrides §1–§8)
 
-- **Naming:** original concept "AI Agent Replay & Counterfactual Debugging Platform" → OJT title "AI Agent Execution Debugging & Trace Analysis Platform" → product name **SpanHelix** (2026-10-17; no formal domain/trademark check done).
+- **Naming:** original concept "AI Agent Replay & Counterfactual Debugging Platform" → OJT title "AI Agent Execution Debugging & Trace Analysis Platform" → product name **SpanHelix** (2026-10-17; no formal domain/trademark check done). (superseded 2026-11-08: not approved)
 - **2026-08:** HLD/LLD/database/protocol/analysis docs written for a PostgreSQL-only, deterministic-analysis design. Mentor feedback (08-18): go beyond a log viewer; reconstruction, failure taxonomy, evidence-ranked suspicious steps, controlled failure scenarios. **Superseded** by the September architecture; current design docs replaced it.
 - **2026-09:** PRD reviewed/approved (≈09-14/15). Architecture moved to OTel SDK + FastAPI + Kafka + ClickHouse + PostgreSQL + bounded LLM investigator. Viva 09-17 (HLD, technology rationale, PostgreSQL+JSONB vs MongoDB).
 - **2026-09-22 / 10-14:** backend and SDK migrated to `uv`; SDK `0.1.0` wheel built.
@@ -189,7 +212,7 @@ This project uses **Claude and ChatGPT** as general-purpose engineering collabor
 
 ## 12. Working agreements
 
-- **Ownership of learning:** the user writes the core pieces (ClickHouse writer, Kafka consumer, grounding validation); assistants explain, review, and draft routine parts. Explain unfamiliar concepts simply first, then internals, then how they map to SpanHelix.
+- **Ownership of learning:** the user writes the core pieces (ClickHouse writer, Kafka consumer, grounding validation); assistants explain, review, and draft routine parts. Explain unfamiliar concepts simply first, then internals, then how they map to this project.
 - **Evidence rules:** investigator findings must cite real span/event IDs validated server-side; never fabricate evidence; abstain when unsupported; separate recorded facts, derived structure, and interpretation; suspicion ≠ proven root cause.
 - **Truthfulness:** never claim tests passed unless run; label status with §0 vocabulary; never present reference results as main-repo progress.
 - **Change discipline:** small testable increments on feature branches/PRs; no unrelated refactors; do not edit the design docs without an explicit new decision; no secrets in code, docs or logs.
@@ -206,6 +229,7 @@ This project uses **Claude and ChatGPT** as general-purpose engineering collabor
 | `replay-counterfactual.md` | Future-scope note; not MVP |
 | `claude/audit-2026-11-07.md` | Evidence for §3, with the plan and risk detail |
 | `claude/ojt-evaluation-rubric.md` | OJT rubric |
+| `proposals/clickhouse-span-record.md` | PROPOSAL (not a decision): ClickHouse span columns, draft DDL, dedup/ORDER BY options, writer test list, open questions for action 3 |
 | `claude/archive/handoff-2026-11-07-original.md`, `claude/archive/project-handoff-2026-09-22.md` | Archived, historical only (not copied into the repo) |
 
 **Changelog**
@@ -213,3 +237,7 @@ This project uses **Claude and ChatGPT** as general-purpose engineering collabor
 - 2026-11-07: Added §11 multi-assistant collaboration rules (user decision); made the file model-agnostic.
 - 2026-11-07: Copied into the repo at `docs/handoff.md` so Claude Code loads it via `CLAUDE.md`. From here the repo copy is authoritative; the claude.ai Project copy is a stale mirror.
 - 2026-11-08: Actions 1–2 marked done with evidence (PRs #2/#3, green CI on `8b34c54`; compose Kafka/ClickHouse/Postgres healthy). LLM provider and hosting marked undecided (no AWS credits currently, user 2026-11-07). Actions 3–4 acceptance criteria tightened: conflict detection, insert-before-commit crash test, DLQ commit rule, partial-ack rule, precise durability wording.
+- 2026-11-08: Branch `feat/ui-failure-surfacing` (not merged): UI failure surfacing (`first_error` in the local run summary, auto-select, "Error spans", hidden all-unknown columns, mode badge, shared duration format); integration 12 passed, frontend 166 passed (18 files), lint/build pass, manual check at 1440×900 and 1280×800. Compose stack re-verified (§3.4).
+- 2026-11-08: Added `claude/proposals/clickhouse-span-record.md` (PROPOSAL for action 3: columns incl. payload states, model/tokens/cost, display_label, graph node IDs, execution_mode, received_at, content_hash; draft DDL parsed in `clickhouse local` 26.8, not applied; dedup and ORDER BY/PARTITION BY options; writer test list; 12 open questions). `database.md`/`LLD.md` unchanged.
+- 2026-11-08: Fixes on `feat/ui-failure-surfacing`: (1) the `first_error` count field renamed to `originating_error_span_count` (no behaviour change; integration 12 passed, frontend 166 passed); (2) ClickHouse proposal moved to `docs/proposals/` and tracked, database renamed `telemetry`, crashed-run/no-root limitation and test 14 added; (3) unapproved name removed from operational identifiers: topics `agentdbg.traces.v1`/`.dlq`, group `agentdbg-trace-writer`, ClickHouse database `telemetry` and dev user `agentdbg` (compose, `.env.example`, `local-development.md`, CLAUDE.md heading); old topics deleted; stack re-verified (§3.4).
+- 2026-11-08: User decision: product name not approved (supersedes the 2026-10-17 acceptance); title and header updated, §9 naming line marked superseded, §12 wording neutralised. ClickHouse on the running stack: `telemetry` database created and the empty pre-rename database dropped (§3.4); proposal §2 notes the writer must create the database itself.

@@ -1,11 +1,14 @@
+import { formatDuration } from '../../app/format.js'
+
 export const ROW_HEIGHT = 32
 export const types = ['run', 'agent', 'model', 'tool', 'retrieval', 'api', 'state', 'custom']
 export const typeLabel = type => ({ run: 'Run', agent: 'Agent', model: 'Model', tool: 'Tool', retrieval: 'Retrieval', api: 'API', state: 'State', custom: 'Custom' }[type] || `Custom · ${type || 'unknown'}`)
 export const statusText = status => ['OK', 'ERROR', 'UNSET'].includes(status) ? status : status === null || status === undefined || status === '' ? 'Unknown' : `Unknown · ${status}`
-export const durationText = value => Number.isFinite(value) && value >= 0 ? value >= 1000 ? `${(value / 1000).toFixed(3)} s` : `${value} ms` : 'Unavailable'
+export const durationText = value => Number.isFinite(value) && value >= 0 ? formatDuration(value) : 'Unavailable'
 export const knownCount = value => Number.isSafeInteger(value) && value >= 0 ? value : null
 export function childLabel(row) {
-  if (row.childKnown === null) return `${row.childLoaded} loaded · total unknown`
+  // Visible text only; aria-description still states that the total is unknown.
+  if (row.childKnown === null) return `${row.childLoaded} loaded`
   return `${row.childLoaded === row.childKnown ? row.childKnown : `${row.childLoaded}/${row.childKnown}`} ${row.childKnown === 1 ? 'child' : 'children'}`
 }
 

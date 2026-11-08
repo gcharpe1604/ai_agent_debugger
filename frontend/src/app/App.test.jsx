@@ -32,7 +32,7 @@ describe('Milestone 1 Run Explorer', () => {
     await user.type(input, 'refund{Enter}')
     await waitFor(() => expect(document.activeElement).toBe(input))
     await user.click(screen.getByText('Filters', { exact: true }))
-    await user.click(screen.getByLabelText('With recorded errors'))
+    await user.click(screen.getByLabelText('With error spans'))
     await user.click(screen.getByRole('button', { name: 'Apply filters' }))
     await waitFor(() => expect(document.activeElement.textContent).toContain('Filters'))
   })

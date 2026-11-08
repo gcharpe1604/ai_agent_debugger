@@ -1,5 +1,5 @@
-import { it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../app/App.jsx'
 import { parseQuery } from '../features/runs/query.js'
@@ -72,4 +72,44 @@ it('does not offer simulated project creation or settings in the captured worksp
   window.location.hash = '#/projects/new'
   expect(await screen.findByRole('heading', { name: 'Project service unavailable' })).toBeTruthy()
   expect(screen.queryByRole('button', { name: 'Create project' })).toBeNull()
+})
+
+describe('failed local run: first error surfacing', () => {
+  const failedId = 'abcdefabcdefabcdefabcdefabcdef01'
+  const at = offset => String(BigInt(run.start_time_unix_nano) + BigInt(offset) * 1000000n)
+  const item = (id, parent, name, type, code, start, exception) => ({ trace_id: failedId, span_id: id, parent_span_id: parent, name, operation_type: type, start_time_unix_nano: at(start), end_time_unix_nano: at(start + 1), status: { code }, attributes: type === 'run' ? { 'debugger.execution.mode': 'controlled' } : {}, resource: { 'service.name': 'tool-task-agent' }, events: exception ? [{ name: 'exception', time_unix_nano: at(start), attributes: { 'exception.type': exception } }] : [] })
+  const spans = [item('a000000000000001', null, 'tool-task-agent', 'run', 'ERROR', 0), item('a000000000000002', 'a000000000000001', 'LocalTools.invoke', 'tool', 'ERROR', 1, 'ToolTimeout'), item('a000000000000003', 'a000000000000001', 'LocalTools.invoke', 'tool', 'ERROR', 2, 'ToolError')]
+  const failed = { ...run, trace_id: failedId, name: 'tool-task-agent', status: 'ERROR', execution_mode: 'controlled', recorded_error_spans: 3, end_time_unix_nano: at(4),
+    first_error: { span_id: 'a000000000000002', span_name: 'LocalTools.invoke', operation_type: 'tool', exception_type: 'ToolTimeout', originating_error_span_count: 2 } }
+  const fetcher = vi.fn(async url => {
+    const selected = spans.find(value => url.endsWith('/spans/' + value.span_id))
+    return { ok: true, json: async () => url.endsWith('/status') ? status : selected ? { run: failed, span: selected, retry_of: null, retries: [] } : url.endsWith(failedId) ? { run: failed, spans } : { mode: 'local', runs: [failed, run] } }
+  })
+  const selectedRow = async () => (await screen.findAllByRole('treeitem')).find(row => row.getAttribute('aria-selected') === 'true')
+
+  it('reads the first error from the list without opening the run, and hides all-unknown columns', async () => {
+    window.history.replaceState(null, '', '/#/projects/local/runs')
+    render(<App {...createApiAdapters(fetcher)}/> )
+    const link = await screen.findByRole('link', { name: `tool-task-agent ${failedId}` })
+    const cell = link.closest('td')
+    expect(within(cell).getByText('First error')).toBeTruthy()
+    expect(within(cell).getByText('ToolTimeout · LocalTools.invoke (+1)')).toBeTruthy()
+    expect(within(cell).getByText('Controlled')).toBeTruthy()
+    expect(screen.queryByText(/root cause|cause:/i)).toBeNull()
+    // The completed run has no first-error line or mode badge (execution_mode is null).
+    expect(within(screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('td')).queryByText('First error')).toBeNull()
+    expect(screen.getByRole('button', { name: 'Sort by error spans' }).title).toMatch(/including parents that carry a child's error/)
+    expect(screen.queryByRole('columnheader', { name: /Completeness/ })).toBeNull()
+    expect(screen.queryByRole('columnheader', { name: /Investigation/ })).toBeNull()
+  })
+
+  it('selects first_error when the URL has no span, and an explicit span always wins', async () => {
+    window.history.replaceState(null, '', `/#/projects/local/runs/${failedId}`)
+    const first = render(<App {...createApiAdapters(fetcher)}/> )
+    expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000002')
+    first.unmount()
+    window.history.replaceState(null, '', `/#/projects/local/runs/${failedId}?span=a000000000000003`)
+    render(<App {...createApiAdapters(fetcher)}/> )
+    expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000003')
+  })
 })

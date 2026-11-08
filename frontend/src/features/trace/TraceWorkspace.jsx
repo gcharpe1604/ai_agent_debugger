@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } 
 import { usePreference } from '../../app/preferences.js'
 import { parseRoute } from '../../app/routes.jsx'
 import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount } from './treeModel.js'
-import { initialTraceState, traceReducer } from './traceState.js'
+import { autoSelectedSpan, initialTraceState, traceReducer } from './traceState.js'
 import { useElementSize } from './useElementSize.js'
 import ExecutionTree from './ExecutionTree.jsx'
 import TraceToolbar from './TraceToolbar.jsx'
@@ -24,6 +24,8 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   const [ui, dispatch] = useReducer(traceReducer, null, () => {
     const cached = cache.get(scope)
     const state = initialTraceState(route.search, cached, modePreference)
+    const firstError = autoSelectedSpan(route.search, cached, data.run)
+    if (firstError && index.byId.has(firstError)) Object.assign(state, { selected: firstError, active: firstError, open: new URLSearchParams(route.search).get('panel') !== 'closed' })
     if (state.selected && state.selected !== cached?.selected) {
       const path = ancestors(index, state.selected).map(span => span.id)
       state.collapsed = state.collapsed.filter(id => !path.includes(id))
@@ -37,7 +39,10 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   const size = useElementSize(root)
   const single = size.width < 928
   const effectiveMode = single ? 'single' : ui.mode
-  const maxWidth = Math.max(480, Math.floor(Math.min(640, size.width - (ui.mode === 'pinned' ? 448 : 16))))
+  // Pinned: keep >= 520 px for the execution pane, plus the 8 px resize handle and
+  // the 2 px workbench border. The stored width preference is clamped here at use;
+  // persistence is unchanged.
+  const maxWidth = Math.max(480, Math.floor(Math.min(640, size.width - (ui.mode === 'pinned' ? 530 : 16))))
   const width = single ? size.width : Math.min(maxWidth, Math.max(480, widthPreference === 'auto' ? Math.min(600, size.width / 2) : Number(widthPreference)))
   const expanded = useMemo(() => { const collapsed = new Set(ui.collapsed); return new Set(data.spans.filter(span => !collapsed.has(span.id)).map(span => span.id)) }, [data.spans, ui.collapsed])
   const view = useMemo(() => visibleTree(index, expanded, { search: ui.search, type: ui.type, status: ui.status }), [index, expanded, ui.search, ui.type, ui.status])
@@ -132,7 +137,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   }}>
     <div className="trace-explorer">
       <TraceToolbar ui={ui} filter={filter} patch={patch} index={index} jump={jump} projectId={route.projectId} search={route.search} wide={ui.view !== 'timeline' && explorerSize.width >= 840} switchView={switchView} timing={timing} timeWindowChange={timeWindowChange}/>
-      <div className="trace-context"><span className="trace-loaded">{total === null ? `${data.spans.length.toLocaleString('en')} loaded · total unknown` : `${data.spans.length.toLocaleString('en')} / ${total.toLocaleString('en')} loaded`}</span>
+      <div className="trace-context"><span className="trace-loaded">{total === null ? `${data.spans.length.toLocaleString('en')} loaded` : `${data.spans.length.toLocaleString('en')} / ${total.toLocaleString('en')} loaded`}</span>
         {view.filtered && <span>{view.matches.length} matches · ancestors retained</span>}
         {span && <details className="trace-menu trace-path"><summary aria-label={`Selected operation path and full name: ${span.name}`}>Path · {span.name}</summary><div className="trace-popover">{[...ancestors(index, span.id), span].map(parent => <button key={parent.id} data-inspector-trigger className="text-button" onClick={() => jump(parent.id)} title={parent.id}>{parent.name}</button>)}</div></details>}
         {selectionHidden && <button className="text-button" data-inspector-trigger onClick={() => jump(ui.selected)}>Reveal selected span</button>}

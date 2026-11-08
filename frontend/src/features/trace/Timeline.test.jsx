@@ -58,7 +58,7 @@ it('keeps keyboard hierarchy navigation and changes only the explicit time windo
   await user.click(screen.getByRole('button', { name: 'Next time window' }))
   expect(screen.getByLabelText('Visible time window').textContent).not.toBe(start)
   await user.click(screen.getByRole('button', { name: 'Fit run' }))
-  expect(screen.getByLabelText('Visible time window').textContent).toContain('2.418 s')
+  expect(screen.getByLabelText('Visible time window').textContent).toContain('2.42 s')
 })
 it('shows missing/invalid timing and points without inventing a drawn interval', async () => {
   const repository = { ...traceRepository, async readTrace(args) {

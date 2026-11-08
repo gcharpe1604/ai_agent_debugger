@@ -51,6 +51,18 @@ class SpanRecord(Attributes):
         return self
 
 
+class FirstError(Attributes):
+    """Run-summary pointer to the earliest ERROR span with no ERROR descendants.
+
+    Recorded fact for navigation only; it is not a cause or root-cause claim.
+    """
+    span_id: SpanId
+    span_name: str
+    operation_type: str
+    exception_type: str | None
+    originating_error_span_count: int = Field(ge=1)
+
+
 class Batch(Attributes):
     protocol_version: Literal["local-1"]
     spans: list[SpanRecord] = Field(min_length=1, max_length=64)

@@ -1,3 +1,5 @@
+import { formatDuration } from '../../app/format.js'
+
 // Relative milliseconds supplied by the data adapter. Never infer dependencies.
 export function interval(span) {
   if (span.start == null) return { state: 'missing', reason: 'Start not recorded' }
@@ -69,10 +71,8 @@ export function projectInterval(timing, window) {
   const start = Math.max(timing.start, window.start), end = Math.min(timing.end, window.end)
   return { kind: point ? 'point' : 'bar', left: (start - window.start) / span * 100, width: (end - start) / span * 100, clippedStart: timing.start < window.start, clippedEnd: timing.end > window.end }
 }
-export function timeLabel(value) {
-  if (!Number.isFinite(value)) return 'Unavailable'
-  return `${Number((Math.abs(value) >= 1000 ? value / 1000 : value).toFixed(3))}${Math.abs(value) >= 1000 ? ' s' : ' ms'}`
-}
+// Offsets may be negative (clock outliers); formatDuration keeps the sign.
+export const timeLabel = formatDuration
 export function intervalLabel(timing) {
   return timing?.state === 'valid' ? `Recorded ${timeLabel(timing.start)} to ${timeLabel(timing.end)}, duration ${timeLabel(timing.duration)}${timing.mismatch ? '; recorded duration disagrees with endpoints' : ''}` : timing?.reason || 'Timing not recorded'
 }

@@ -855,6 +855,46 @@ input::placeholder {
   white-space: nowrap;
 }
 
+.run-name-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.run-name-line .run-link {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.mode-badge {
+  flex: none;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--secondary);
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 500;
+}
+
+.first-error {
+  gap: 6px;
+  min-width: 0;
+  color: var(--error);
+}
+
+.first-error-label {
+  flex: none;
+  font-weight: 600;
+}
+
+.first-error-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .identity-copy {
   display: inline-flex;
   align-items: center;
