@@ -64,6 +64,8 @@ Everything below follows from those five.
 
 ## 2. Draft DDL (not applied)
 
+The writer's schema bootstrap must run CREATE DATABASE IF NOT EXISTS telemetry; do not rely on CLICKHOUSE_DB, which the image only applies on an empty volume.
+
 ```sql
 -- PROPOSAL ONLY. Do not apply until §3/§4/§7 are decided.
 CREATE TABLE telemetry.telemetry_spans
