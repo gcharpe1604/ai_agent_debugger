@@ -93,7 +93,7 @@ Historical agent-integration verification artifacts were removed during reposito
 ```powershell
 docker compose up -d
 docker compose ps                  # postgres, kafka, clickhouse: healthy
-docker compose logs kafka-init     # lists spanhelix.traces.v1 and spanhelix.traces.v1.dlq
+docker compose logs kafka-init     # lists agentdbg.traces.v1 and agentdbg.traces.v1.dlq
 ```
 
 | Service | From the host (Windows) | From other containers |

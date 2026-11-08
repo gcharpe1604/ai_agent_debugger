@@ -51,8 +51,8 @@ Evaluation framework the user pasted (saved at `claude/ojt-evaluation-rubric.md`
 | SDK payload capture | **PARTIAL** | `CaptureConfig` exists (`capture_inputs/outputs` default True, 16 KiB, depth 8, 512 nodes, `secret_fields`) but the exporter whitelists 10 metadata attributes only; payloads are not exported |
 | FastAPI local ingestion + read API | **LOCAL-DEMO-ONLY**; on `main` via PR #3 (2026-11-08) | `/api/v1/local/*`, in-memory `LocalMemoryRepository`, loopback + header + origin gating. **Integration suite: 5 passed, 7 subtests** (main). Branch `feat/ui-failure-surfacing` (2026-11-08, not merged): run summary adds `first_error` (earliest ERROR span with no ERROR descendants); **integration suite 12 passed** |
 | Auth / API keys | **PLANNED** | No auth on ingest. Frontend `accessAdapters.js` is a disconnected adapter |
-| Kafka | **SCAFFOLD** (infra only) | `compose.yaml`: `apache/kafka:4.3.2`, single-node KRaft; listeners `localhost:9092` (host) and `kafka:29092` (containers); auto topic creation off; `kafka-init` creates `spanhelix.traces.v1` (3 partitions) and `spanhelix.traces.v1.dlq`. Healthy and both topics created on the user's machine 2026-11-08. **Round-trip verified 2026-11-08** (§3.4): console producer → `spanhelix.traces.v1` → console consumer (group `phase-b-verify-20261108T112615Z`) read it at partition 1, offset 0; group lag 0. That one non-envelope test message stays in the topic. No producer/consumer code or Python dependency |
-| ClickHouse | **SCAFFOLD** (infra only) | `compose.yaml`: `clickhouse/clickhouse-server:26.8`, database `spanhelix`, HTTP `:8123`, native `:9000`. Healthy on the user's machine 2026-11-08; `SELECT version()` over HTTP `:8123` → `26.8.36.3` (2026-11-08, §3.4). No schema, no client code or dependency. Span-record contract: **PROPOSAL only**, `docs/proposals/clickhouse-span-record.md` (2026-11-08; DDL parsed in `clickhouse local`, not applied) |
+| Kafka | **SCAFFOLD** (infra only) | `compose.yaml`: `apache/kafka:4.3.2`, single-node KRaft; listeners `localhost:9092` (host) and `kafka:29092` (containers); auto topic creation off; `kafka-init` creates `agentdbg.traces.v1` (3 partitions) and `agentdbg.traces.v1.dlq`. Healthy and both topics created on the user's machine 2026-11-08. **Round-trip verified 2026-11-08** (§3.4): console producer → `agentdbg.traces.v1` → console consumer (group `fix3-verify-20261108T115409Z`) read it at partition 0, offset 0; group lag 0. That one non-envelope test message stays in the topic. No producer/consumer code or Python dependency |
+| ClickHouse | **SCAFFOLD** (infra only) | `compose.yaml`: `clickhouse/clickhouse-server:26.8`, configured database `telemetry` (not yet created on the existing volume, §3.4), HTTP `:8123`, native `:9000`. Healthy on the user's machine 2026-11-08; `SELECT version()` over HTTP `:8123` → `26.8.36.3` (2026-11-08, §3.4). No schema, no client code or dependency. Span-record contract: **PROPOSAL only**, `docs/proposals/clickhouse-span-record.md` (2026-11-08; DDL parsed in `clickhouse local`, not applied) |
 | PostgreSQL | **SCAFFOLD** | `compose.yaml` has `postgres:17` only (container healthy 2026-11-08, `docker compose ps`); `/health` runs `SELECT 1`; `db/models.py`, `db/base.py` empty; `backend/migrations/versions/` empty; no alembic dependency |
 | Trace reconstruction (backend) | **SCAFFOLD** | `traces/reconstruction.py` is 0 bytes. Tree/timeline are built **in the frontend** from parent IDs |
 | Investigator (backend) | **SCAFFOLD** | `analysis/{engine,models,repository,service}.py`, `analysis/rules/*`, `routes/analysis.py` all 0 bytes |
@@ -90,15 +90,22 @@ Infra only. This proves the containers work; it says nothing about producer/cons
 
 | Check | Command | Outcome |
 |---|---|---|
-| Start | `docker compose up -d` | exit 0; postgres, kafka, clickhouse already running; kafka-init re-ran |
-| Health | `docker compose ps -a` | postgres, kafka, clickhouse `Up (healthy)`; kafka-init `Exited (0)` |
-| Topics | `docker compose logs kafka-init` | lists `spanhelix.traces.v1` and `spanhelix.traces.v1.dlq` (plus a benign Kafka warning about `.`/`_` in topic names) |
-| ClickHouse | `curl -u spanhelix:… "http://127.0.0.1:8123/?query=SELECT%20version()"` | `26.8.36.3` |
-| Kafka produce | `docker exec -i agent-debugger-kafka /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic spanhelix.traces.v1` with `{"verification":"phase-b","marker":"20261108T112615Z"}` | exit 0 |
-| Kafka consume | `kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic spanhelix.traces.v1 --group phase-b-verify-20261108T112615Z --from-beginning --timeout-ms 15000` | read the marker at partition 1, offset 0; "Processed a total of 1 messages" |
-| Consumed? | `kafka-consumer-groups.sh --describe --group phase-b-verify-20261108T112615Z` | committed offset 1 on partition 1, lag 0 on all 3 partitions |
+Re-run after the 2026-11-08 identifier rename (topics `agentdbg.*`, ClickHouse database `telemetry`, dev user `agentdbg`; prefix not an approved product name).
 
-**Side effect to know about:** `spanhelix.traces.v1` partition 1 offset 0 now holds that non-envelope JSON. A new trace-writer group reading from the earliest offset will see it first. It should be rejected to the DLQ, which makes it a ready-made invalid-message test. No compose or `.env.example` change was needed.
+| Check | Command | Outcome |
+|---|---|---|
+| Start | `docker compose up -d` | exit 0; clickhouse and kafka-init recreated (config changed); postgres and kafka kept running |
+| Health | `docker compose ps -a` | postgres, kafka, clickhouse `Up (healthy)`; kafka-init `Exited (0)` |
+| Topics | `docker compose logs kafka-init` | `Created topic agentdbg.traces.v1.` and `Created topic agentdbg.traces.v1.dlq.` |
+| Old topics | `kafka-topics.sh --delete --topic <old>` for the two pre-rename trace topics (one leftover test message, no real data) | both exit 0; `--list` now shows only `__consumer_offsets`, `agentdbg.traces.v1`, `agentdbg.traces.v1.dlq` |
+| ClickHouse | `curl -u agentdbg:… "http://127.0.0.1:8123/?query=SELECT%20version()"` | `26.8.36.3`; the pre-rename user now gets HTTP 403 |
+| Kafka produce | `docker exec -i agent-debugger-kafka /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server localhost:9092 --topic agentdbg.traces.v1` with `{"verification":"fix-3","marker":"20261108T115409Z"}` | exit 0 |
+| Kafka consume | `kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic agentdbg.traces.v1 --group fix3-verify-20261108T115409Z --from-beginning --timeout-ms 15000` | read the marker at partition 0, offset 0; "Processed a total of 1 messages" |
+| Consumed? | `kafka-consumer-groups.sh --describe --group fix3-verify-20261108T115409Z` | committed offset 1 on partition 0, lag 0 on all 3 partitions |
+
+**Side effects to know about:**
+- `agentdbg.traces.v1` partition 0 offset 0 holds that non-envelope JSON. A new trace-writer group reading from the earliest offset will see it first. It should be rejected to the DLQ, which makes it a ready-made invalid-message test.
+- **ClickHouse database not migrated:** the image creates `CLICKHOUSE_DB` only on an empty data volume. On the existing volume, `system.databases` still lists the pre-rename database (0 tables), and `telemetry` does not exist yet. No volume was renamed. Creating `telemetry` / dropping the empty old database is pending a user decision.
 
 ## 4. Architecture pointers (not duplicated here)
 
@@ -232,3 +239,4 @@ This project uses **Claude and ChatGPT** as general-purpose engineering collabor
 - 2026-11-08: Actions 1–2 marked done with evidence (PRs #2/#3, green CI on `8b34c54`; compose Kafka/ClickHouse/Postgres healthy). LLM provider and hosting marked undecided (no AWS credits currently, user 2026-11-07). Actions 3–4 acceptance criteria tightened: conflict detection, insert-before-commit crash test, DLQ commit rule, partial-ack rule, precise durability wording.
 - 2026-11-08: Branch `feat/ui-failure-surfacing` (not merged): UI failure surfacing (`first_error` in the local run summary, auto-select, "Error spans", hidden all-unknown columns, mode badge, shared duration format); integration 12 passed, frontend 166 passed (18 files), lint/build pass, manual check at 1440×900 and 1280×800. Compose stack re-verified (§3.4).
 - 2026-11-08: Added `claude/proposals/clickhouse-span-record.md` (PROPOSAL for action 3: columns incl. payload states, model/tokens/cost, display_label, graph node IDs, execution_mode, received_at, content_hash; draft DDL parsed in `clickhouse local` 26.8, not applied; dedup and ORDER BY/PARTITION BY options; writer test list; 12 open questions). `database.md`/`LLD.md` unchanged.
+- 2026-11-08: Fixes on `feat/ui-failure-surfacing`: (1) the `first_error` count field renamed to `originating_error_span_count` (no behaviour change; integration 12 passed, frontend 166 passed); (2) ClickHouse proposal moved to `docs/proposals/` and tracked, database renamed `telemetry`, crashed-run/no-root limitation and test 14 added; (3) unapproved name removed from operational identifiers: topics `agentdbg.traces.v1`/`.dlq`, group `agentdbg-trace-writer`, ClickHouse database `telemetry` and dev user `agentdbg` (compose, `.env.example`, `local-development.md`, CLAUDE.md heading); old topics deleted; stack re-verified (§3.4).

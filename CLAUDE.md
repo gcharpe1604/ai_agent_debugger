@@ -83,7 +83,7 @@ Leftovers from the older design still exist in `backend/`: `db/` (SQLAlchemy/asy
 
 **Frontend:** `src/main.jsx` wires `createApiAdapters()` into `App`. `App`'s defaults are "disconnected" adapters, and tests inject fixture repositories (`src/test/fixtureRepository.js`, `src/data/*Fixtures.js`). Routing is hash-based (`app/routes.jsx`, default `#/projects/local/runs`). Features live in `src/features/{runs,trace,evidence,access}`, with pure model logic (`treeModel.js`, `timelineModel.js`, `*State.js`) kept separate from components and unit-tested. The API adapter must surface read failures and never substitute sample data. UI design references are in `docs/frontend/design-spec.md`.
 
-## Project handoff and working rules (SpanHelix OJT)
+## Project handoff and working rules (OJT)
 
 @docs/handoff.md
 

@@ -72,8 +72,8 @@ services:
         set -e
         T=/opt/kafka/bin/kafka-topics.sh
         B=kafka:29092
-        $$T --bootstrap-server $$B --create --if-not-exists --topic spanhelix.traces.v1 --partitions 3 --replication-factor 1
-        $$T --bootstrap-server $$B --create --if-not-exists --topic spanhelix.traces.v1.dlq --partitions 1 --replication-factor 1
+        $$T --bootstrap-server $$B --create --if-not-exists --topic agentdbg.traces.v1 --partitions 3 --replication-factor 1
+        $$T --bootstrap-server $$B --create --if-not-exists --topic agentdbg.traces.v1.dlq --partitions 1 --replication-factor 1
         $$T --bootstrap-server $$B --list
     restart: "no"
 
@@ -81,9 +81,9 @@ services:
     image: clickhouse/clickhouse-server:26.8
     container_name: agent-debugger-clickhouse
     environment:
-      CLICKHOUSE_DB: spanhelix
-      CLICKHOUSE_USER: spanhelix
-      CLICKHOUSE_PASSWORD: spanhelix
+      CLICKHOUSE_DB: telemetry
+      CLICKHOUSE_USER: agentdbg
+      CLICKHOUSE_PASSWORD: agentdbg
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
       - "8123:8123"   # HTTP interface (clickhouse-connect uses this)
@@ -95,7 +95,7 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     healthcheck:
-      test: ["CMD", "clickhouse-client", "--user", "spanhelix", "--password", "spanhelix", "--query", "SELECT 1"]
+      test: ["CMD", "clickhouse-client", "--user", "agentdbg", "--password", "agentdbg", "--query", "SELECT 1"]
       interval: 5s
       timeout: 5s
       retries: 12
