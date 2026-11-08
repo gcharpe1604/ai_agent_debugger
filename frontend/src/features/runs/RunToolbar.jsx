@@ -27,7 +27,7 @@ function AdvancedFilters({ query, onChange, live }) {
   return <details className="filter-disclosure" ref={details}><summary className="button" onClick={() => setError('')}><Icon name="filter"/>Filters{active > 0 && <span className="count">{active}</span>}</summary><form ref={form} className="filter-panel" onSubmit={submit} aria-label="Additional run filters">
     <fieldset><legend>Duration · milliseconds</legend><div className="duration-fields"><label>Minimum<input name="minimum" type="number" min="0" step="any" defaultValue={query.minMs ?? ''} aria-describedby={error ? 'duration-error' : undefined}/></label><label>Maximum<input name="maximum" type="number" min="0" step="any" defaultValue={query.maxMs ?? ''} aria-describedby={error ? 'duration-error' : undefined}/></label></div>{error && <p className="inline-error" id="duration-error" role="alert">{error}</p>}</fieldset>
     {!live && <fieldset><legend>Investigation · match any selected</legend>{investigationOptions.map(value => <label className="check-field" key={value}><input type="checkbox" name="investigation" value={value} defaultChecked={query.investigations.includes(value)}/>{value}</label>)}</fieldset>}
-    <label className="check-field"><input type="checkbox" name="errors" defaultChecked={query.hasErrors}/>With recorded errors</label><button type="submit" className="button solid">Apply filters</button>
+    <label className="check-field"><input type="checkbox" name="errors" defaultChecked={query.hasErrors}/>With error spans</label><button type="submit" className="button solid">Apply filters</button>
   </form></details>
 }
 export default function RunToolbar({ query, onChange, onReset, live = false }) {
@@ -36,7 +36,7 @@ export default function RunToolbar({ query, onChange, onReset, live = false }) {
     ...query.outcomes.map(value => ({ label: `Outcome: ${value}`, patch: { outcomes: query.outcomes.filter(item => item !== value) } })),
     ...query.completeness.map(value => ({ label: `Capture: ${value}`, patch: { completeness: query.completeness.filter(item => item !== value) } })),
     ...query.investigations.map(value => ({ label: `Investigation: ${value}`, patch: { investigations: query.investigations.filter(item => item !== value) } })),
-    ...(query.hasErrors ? [{ label: 'Recorded errors', patch: { hasErrors: false } }] : []),
+    ...(query.hasErrors ? [{ label: 'Error spans', patch: { hasErrors: false } }] : []),
     ...(query.minMs !== null || query.maxMs !== null ? [{ label: `Duration: ${query.minMs ?? 0}–${query.maxMs ?? '∞'} ms`, patch: { minMs: null, maxMs: null } }] : []),
   ]
   return <><div className="query-toolbar">

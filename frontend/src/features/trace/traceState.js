@@ -20,6 +20,12 @@ export function initialTraceState(search, cached, mode) {
     ...(['overlay', 'pinned'].includes(p.get('panel')) ? { mode: p.get('panel') } : {}),
   }
 }
+// A failed run opened without span= starts on its first error (earliest ERROR span
+// with no ERROR children). An explicit span= and a remembered selection always win.
+export function autoSelectedSpan(search, cached, run) {
+  if (new URLSearchParams(search).has('span') || cached?.selected) return null
+  return run?.outcome === 'Failed' && run.firstError?.spanId ? run.firstError.spanId : null
+}
 export function traceReducer(state, action) {
   if (action.type === 'patch') return { ...state, ...action.value }
   if (action.type === 'toggle') return { ...state, collapsed: state.collapsed.includes(action.id) ? state.collapsed.filter(id => id !== action.id) : [...state.collapsed, action.id] }

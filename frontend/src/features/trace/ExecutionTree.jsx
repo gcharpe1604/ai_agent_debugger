@@ -4,6 +4,7 @@ import { useElementSize } from './useElementSize.js'
 import { ROW_HEIGHT, windowRows, restoreAnchor, statusText, durationText, typeLabel, types, childLabel } from './treeModel.js'
 import TimelineTrack from './TimelineTrack.jsx'
 import { intervalLabel, timeLabel } from './timelineModel.js'
+import { exactDuration } from '../../app/format.js'
 
 export default function ExecutionTree({ index, rows, ui, treeRef, select, patch, toggle, filtered, showIds, timing, timeWindow }) {
   const timeline = ui.view === 'timeline'
@@ -62,11 +63,11 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
         </div>
         {timeline ? <><TimelineTrack timing={timing.byId.get(row.id)} window={timeWindow} status={row.span.status}/><span className="sr-only">{timing.byId.get(row.id)?.state === 'valid' ? `Recorded interval ${timeLabel(timing.byId.get(row.id).start)} to ${timeLabel(timing.byId.get(row.id).end)}` : timing.byId.get(row.id)?.reason}</span></> : <>
           {showIds && <span className="trace-id-cell mono" title={row.id}>{row.id}</span>}
-          <span className="trace-start-cell mono" title="Recorded offset from run start">{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
+          <span className="trace-start-cell mono" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
           <span className="trace-type-cell">{typeLabel(row.span.type)}</span>
           <span className={`trace-status-cell ${row.span.status === 'ERROR' ? 'error-text' : ''}`} title={statusText(row.span.status)}>{statusText(row.span.status)}</span>
         </>}
-        <span className="trace-duration mono">{durationText(row.span.duration)}</span>
+        <span className="trace-duration mono" title={exactDuration(row.span.duration)}>{durationText(row.span.duration)}</span>
       </div>)}
     </div>
     {!rows.length && <div className="empty-state"><h3>No matching loaded spans</h3><p>Change the loaded-only search or filters.</p></div>}

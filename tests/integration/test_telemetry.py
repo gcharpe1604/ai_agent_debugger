@@ -93,6 +93,83 @@ class StoreTests(unittest.TestCase):
             batch(*[record()] * 65)
 
 
+class FirstErrorTests(unittest.TestCase):
+    """first_error = earliest ERROR span with no ERROR descendants; null without ERROR spans."""
+
+    @staticmethod
+    def spans(*items):
+        return {span["span_id"]: span for span in items}
+
+    @staticmethod
+    def timed(span_id, parent, kind, status, start, exception=None):
+        span = record(span_id, parent, kind, status)
+        span["start_time_unix_nano"], span["end_time_unix_nano"] = str(start), str(start + 10)
+        if exception:
+            span["events"] = [{"name": "exception", "time_unix_nano": str(start + 5), "attributes": {"exception.type": exception}}]
+        return span
+
+    def test_no_error_spans_gives_null(self):
+        summary = run_summary("1" * 32, self.spans(record(), record("2" * 16, "1" * 16, "tool")))
+        self.assertIsNone(summary["first_error"])
+
+    def test_nested_errors_pick_the_deepest_not_the_parents(self):
+        spans = self.spans(
+            self.timed("1" * 16, None, "run", "ERROR", 100),
+            self.timed("2" * 16, "1" * 16, "agent", "ERROR", 200),
+            self.timed("3" * 16, "2" * 16, "tool", "ERROR", 300, "ToolTimeout"),
+            self.timed("4" * 16, "2" * 16, "model", "OK", 150),
+        )
+        self.assertEqual(run_summary("1" * 32, spans)["first_error"], {
+            "span_id": "3" * 16, "span_name": "controlled operation", "operation_type": "tool",
+            "exception_type": "ToolTimeout", "error_span_count_without_error_children": 1})
+
+    def test_error_carried_through_an_ok_span_does_not_select_the_root(self):
+        # Shape of controlled TOOL-05: run ERROR > agent OK > three failed pay attempts.
+        spans = self.spans(
+            self.timed("1" * 16, None, "run", "ERROR", 100),
+            self.timed("2" * 16, "1" * 16, "agent", "OK", 110),
+            self.timed("3" * 16, "2" * 16, "tool", "ERROR", 200, "ToolTimeout"),
+            self.timed("4" * 16, "2" * 16, "tool", "ERROR", 300, "ToolTimeout"),
+            self.timed("5" * 16, "2" * 16, "tool", "ERROR", 400, "ToolTimeout"),
+        )
+        first = run_summary("1" * 32, spans)["first_error"]
+        self.assertEqual((first["span_id"], first["exception_type"], first["error_span_count_without_error_children"]), ("3" * 16, "ToolTimeout", 3))
+
+    def test_missing_parent_keeps_the_orphan_error(self):
+        orphan = self.timed("3" * 16, "9" * 16, "tool", "ERROR", 50, "ToolError")
+        spans = self.spans(self.timed("1" * 16, None, "run", "ERROR", 100), orphan)
+        first = run_summary("1" * 32, spans)["first_error"]
+        self.assertEqual((first["span_id"], first["error_span_count_without_error_children"]), ("3" * 16, 2))
+
+    def test_sibling_leaves_earliest_start_wins_and_all_are_counted(self):
+        spans = self.spans(
+            self.timed("1" * 16, None, "run", "ERROR", 100),
+            self.timed("2" * 16, "1" * 16, "tool", "ERROR", 500),
+            self.timed("3" * 16, "1" * 16, "tool", "ERROR", 300),
+            self.timed("4" * 16, "1" * 16, "api", "ERROR", 400),
+        )
+        first = run_summary("1" * 32, spans)["first_error"]
+        self.assertEqual((first["span_id"], first["exception_type"], first["error_span_count_without_error_children"]), ("3" * 16, None, 3))
+
+    def test_retries_failed_attempt_is_first_error_even_when_recovered(self):
+        failed = self.timed("2" * 16, "1" * 16, "tool", "ERROR", 200, "ToolTimeout")
+        retry = self.timed("3" * 16, "1" * 16, "tool", "OK", 300)
+        retry["attributes"]["debugger.retry_of"] = "2" * 16
+        summary = run_summary("1" * 32, self.spans(self.timed("1" * 16, None, "run", "OK", 100), failed, retry))
+        self.assertEqual((summary["status"], summary["recorded_recovered_retry"]), ("OK", True))
+        self.assertEqual(summary["first_error"]["span_id"], "2" * 16)
+
+    def test_both_attempts_fail_earlier_attempt_wins_ties_break_on_span_id(self):
+        spans = self.spans(
+            self.timed("1" * 16, None, "run", "ERROR", 100),
+            self.timed("3" * 16, "1" * 16, "tool", "ERROR", 200),
+            self.timed("2" * 16, "1" * 16, "tool", "ERROR", 200),
+            self.timed("4" * 16, "1" * 16, "tool", "ERROR", 300),
+        )
+        first = run_summary("1" * 32, spans)["first_error"]
+        self.assertEqual((first["span_id"], first["error_span_count_without_error_children"]), ("2" * 16, 3))
+
+
 class ExporterTests(unittest.TestCase):
     def test_no_external_endpoints_and_no_proxy_or_payload_export(self):
         for endpoint in ["https://example.com/api/v1/local/traces", "http://127.0.0.1:8008/api/v1/spans", "http://user:pass@localhost/api/v1/local/traces"]:
