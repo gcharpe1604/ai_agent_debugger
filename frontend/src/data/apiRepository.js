@@ -20,7 +20,7 @@ function firstErrorView(value) {
   if (!value || typeof value.span_id !== 'string') return null
   return {
     spanId: value.span_id, spanName: value.span_name, operationType: value.operation_type,
-    exceptionType: value.exception_type ?? null, leafErrorCount: value.error_span_count_without_error_children,
+    exceptionType: value.exception_type ?? null, leafErrorCount: value.originating_error_span_count,
   }
 }
 

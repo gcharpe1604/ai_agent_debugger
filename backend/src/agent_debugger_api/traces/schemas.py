@@ -60,7 +60,7 @@ class FirstError(Attributes):
     span_name: str
     operation_type: str
     exception_type: str | None
-    error_span_count_without_error_children: int = Field(ge=1)
+    originating_error_span_count: int = Field(ge=1)
 
 
 class Batch(Attributes):

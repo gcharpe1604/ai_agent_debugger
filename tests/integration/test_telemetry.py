@@ -121,7 +121,7 @@ class FirstErrorTests(unittest.TestCase):
         )
         self.assertEqual(run_summary("1" * 32, spans)["first_error"], {
             "span_id": "3" * 16, "span_name": "controlled operation", "operation_type": "tool",
-            "exception_type": "ToolTimeout", "error_span_count_without_error_children": 1})
+            "exception_type": "ToolTimeout", "originating_error_span_count": 1})
 
     def test_error_carried_through_an_ok_span_does_not_select_the_root(self):
         # Shape of controlled TOOL-05: run ERROR > agent OK > three failed pay attempts.
@@ -133,13 +133,13 @@ class FirstErrorTests(unittest.TestCase):
             self.timed("5" * 16, "2" * 16, "tool", "ERROR", 400, "ToolTimeout"),
         )
         first = run_summary("1" * 32, spans)["first_error"]
-        self.assertEqual((first["span_id"], first["exception_type"], first["error_span_count_without_error_children"]), ("3" * 16, "ToolTimeout", 3))
+        self.assertEqual((first["span_id"], first["exception_type"], first["originating_error_span_count"]), ("3" * 16, "ToolTimeout", 3))
 
     def test_missing_parent_keeps_the_orphan_error(self):
         orphan = self.timed("3" * 16, "9" * 16, "tool", "ERROR", 50, "ToolError")
         spans = self.spans(self.timed("1" * 16, None, "run", "ERROR", 100), orphan)
         first = run_summary("1" * 32, spans)["first_error"]
-        self.assertEqual((first["span_id"], first["error_span_count_without_error_children"]), ("3" * 16, 2))
+        self.assertEqual((first["span_id"], first["originating_error_span_count"]), ("3" * 16, 2))
 
     def test_sibling_leaves_earliest_start_wins_and_all_are_counted(self):
         spans = self.spans(
@@ -149,7 +149,7 @@ class FirstErrorTests(unittest.TestCase):
             self.timed("4" * 16, "1" * 16, "api", "ERROR", 400),
         )
         first = run_summary("1" * 32, spans)["first_error"]
-        self.assertEqual((first["span_id"], first["exception_type"], first["error_span_count_without_error_children"]), ("3" * 16, None, 3))
+        self.assertEqual((first["span_id"], first["exception_type"], first["originating_error_span_count"]), ("3" * 16, None, 3))
 
     def test_retries_failed_attempt_is_first_error_even_when_recovered(self):
         failed = self.timed("2" * 16, "1" * 16, "tool", "ERROR", 200, "ToolTimeout")
@@ -167,7 +167,7 @@ class FirstErrorTests(unittest.TestCase):
             self.timed("4" * 16, "1" * 16, "tool", "ERROR", 300),
         )
         first = run_summary("1" * 32, spans)["first_error"]
-        self.assertEqual((first["span_id"], first["error_span_count_without_error_children"]), ("2" * 16, 3))
+        self.assertEqual((first["span_id"], first["originating_error_span_count"]), ("2" * 16, 3))
 
 
 class ExporterTests(unittest.TestCase):

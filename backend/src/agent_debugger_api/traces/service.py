@@ -8,10 +8,10 @@ def first_error(spans):
 
     Ancestors often carry a descendant's error, even through OK spans in
     between (run ERROR > agent OK > tool ERROR), so only the deepest recorded
-    error sites qualify. "error_span_count_without_error_children" counts those
-    sites; "children" there means any descendant. Earliest start wins; span ID
-    breaks ties so the choice is stable across reads. Missing parents and parent
-    cycles end the ancestor walk.
+    error sites qualify. "originating_error_span_count" is the number of those
+    originating ERROR spans (ERROR spans with no ERROR descendant), including the
+    chosen one. Earliest start wins; span ID breaks ties so the choice is stable
+    across reads. Missing parents and parent cycles end the ancestor walk.
     """
     errors = [span for span in spans.values() if span["status"]["code"] == "ERROR"]
     carries_descendant_error = set()
@@ -32,7 +32,7 @@ def first_error(spans):
         span_name=chosen["name"],
         operation_type=chosen["operation_type"],
         exception_type=exception.get("exception.type"),
-        error_span_count_without_error_children=len(leaves),
+        originating_error_span_count=len(leaves),
     ).model_dump()
 
 
