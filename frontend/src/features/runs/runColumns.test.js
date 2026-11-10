@@ -6,12 +6,12 @@ const fields = items => runColumns(items).map(([field]) => field)
 
 describe('run column hiding', () => {
   it('hides Completeness and Investigation while every visible row is Unknown/Unavailable', () => {
-    expect(fields([run('Unknown', 'Unavailable'), run('Unknown', 'Unavailable')])).toEqual(['name', 'startedAt', 'outcome', 'durationMs', 'recordedErrorCount'])
+    expect(fields([run('Unknown', 'Unavailable'), run('Unknown', 'Unavailable')])).toEqual(['name', 'outcome', 'startedAt', 'durationMs', 'recordedErrorCount'])
   })
   it('brings each column back as soon as one row has a real value', () => {
     expect(fields([run('Unknown', 'Unavailable'), run('Partial', 'Unavailable')])).toContain('completeness')
     expect(fields([run('Unknown', 'Unavailable'), run('Partial', 'Unavailable')])).not.toContain('investigation')
-    expect(fields([run('Unknown', 'Completed')])).toEqual(['name', 'startedAt', 'outcome', 'durationMs', 'recordedErrorCount', 'investigation'])
+    expect(fields([run('Unknown', 'Completed')])).toEqual(['name', 'outcome', 'startedAt', 'durationMs', 'recordedErrorCount', 'investigation'])
   })
   it('labels the error column "Error spans"', () => {
     expect(runColumns([run('Complete', 'Completed')]).find(([field]) => field === 'recordedErrorCount')[1]).toBe('Error spans')

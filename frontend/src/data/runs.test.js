@@ -24,6 +24,11 @@ describe('project-scoped run query', () => {
     const result = selectRuns(items, 'one', q({ pageSize: 2, page: 9 }))
     expect(result.items.map(r => r.id)).toEqual(['a']); expect(result.page).toBe(2); expect(result.total).toBe(3)
   })
+  it('summarizes matching runs across pages and counts execution failures separately from span errors', () => {
+    const result = selectRuns(items, 'one', q({ pageSize: 1, hasErrors: true }))
+    expect(result.items.map(run => run.id)).toEqual(['b'])
+    expect(result).toMatchObject({ total: 2, summary: { failed: 1, withSpanErrors: 2 } })
+  })
   it('applies an explicit fixed sample time window, not the computer clock', () => expect(selectRuns(items, 'one', q({ time: 'recent' }), fixtureTimeWindow).total).toBe(0))
   it('returns distinct first-use empty and no-match counts', () => {
     expect(selectRuns(items, 'one', q({ search: 'missing' })).projectTotal).toBe(3)

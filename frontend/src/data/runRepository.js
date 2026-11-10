@@ -1,5 +1,5 @@
 /** In-process read interface only. Replacing this adapter does not define an HTTP API.
- * listRuns({projectId, query, signal}) resolves {items,total,projectTotal,page,pageSize}.
+ * Summary counts cover the matching results before pagination.
  * All outcome, capture, count and investigation values remain independently supplied.
  */
 export function selectRuns(records, projectId, query, timeWindow = null) {
@@ -22,5 +22,10 @@ export function selectRuns(records, projectId, query, timeWindow = null) {
     return order ? order * (query.direction === 'asc' ? 1 : -1) : a.id.localeCompare(b.id, 'en')
   })
   const page = Math.min(query.page, Math.max(1, Math.ceil(filtered.length / query.pageSize)))
-  return { items: filtered.slice((page - 1) * query.pageSize, page * query.pageSize), total: filtered.length, projectTotal: projectRuns.length, page, pageSize: query.pageSize }
+  const summary = { failed: 0, withSpanErrors: 0 }
+  for (const run of filtered) {
+    if (run.outcome === 'Failed') summary.failed++
+    if (run.recordedErrorCount > 0) summary.withSpanErrors++
+  }
+  return { items: filtered.slice((page - 1) * query.pageSize, page * query.pageSize), total: filtered.length, projectTotal: projectRuns.length, page, pageSize: query.pageSize, summary }
 }

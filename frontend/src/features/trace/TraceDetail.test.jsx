@@ -91,9 +91,22 @@ describe('Trace Detail interactions', () => {
     expect(within(screen.getByRole('region', { name: 'Span inspector' }).querySelector('.inspector-meta')).getAllByText('UNSET').length).toBeGreaterThan(0)
     await user.click(row('lookup-catalog-entry'))
     await screen.findByText('Redacted'); expect(screen.getByText('Truncated')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Arguments' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Result' })).toBeTruthy()
     expect(screen.getAllByText('Unknown · VENDOR_PENDING').length).toBeGreaterThan(0)
     await user.click(screen.getByRole('tab', { name: 'Events' }))
     await screen.findByText('catalog.lookup')
+  })
+  it('focuses error matches and keeps the healthy ancestor as context', async () => {
+    const user = await open()
+    const errors = screen.getByRole('button', { name: 'Focus errors' })
+    await user.click(errors)
+    expect(row('lookup-order · attempt 1')).toBeTruthy()
+    expect(row('order-status-lookup').getAttribute('aria-label')).toContain('Ancestor context')
+    expect(screen.queryByRole('treeitem', { name: /lookup-order · attempt 2/ })).toBeNull()
+    expect(window.location.hash).toContain('spanStatus=ERROR')
+    await user.click(errors)
+    expect(row('lookup-order · attempt 2')).toBeTruthy()
   })
   it('ignores late details from an earlier selection and supports Attributes/Errors tabs', async () => {
     let release

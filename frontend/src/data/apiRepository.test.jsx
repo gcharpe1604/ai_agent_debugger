@@ -18,8 +18,9 @@ it('opens actual trace IDs through Run Explorer and preserves raw status and met
   render(<App {...createApiAdapters(fetcher)}/> )
   await user.click(await screen.findByRole('link', { name: `Captured run ${traceId}` }))
   await user.click(await screen.findByRole('treeitem', { name: /Captured run · Run · UNSET/ }))
-  expect(await screen.findByText('Input capture is disabled for this metadata-only capture profile.')).toBeTruthy()
-  expect(screen.getAllByText('Captured SDK data').length).toBeGreaterThan(0)
+  expect(await screen.findByText('Payload capture disabled')).toBeTruthy()
+  expect(screen.queryByRole('group', { name: 'Payload format' })).toBeNull()
+  expect(screen.getByText('1 span received · completeness unknown')).toBeTruthy()
   expect(screen.queryByText('Sample data')).toBeNull()
   expect(screen.queryByLabelText('Investigation details')).toBeNull()
   expect(window.location.hash).toContain(traceId)
@@ -49,9 +50,41 @@ it('renders an empty captured store without inserting sample executions', async 
   window.history.replaceState(null, '', '/#/projects/local/runs')
   render(<App {...createApiAdapters(fetcher)}/> )
   expect(await screen.findByRole('heading', { name: 'No runs recorded' })).toBeTruthy()
+  expect(within(screen.getByRole('main')).getByRole('link', { name: 'Open SDK Setup' }).getAttribute('href')).toBe('#/projects/local/setup')
   expect(screen.queryByRole('link', { name: /sample/i })).toBeNull()
   expect(screen.queryByRole('link', { name: /R-10/ })).toBeNull()
   expect(fetcher).toHaveBeenCalledWith('/api/v1/local/runs', expect.objectContaining({ cache: 'no-store' }))
+})
+
+it('keeps SDK Setup available offline and verifies only the requested trace after reconnecting', async () => {
+  const missingId = 'abcdef1234567890abcdef1234567890'
+  let reachable = false
+  const adapters = createApiAdapters(async url => {
+    if (!reachable) throw new TypeError('Connection refused')
+    if (url.endsWith('/status')) return { ok: true, json: async () => status }
+    if (url.endsWith(traceId)) return { ok: true, json: async () => ({ run, spans: [span] }) }
+    return { ok: false, status: 404 }
+  })
+  window.history.replaceState(null, '', '/#/projects/local/runs')
+  const user = userEvent.setup()
+  render(<App {...adapters}/> )
+  await user.click(await screen.findByRole('link', { name: 'SDK Setup' }))
+  expect(await screen.findByRole('heading', { name: 'SDK Setup' })).toBeTruthy()
+  expect(await screen.findByText('Backend unavailable')).toBeTruthy()
+  expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull()
+  reachable = true
+  await user.click(screen.getByRole('button', { name: 'Check connection' }))
+  expect(await screen.findByText('Backend reachable')).toBeTruthy()
+  const input = screen.getByRole('textbox', { name: 'Trace ID' })
+  await user.type(input, missingId)
+  await user.click(screen.getByRole('button', { name: 'Verify trace' }))
+  expect(await screen.findByText(/Captured data is unavailable/)).toBeTruthy()
+  expect(screen.queryByRole('link', { name: 'Open run' })).toBeNull()
+  await user.clear(input)
+  await user.type(input, traceId)
+  await user.click(screen.getByRole('button', { name: 'Verify trace' }))
+  await user.click(await screen.findByRole('link', { name: 'Open run' }))
+  expect(await screen.findByRole('heading', { name: 'Captured run' })).toBeTruthy()
 })
 
 it('shows a backend failure without a sample fallback even with a legacy sample query', async () => {
@@ -81,9 +114,12 @@ describe('failed local run: first error surfacing', () => {
   const spans = [item('a000000000000001', null, 'tool-task-agent', 'run', 'ERROR', 0), item('a000000000000002', 'a000000000000001', 'LocalTools.invoke', 'tool', 'ERROR', 1, 'ToolTimeout'), item('a000000000000003', 'a000000000000001', 'LocalTools.invoke', 'tool', 'ERROR', 2, 'ToolError')]
   const failed = { ...run, trace_id: failedId, name: 'tool-task-agent', status: 'ERROR', execution_mode: 'controlled', recorded_error_spans: 3, end_time_unix_nano: at(4),
     first_error: { span_id: 'a000000000000002', span_name: 'LocalTools.invoke', operation_type: 'tool', exception_type: 'ToolTimeout', originating_error_span_count: 2 } }
+  spans[1].attributes = { 'debugger.step': 'pay', 'debugger.attempt': 1 }
+  spans[2].attributes = { 'debugger.step': 'pay', 'debugger.attempt': 2, 'debugger.retry_of': spans[1].span_id }
+  const recovered = { ...run, trace_id: 'abcdefabcdefabcdefabcdefabcdef02', name: 'Recovered run', recorded_error_spans: 1, recorded_recovered_retry: true }
   const fetcher = vi.fn(async url => {
     const selected = spans.find(value => url.endsWith('/spans/' + value.span_id))
-    return { ok: true, json: async () => url.endsWith('/status') ? status : selected ? { run: failed, span: selected, retry_of: null, retries: [] } : url.endsWith(failedId) ? { run: failed, spans } : { mode: 'local', runs: [failed, run] } }
+    return { ok: true, json: async () => url.endsWith('/status') ? status : selected ? { run: failed, span: selected, retry_of: null, retries: [] } : url.endsWith(failedId) ? { run: failed, spans } : { mode: 'local', runs: [failed, recovered, run] } }
   })
   const selectedRow = async () => (await screen.findAllByRole('treeitem')).find(row => row.getAttribute('aria-selected') === 'true')
 
@@ -92,15 +128,37 @@ describe('failed local run: first error surfacing', () => {
     render(<App {...createApiAdapters(fetcher)}/> )
     const link = await screen.findByRole('link', { name: `tool-task-agent ${failedId}` })
     const cell = link.closest('td')
-    expect(within(cell).getByText('First error')).toBeTruthy()
+    expect(within(cell).getByRole('link', { name: /First recorded error/ }).getAttribute('href')).toContain('span=a000000000000002')
     expect(within(cell).getByText('ToolTimeout · LocalTools.invoke (+1)')).toBeTruthy()
     expect(within(cell).getByText('Controlled')).toBeTruthy()
     expect(screen.queryByText(/root cause|cause:/i)).toBeNull()
     // The completed run has no first-error line or mode badge (execution_mode is null).
-    expect(within(screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('td')).queryByText('First error')).toBeNull()
+    expect(within(screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('td')).queryByText('First recorded error')).toBeNull()
     expect(screen.getByRole('button', { name: 'Sort by error spans' }).title).toMatch(/including parents that carry a child's error/)
     expect(screen.queryByRole('columnheader', { name: /Completeness/ })).toBeNull()
     expect(screen.queryByRole('columnheader', { name: /Investigation/ })).toBeNull()
+  })
+
+  it('keeps recovered runs in Has span errors and preserves that filter after following a first error', async () => {
+    window.history.replaceState(null, '', '/#/projects/local/runs')
+    const user = userEvent.setup()
+    render(<App {...createApiAdapters(fetcher)}/> )
+    await screen.findByRole('link', { name: /Recovered run/ })
+    await user.click(screen.getByRole('button', { name: 'Failed', exact: true }))
+    await waitFor(() => expect(screen.queryByRole('link', { name: /Recovered run/ })).toBeNull())
+    await user.click(screen.getByRole('button', { name: 'Remove Outcome: Failed' }))
+    await user.click(screen.getByRole('button', { name: 'Has span errors', exact: true }))
+    await screen.findByRole('link', { name: /Recovered run/ })
+    await waitFor(() => expect(screen.queryByRole('link', { name: /Captured run/ })).toBeNull())
+    await user.click(screen.getByRole('link', { name: /First recorded error/ }))
+    expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000002')
+    const inspector = await screen.findByRole('region', { name: 'Span inspector' })
+    expect(within(inspector).getByRole('heading', { name: 'Pay · attempt 1' })).toBeTruthy()
+    expect(within(inspector).getByText('LocalTools.invoke')).toBeTruthy()
+    expect(screen.queryByText('0 loaded')).toBeNull()
+    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
+    expect(await screen.findByRole('link', { name: /Recovered run/ })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Has span errors', exact: true }).getAttribute('aria-pressed')).toBe('true')
   })
 
   it('selects first_error when the URL has no span, and an explicit span always wins', async () => {

@@ -40,7 +40,7 @@ describe('Milestone 1 Run Explorer', () => {
     await open()
     expect(screen.queryByText('Sample data')).toBeNull()
     const row = screen.getByRole('link', { name: 'order-status-lookup R-1040' }).closest('tr')
-    expect(within(row).getAllByRole('cell')[2].textContent.trim()).toBe('Completed'); expect(within(row).getByText('Recovered')).toBeTruthy()
+    expect(within(row).getByRole('cell', { name: 'Completed', exact: true })).toBeTruthy(); expect(within(row).getByText('Recovered')).toBeTruthy()
     expect(within(row).getByText('1')).toBeTruthy(); expect(within(row).getByText('0 findings')).toBeTruthy()
   })
   it('commits search on Enter, filters and clears without losing time', async () => {

@@ -1,11 +1,10 @@
-.trace-view-toggle { display: flex; flex-shrink: 0; align-items: center; height: 30px; border: 1px solid var(--control); border-radius: 4px; padding: 2px; }
-.trace-view-toggle button { min-height: 24px; padding: 2px 6px; border: 0; border-radius: 2px; background: transparent; color: var(--secondary); font-size: 12px; }
-.trace-view-toggle button[aria-pressed="true"] { background: var(--selected); color: var(--text); }
+.trace-view-toggle { display: flex; flex-shrink: 0; align-items: center; height: 32px; background: var(--canvas); border: 1px solid var(--border); border-radius: 7px; padding: 2px; }
+.trace-view-toggle button { min-height: 24px; padding: 2px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--secondary); font-size: 12px; }
+.trace-view-toggle button[aria-pressed="true"] { background: var(--selected); color: var(--interactive); }
 .trace-path summary { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
 .trace-child-count { padding-left: 8px; border-left: 1px solid var(--border); white-space: nowrap; }
 .timeline-controls { display: flex; align-items: center; gap: 3px; height: 40px; flex-shrink: 0; padding: 4px 8px; border-top: 1px solid var(--border); min-width: 0; }
 .timeline-controls > button { flex-shrink: 0; }
-.trace-workbench[data-mode="overlay"] .timeline-controls { margin-right: var(--inspector-width); }
 .timeline-controls .trace-icon-button { font-size: 16px; flex-basis: 28px; }
 .timeline-controls .timeline-fit { min-height: 28px; padding: 2px 6px; font-size: 12px; }
 .timeline-window { font-size: 12px; white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -26,7 +25,8 @@
 .tick-4 { transform: translateX(-100%); }
 .timeline-track { position: relative; height: 24px; min-width: 0; overflow: hidden; background: var(--canvas); }
 .timeline-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); }
-.timeline-bar, .timeline-point { position: absolute; height: 8px; top: 8px; background: var(--secondary); }
+.timeline-bar, .timeline-point { position: absolute; height: 8px; top: 8px; background: var(--interactive); }
+.timeline-bar { border-radius: 3px; }
 .timeline-bar.clipped-start { border-left: 2px solid var(--text); }
 .timeline-bar.clipped-end { border-right: 2px solid var(--text); }
 .timeline-point { height: 12px; top: 6px; transform: translateX(-1px); }
@@ -36,4 +36,9 @@
 @container (max-width: 760px) {
   .trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(220px,.95fr) minmax(96px,1fr) 72px; gap: 8px; }
   .timeline-axis .tick-1, .timeline-axis .tick-2, .timeline-axis .tick-3 { display: none; }
+}
+
+@container (max-width: 440px) {
+  .trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(0, 1fr) minmax(56px, .65fr) 51px; gap: 5px; }
+  .timeline-axis .tick-4 { display: none; }
 }

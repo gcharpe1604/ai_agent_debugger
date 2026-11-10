@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildIndex, visibleTree, windowRows, restoreAnchor, statusText } from './treeModel.js'
+import { ROW_HEIGHT, buildIndex, visibleTree, windowRows, restoreAnchor, statusText } from './treeModel.js'
 
 const spans = [
   { id: 'root', parentId: null, name: 'Run', type: 'run', status: 'OK', duration: 1000 },
@@ -40,12 +40,12 @@ describe('recorded execution hierarchy', () => {
 })
 describe('bounded row rendering and anchors', () => {
   it('windows a 2,100-row list, retaining an offscreen active descendant', () => {
-    const result = windowRows(Array.from({ length: 2100 }, (_, i) => ({ id: String(i) })), 32000, 480, '0')
+    const result = windowRows(Array.from({ length: 2100 }, (_, i) => ({ id: String(i) })), 1000 * ROW_HEIGHT, 480, '0')
     expect(result.length).toBeLessThanOrEqual(27)
     expect(result.some(r => r.id === '0')).toBe(true)
     expect(result.some(r => r.id === '1000')).toBe(true)
   })
   it('restores a stable anchor when structure is appended or reordered', () => {
-    expect(restoreAnchor([{ id: 'new' }, { id: 'root' }, { id: 'agent' }], { id: 'agent', offset: 7 })).toBe(71)
+    expect(restoreAnchor([{ id: 'new' }, { id: 'root' }, { id: 'agent' }], { id: 'agent', offset: 7 })).toBe(2 * ROW_HEIGHT + 7)
   })
 })

@@ -106,7 +106,7 @@ describe('Milestone 3.1 repairs', () => {
     const control = screen.getByLabelText('Span filters')
     vi.spyOn(inspector, 'getBoundingClientRect').mockReturnValue({ left: 700, right: 1250, top: 96, bottom: 780, width: 550, height: 684 })
     vi.spyOn(control, 'getBoundingClientRect').mockReturnValue({ left: 1180, right: 1210, top: 100, bottom: 130, width: 30, height: 30 })
-    screen.getByRole('searchbox', { name: 'Search loaded spans' }).focus(); await user.tab()
+    screen.getByRole('button', { name: 'Focus errors' }).focus(); await user.tab()
     expect(document.activeElement).toBe(control)
     expect(screen.queryByRole('region', { name: 'Span inspector' })).toBeNull()
     expect(screen.getByRole('treeitem', { name: /lookup-order · attempt 2/ }).getAttribute('aria-selected')).toBe('true')

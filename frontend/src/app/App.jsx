@@ -12,6 +12,7 @@ import useProjects from '../features/access/useProjects.js'
 import ProjectsPage from '../features/access/ProjectsPage.jsx'
 import AccountPage from '../features/access/AccountPage.jsx'
 import AccessState from '../features/access/AccessState.jsx'
+import SdkSetupPage from '../pages/SdkSetupPage.jsx'
 
 function ProjectWorkspace({ repository, traceRepository, investigationRepository, route, project, projects }) {
   const [traceViews] = useState(() => new Map())
@@ -29,13 +30,20 @@ export default function App({ repository = disconnectedRuns, traceRepository = d
   const state = useProjects(adapter)
   const projects = state.projects
   const project = projects.find(item => item.id === route.projectId)
-  const protect = children => <ReadBoundary key={route.path} back={projects.length ? runsHref(project?.id || projects[0].id, returnQuery(route.search)) : '#/projects'}>{children}</ReadBoundary>
+  const local = adapter.mode === 'local'
+  const fallbackProjectId = project?.id || projects[0]?.id || (local ? 'local' : null)
+  const protect = children => <ReadBoundary key={route.path} back={fallbackProjectId ? runsHref(fallbackProjectId, returnQuery(route.search)) : '#/projects'}>{children}</ReadBoundary>
+  if (route.setup) return protect(<AppShell projects={projects} project={project} route={route} local={local}>
+    {local && route.projectId === 'local'
+      ? <SdkSetupPage traceRepository={traceRepository} projectId={route.projectId} connected={!!project} checking={state.busy} checkConnection={state.retry}/>
+      : <AccessState kind="unavailable"/>}
+  </AppShell>)
   if (project?.dataSource === 'local' && (route.evidence || route.settings)) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
   // Account/access routes unmount project workspaces, dropping rendered trace/evidence caches.
   // Disconnected authentication never fabricates or blocks captured local telemetry.
   if (route.account) return protect(<AccountPage key={route.path} route={route} adapter={accountAdapter}/> )
   if (project && !route.settings && !state.error) return <ProjectWorkspace key={project.id} repository={repository} traceRepository={traceRepository} investigationRepository={investigationRepository} route={route} project={project} projects={projects}/>
-  return protect(<AppShell projects={projects} project={project} route={route}>
+  return protect(<AppShell projects={projects} project={project} route={route} local={local}>
     {route.projectsPage || route.settings ? <ProjectsPage route={route} project={project} state={state} adapter={adapter}/>
       : state.error ? <AccessState kind={state.error} retry={state.retry} target={route.path}/>
         : !projects.length && (!state.busy || adapter.initialProjects) ? <ProjectsPage route={route} project={project} state={state} adapter={adapter}/>

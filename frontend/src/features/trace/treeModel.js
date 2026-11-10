@@ -1,11 +1,23 @@
 import { formatDuration } from '../../app/format.js'
 
-export const ROW_HEIGHT = 32
+export const ROW_HEIGHT = 36
 export const types = ['run', 'agent', 'model', 'tool', 'retrieval', 'api', 'state', 'custom']
 export const typeLabel = type => ({ run: 'Run', agent: 'Agent', model: 'Model', tool: 'Tool', retrieval: 'Retrieval', api: 'API', state: 'State', custom: 'Custom' }[type] || `Custom · ${type || 'unknown'}`)
 export const statusText = status => ['OK', 'ERROR', 'UNSET'].includes(status) ? status : status === null || status === undefined || status === '' ? 'Unknown' : `Unknown · ${status}`
 export const durationText = value => Number.isFinite(value) && value >= 0 ? formatDuration(value) : 'Unavailable'
 export const knownCount = value => Number.isSafeInteger(value) && value >= 0 ? value : null
+
+export function recordedAttempt(span) {
+  if (span.type !== 'tool' || typeof span.step !== 'string' || !Number.isSafeInteger(span.attempt) || span.attempt < 1) return null
+  const step = span.step.trim()
+  if (!step) return null
+  const displayStep = step.charAt(0).toUpperCase() + step.slice(1)
+  return { step: displayStep, attempt: span.attempt, label: `${displayStep} · attempt ${span.attempt}` }
+}
+
+export function operationLabel(span) {
+  return recordedAttempt(span)?.label ?? span.name
+}
 export function childLabel(row) {
   // Visible text only; aria-description still states that the total is unknown.
   if (row.childKnown === null) return `${row.childLoaded} loaded`
@@ -41,7 +53,7 @@ export function ancestors(index, id) {
 export function visibleTree(index, expanded, query) {
   const filtered = !!(query.search.trim() || query.type || query.status)
   const needle = query.search.trim().toLowerCase()
-  const direct = index.spans.filter(span => (!needle || (span.name + ' ' + span.id).toLowerCase().includes(needle)) && (!query.type || span.type === query.type) && (!query.status || (query.status === 'unknown' ? !['OK', 'ERROR', 'UNSET'].includes(span.status) : span.status === query.status)))
+  const direct = index.spans.filter(span => (!needle || `${span.name} ${span.id} ${operationLabel(span)}`.toLowerCase().includes(needle)) && (!query.type || span.type === query.type) && (!query.status || (query.status === 'unknown' ? !['OK', 'ERROR', 'UNSET'].includes(span.status) : span.status === query.status)))
   const matches = direct.map(span => span.id), matched = new Set(matches), included = new Set(matches)
   if (filtered) direct.forEach(span => ancestors(index, span.id).forEach(parent => included.add(parent.id)))
   const rows = [], visited = new Set()
@@ -74,5 +86,5 @@ export function restoreAnchor(rows, anchor, index) {
   let id = anchor.id, position = rows.findIndex(row => row.id === id)
   const seen = new Set()
   while (position < 0 && index && !seen.has(id)) { seen.add(id); id = index.byId.get(id)?.parentId; if (!id) break; position = rows.findIndex(row => row.id === id) }
-  return position < 0 ? 0 : position * ROW_HEIGHT + Math.max(0, Math.min(31, anchor.offset || 0))
+  return position < 0 ? 0 : position * ROW_HEIGHT + Math.max(0, Math.min(ROW_HEIGHT - 1, anchor.offset || 0))
 }
