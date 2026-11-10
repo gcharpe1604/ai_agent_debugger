@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 import { usePreference } from '../../app/preferences.js'
 import { parseRoute } from '../../app/routes.jsx'
-import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount, operationLabel } from './treeModel.js'
+import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount, operationLabel, executionPath } from './treeModel.js'
+import ExecutionPath from './ExecutionPath.jsx'
 import { autoSelectedSpan, initialTraceState, traceReducer } from './traceState.js'
 import { useElementSize } from './useElementSize.js'
 import ExecutionTree from './ExecutionTree.jsx'
@@ -19,6 +20,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   const [modePreference, setModePreference] = usePreference('inspector.mode', ['overlay', 'pinned'], 'overlay')
   const [widthPreference, setWidthPreference] = usePreference('inspector.width', widthValues, 'auto')
   const index = useMemo(() => buildIndex(data.spans), [data.spans])
+  const path = useMemo(() => executionPath(index), [index])
   const timing = useMemo(() => buildTimingIndex(data.spans, data.run.durationMs), [data.spans, data.run.durationMs])
   const total = knownCount(data.knownCount)
   const [ui, dispatch] = useReducer(traceReducer, null, () => {
@@ -137,6 +139,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     if (event.key === 'F6' && ui.open && span) { event.preventDefault(); if (single) close(); else if (inspectorRef.current?.contains(document.activeElement)) treeRef.current.focus({ preventScroll: true }); else inspectorRef.current.focus({ preventScroll: true }) }
   }}>
     <div className="trace-explorer">
+      <ExecutionPath path={path} selected={ui.selected} select={jump}/>
       <TraceToolbar ui={ui} filter={filter} patch={patch} index={index} jump={jump} projectId={route.projectId} search={route.search} wide={ui.view !== 'timeline' && explorerSize.width >= 840} switchView={switchView} timing={timing} timeWindowChange={timeWindowChange}/>
       {(!receivedOnly || view.filtered || ui.selected || ui.reveal) && <div className="trace-context">
         {!receivedOnly && <span className="trace-loaded">{total === null ? `${loaded} loaded` : `${loaded} / ${total.toLocaleString('en')} loaded`}</span>}

@@ -48,6 +48,15 @@
   --success: #116549;
   --success-surface: #e8f6ef;
   --lift: 0 1px 2px #00000008, 0 4px 14px #00000006;
+  /* One colour per span type, shared by tree icons, timeline bars and the path strip. */
+  --type-run: #475467;
+  --type-agent: #6d28d9;
+  --type-model: #1d4ed8;
+  --type-tool: #b45309;
+  --type-retrieval: #0f766e;
+  --type-api: #0369a1;
+  --type-state: #4b5563;
+  --type-custom: #be185d;
   --sidebar: 208px;
   --page-inset: clamp(16px, 2.5vw, 36px);
 }
@@ -77,6 +86,14 @@
   --success: #93dec1;
   --success-surface: #17352f;
   --lift: 0 1px 2px #0005, 0 4px 14px #0002;
+  --type-run: #d0d5dd;
+  --type-agent: #c4b5fd;
+  --type-model: #93c5fd;
+  --type-tool: #fdba74;
+  --type-retrieval: #5eead4;
+  --type-api: #7dd3fc;
+  --type-state: #cbd5e1;
+  --type-custom: #f9a8d4;
 }
 
 * {

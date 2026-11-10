@@ -6,6 +6,14 @@ import TimelineTrack from './TimelineTrack.jsx'
 import { intervalLabel, timeLabel } from './timelineModel.js'
 import { exactDuration } from '../../app/format.js'
 
+// Parent-child connector lines. Column d (0-based) sits under the disclosure of
+// the ancestor at depth d; the last column is this row's own elbow.
+function TreeGuides({ depth, guides, last, leaf }) {
+  const columns = []
+  for (let level = 1; level < depth; level++) if (guides?.[level]) columns.push(<span key={level} className="tree-guide" style={{ '--guide-level': level - 1 }}/>)
+  return <span className="tree-guides" aria-hidden="true">{columns}<span className={`tree-guide tree-elbow${last ? ' last' : ''}${leaf ? ' leaf' : ''}`} style={{ '--guide-level': depth - 1 }}/></span>
+}
+
 export default function ExecutionTree({ index, rows, ui, treeRef, select, patch, toggle, filtered, showIds, timing, timeWindow, receivedOnly }) {
   const timeline = ui.view === 'timeline'
   const size = useElementSize(treeRef)
@@ -57,13 +65,17 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
         if (row.group) return <div className="trace-group-row" key={row.id} style={{ top: row.index * ROW_HEIGHT }}><Icon name="error"/>{row.name}<span>UI grouping · not an operation</span></div>
         const attempt = recordedAttempt(row.span)
         const name = attempt && attempt.label !== row.span.name ? `${attempt.label} · ${row.span.name}` : row.span.name
-        const showChildCount = row.childLoaded > 0 || row.childKnown > 0
+        // Only a recorded total is worth a chip; received-only counts add noise.
+        const showChildCount = row.childKnown !== null && (row.childLoaded > 0 || row.childKnown > 0)
         const disclosure = canExpand(row)
+        const cap = timeline ? 3 : 6
+        const type = types.includes(row.span.type) ? row.span.type : 'custom'
         return <div key={row.id} id={`trace-row-${row.id}`} role="treeitem" data-span-id={row.id} className={`trace-row trace-grid${ui.selected === row.id ? ' selected' : ''}${active === row.id ? ' keyboard-active' : ''}`} style={{ top: row.index * ROW_HEIGHT }} aria-level={row.depth + 1} aria-posinset={row.position} aria-setsize={row.siblings} aria-selected={ui.selected === row.id} aria-expanded={disclosure ? row.expanded : undefined} aria-label={`${name} · ${typeLabel(row.span.type)} · ${statusText(row.span.status)} · ${durationText(row.span.duration)} · ${row.id}${row.context ? ' · Ancestor context' : ''}`} aria-description={(timeline ? intervalLabel(timing.byId.get(row.id)) + '; ' : '') + `${row.childLoaded} loaded children; ${row.childKnown === null ? 'total unknown' : `${row.childKnown} known children`}`} title={`${row.span.name}\nSpan ${row.id}\nRecorded parent ${row.span.parentId ?? 'root'}\nDepth ${row.depth + 1}`} onClick={() => { treeRef.current.focus({ preventScroll: true }); select(row.id) }}>
-        <div className="trace-operation" data-error={row.span.status === 'ERROR' || undefined} style={{ '--span-depth': Math.min(row.depth, timeline ? 3 : 6) }}>
+        <div className="trace-operation" data-type={type} data-error={row.span.status === 'ERROR' || undefined} style={{ '--span-depth': Math.min(row.depth, cap) }}>
+          {row.depth > 0 && row.depth <= cap && <TreeGuides depth={row.depth} guides={row.guides} last={row.last} leaf={!disclosure}/>}
           {disclosure ? <button className={`tree-disclosure ${row.expanded ? 'expanded' : ''}`} data-disclosure="true" tabIndex="-1" aria-label={`${row.expanded ? 'Collapse' : 'Expand'} ${row.span.name}`} aria-disabled={filtered} title={filtered ? 'Matching ancestor paths stay visible while filtering' : undefined} onClick={event => { event.stopPropagation(); if (!filtered) toggle(row.id) }}><Icon name="chevron"/></button> : <span className="tree-disclosure"/>}
-          <Icon name={types.includes(row.span.type) ? row.span.type : 'custom'}/>
-          {row.depth > (timeline ? 3 : 6) && <span className="depth-marker" title={`Recorded depth ${row.depth + 1}`}>↳{row.depth + 1}</span>}
+          <Icon name={type}/>
+          {row.depth > cap && <span className="depth-marker" title={`Recorded depth ${row.depth + 1}`}>↳{row.depth + 1}</span>}
           <span className="trace-name-stack">
             {attempt ? <span className="trace-operation-name trace-attempt-name"><span>{attempt.step}</span><span className="trace-attempt">· <span className="trace-attempt-word">attempt </span>{attempt.attempt}</span></span> : <span className="trace-operation-name">{row.span.name}</span>}
             <span className="trace-inline-type">{typeLabel(row.span.type)} · {timeline ? <span className={row.span.status === 'ERROR' ? 'error-text' : ''}>{statusText(row.span.status)}</span> : `${Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}${timeLabel(row.span.start)}`}{timeline && showChildCount ? ` · ${childLabel(row)}` : ''}{row.context ? ' · ancestor' : ''}</span>
@@ -71,13 +83,13 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
           {!timeline && showChildCount && <span className="trace-child-count" title={`${row.childLoaded} loaded children; ${row.childKnown === null ? 'total unknown' : `${row.childKnown} known`}`}>{childLabel(row)}</span>}
           {row.span.retryOf && <span className="trace-retry-glyph" title={`Recorded retry of ${row.span.retryOf}`}><Icon name="retry"/></span>}
         </div>
-        {timeline ? <><TimelineTrack timing={timing.byId.get(row.id)} window={timeWindow} status={row.span.status}/><span className="sr-only">{timing.byId.get(row.id)?.state === 'valid' ? `Recorded interval ${timeLabel(timing.byId.get(row.id).start)} to ${timeLabel(timing.byId.get(row.id).end)}` : timing.byId.get(row.id)?.reason}</span></> : <>
+        {timeline ? <><TimelineTrack timing={timing.byId.get(row.id)} window={timeWindow} status={row.span.status} type={type} label={durationText(row.span.duration)}/><span className="sr-only">{timing.byId.get(row.id)?.state === 'valid' ? `Recorded interval ${timeLabel(timing.byId.get(row.id).start)} to ${timeLabel(timing.byId.get(row.id).end)}` : timing.byId.get(row.id)?.reason}</span></> : <>
           {showIds && <span className="trace-id-cell mono" title={row.id}>{row.id}</span>}
           <span className="trace-start-cell mono" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
           <span className="trace-type-cell">{typeLabel(row.span.type)}</span>
           <span className={`trace-status-cell ${row.span.status === 'ERROR' ? 'badge' : 'mono'}`} data-state={row.span.status} title={statusText(row.span.status)}>{statusText(row.span.status)}</span>
+          <span className="trace-duration mono" title={exactDuration(row.span.duration)}>{durationText(row.span.duration)}</span>
         </>}
-        <span className="trace-duration mono" title={exactDuration(row.span.duration)}>{durationText(row.span.duration)}</span>
       </div>})}
     </div>
     {!rows.length && <div className="empty-state"><h3>No matching loaded spans</h3><p>Change the loaded-only search or filters.</p></div>}

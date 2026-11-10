@@ -1,4 +1,18 @@
-.trace-view-toggle { display: flex; flex-shrink: 0; align-items: center; height: 32px; background: var(--canvas); border: 1px solid var(--border); border-radius: 7px; padding: 2px; }
+.execution-path { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 6px 12px; flex-shrink: 0; border-bottom: 1px solid var(--border); background: var(--canvas); overflow-x: auto; }
+.execution-path-label { flex: none; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.execution-path ol { display: flex; align-items: center; gap: 4px; margin: 0; padding: 0; list-style: none; white-space: nowrap; }
+.execution-path li { display: flex; align-items: center; flex: none; }
+.execution-path .icon { width: 12px; height: 12px; }
+.path-arrow { color: var(--muted); }
+.path-step { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 2px 8px; border: 1px solid var(--border); border-left: 3px solid var(--type-color, var(--control)); border-radius: 5px; background: var(--panel); color: var(--text); font: 12px/18px "Cascadia Code",Consolas,monospace; }
+.path-step:hover { background: var(--hover); }
+.path-step[aria-pressed="true"] { background: var(--selected); border-color: var(--interactive); border-left-color: var(--type-color, var(--interactive)); }
+.path-step[data-error] { border-color: var(--error-border); color: var(--error); background: var(--error-surface); }
+.path-step .icon { color: var(--secondary); }
+.path-decision button { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 1px dashed var(--control); border-radius: 13px; background: transparent; color: var(--secondary); }
+.path-decision button:hover, .path-decision button[aria-pressed="true"] { border-style: solid; border-color: var(--interactive); color: var(--text); background: var(--hover); }
+.path-more { padding-left: 6px; font-size: 12px; color: var(--secondary); }
+.trace-view-toggle {display: flex; flex-shrink: 0; align-items: center; height: 32px; background: var(--canvas); border: 1px solid var(--border); border-radius: 7px; padding: 2px; }
 .trace-view-toggle button { min-height: 24px; padding: 2px 8px; border: 0; border-radius: 5px; background: transparent; color: var(--secondary); font-size: 12px; }
 .trace-view-toggle button[aria-pressed="true"] { background: var(--selected); color: var(--interactive); }
 .trace-path summary { max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
@@ -16,7 +30,8 @@
 .timeline-overview input:disabled { cursor: default; }
 .timeline-overview input:disabled::-webkit-slider-thumb { visibility: hidden; }
 .timeline-overview:focus-within { outline: 2px solid var(--focus); outline-offset: -2px; }
-.trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(240px,.6fr) minmax(100px,1fr) 80px; }
+/* Timeline mode: durations sit on the bars, so the track takes the duration column's width. */
+.trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(200px,.5fr) minmax(120px,1fr); }
 .trace-workbench[data-view="timeline"] .trace-inline-type { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trace-workbench[data-view="timeline"] .trace-duration { font-size: 12px; }
 .timeline-axis { height: 26px; position: relative; font-variant-numeric: tabular-nums; }
@@ -25,7 +40,8 @@
 .tick-4 { transform: translateX(-100%); }
 .timeline-track { position: relative; height: 24px; min-width: 0; overflow: hidden; background: var(--canvas); }
 .timeline-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); }
-.timeline-bar, .timeline-point { position: absolute; height: 8px; top: 8px; background: var(--interactive); }
+.timeline-bar, .timeline-point { position: absolute; height: 8px; top: 8px; background: var(--type-color, var(--interactive)); }
+.timeline-label { position: absolute; top: 4px; font-size: 11px; line-height: 16px; color: var(--secondary); white-space: nowrap; pointer-events: none; }
 .timeline-bar { border-radius: 3px; }
 .timeline-bar.clipped-start { border-left: 2px solid var(--text); }
 .timeline-bar.clipped-end { border-right: 2px solid var(--text); }
@@ -34,11 +50,11 @@
 .timeline-unavailable { display: block; padding: 3px 4px; font-size: 12px; line-height: 18px; color: var(--secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .timeline-mismatch { position: absolute; right: 4px; top: 2px; font-size: 12px; font-weight: 600; background: var(--panel); }
 @container (max-width: 760px) {
-  .trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(220px,.95fr) minmax(96px,1fr) 72px; gap: 8px; }
+  .trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(180px,.8fr) minmax(96px,1fr); gap: 8px; }
   .timeline-axis .tick-1, .timeline-axis .tick-2, .timeline-axis .tick-3 { display: none; }
 }
 
 @container (max-width: 440px) {
-  .trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(0, 1fr) minmax(56px, .65fr) 51px; gap: 5px; }
+  .trace-workbench[data-view="timeline"] .trace-grid { grid-template-columns: minmax(0, 1fr) minmax(72px, .8fr); gap: 5px; }
   .timeline-axis .tick-4 { display: none; }
 }

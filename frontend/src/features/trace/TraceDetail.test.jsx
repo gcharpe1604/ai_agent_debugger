@@ -108,7 +108,7 @@ describe('Trace Detail interactions', () => {
     await user.click(errors)
     expect(row('lookup-order · attempt 2')).toBeTruthy()
   })
-  it('ignores late details from an earlier selection and supports Attributes/Errors tabs', async () => {
+  it('ignores late details from an earlier selection and supports Metadata/Errors tabs', async () => {
     let release
     const repository = { ...traceRepository, readSpan: vi.fn().mockImplementationOnce(() => new Promise(resolve => { release = resolve })).mockImplementation(traceRepository.readSpan) }
     const user = await open(repository)
@@ -117,7 +117,7 @@ describe('Trace Detail interactions', () => {
     await screen.findByText('refund_request')
     release({ name: 'old span', input: { secret: 'STALE_PAYLOAD' }, output: {} })
     await waitFor(() => expect(screen.queryByText('STALE_PAYLOAD')).toBeNull())
-    await user.click(screen.getByRole('tab', { name: 'Attributes' }))
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }))
     await screen.findByText('service.name')
     await user.click(row('lookup-order · attempt 1'))
     await user.click(screen.getByRole('tab', { name: 'Errors' }))
@@ -160,13 +160,13 @@ describe('Trace Detail interactions', () => {
   })
   it('restores inspection, tab and tree context after Runs navigation and browser Back', async () => {
     const user = await open(); await failed(user)
-    await user.click(screen.getByRole('tab', { name: 'Attributes' }))
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }))
     await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
     await screen.findByRole('searchbox', { name: 'Search runs' })
     window.history.back()
     await screen.findByRole('region', { name: 'Span inspector' })
     expect(row('lookup-order · attempt 1').getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByRole('tab', { name: 'Attributes' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tab', { name: 'Metadata' }).getAttribute('aria-selected')).toBe('true')
     expect(window.location.hash).toContain('search=order')
   })
   it('keeps payload reading position and selection when pinning or unpinning', async () => {

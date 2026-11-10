@@ -13,5 +13,16 @@ export function formatDuration(ms) {
   return `${sign}${Math.floor(seconds / 60)}m ${String(seconds % 60).padStart(2, '0')}s`
 }
 
+// Span and run durations. A recorded 0 means the operation finished within one
+// tick of the recording clock, so "<1 ms" is true where "0.00 ms" misleads.
+// Sub-millisecond values read in microseconds. Offsets keep formatDuration.
+export function formatSpanDuration(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return formatDuration(ms)
+  if (ms === 0) return '<1 ms'
+  if (ms >= 1) return formatDuration(ms)
+  const micros = Math.round(ms * 1000)
+  return micros < 1 ? '<1 µs' : micros >= 1000 ? formatDuration(ms) : `${micros} µs`
+}
+
 // Exact recorded value for titles and Details: no rounding.
 export const exactDuration = ms => Number.isFinite(ms) ? `${ms} ms` : 'Unavailable'

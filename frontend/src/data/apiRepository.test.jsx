@@ -18,7 +18,7 @@ it('opens actual trace IDs through Run Explorer and preserves raw status and met
   render(<App {...createApiAdapters(fetcher)}/> )
   await user.click(await screen.findByRole('link', { name: `Captured run ${traceId}` }))
   await user.click(await screen.findByRole('treeitem', { name: /Captured run · Run · UNSET/ }))
-  expect(await screen.findByText('Payload capture disabled')).toBeTruthy()
+  expect(await screen.findByText('Input and output not captured')).toBeTruthy()
   expect(screen.queryByRole('group', { name: 'Payload format' })).toBeNull()
   expect(screen.getByText('1 span received · completeness unknown')).toBeTruthy()
   expect(screen.queryByText('Sample data')).toBeNull()

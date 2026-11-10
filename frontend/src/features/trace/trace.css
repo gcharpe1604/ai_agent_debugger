@@ -73,8 +73,24 @@
 .trace-row:hover { background: var(--hover); }
 .trace-row.selected { background: var(--selected); border-left-color: var(--interactive); }
 .trace-tree:focus-visible .trace-row.keyboard-active { outline: 2px solid var(--focus); outline-offset: -2px; z-index: 1; }
-.trace-operation { min-width: 0; display: flex; gap: 5px; align-items: center; height: var(--trace-row-height); padding-left: calc(var(--span-depth) * 16px); }
+.trace-operation { --tree-indent: 16px; --guide-center: 12px; position: relative; min-width: 0; display: flex; gap: 5px; align-items: center; height: var(--trace-row-height); padding-left: calc(var(--span-depth) * var(--tree-indent)); }
 .trace-operation > .icon { color: var(--interactive); }
+.trace-operation[data-type] > .icon { color: var(--type-color); }
+[data-type="run"] { --type-color: var(--type-run); }
+[data-type="agent"] { --type-color: var(--type-agent); }
+[data-type="model"] { --type-color: var(--type-model); }
+[data-type="tool"] { --type-color: var(--type-tool); }
+[data-type="retrieval"] { --type-color: var(--type-retrieval); }
+[data-type="api"] { --type-color: var(--type-api); }
+[data-type="state"] { --type-color: var(--type-state); }
+[data-type="custom"] { --type-color: var(--type-custom); }
+/* Connector lines: one column per ancestor level, centred under its disclosure. */
+.tree-guides { position: absolute; inset: 0 auto 0 0; width: 0; pointer-events: none; }
+.tree-guide { position: absolute; top: 0; bottom: 0; left: calc(var(--guide-level) * var(--tree-indent) + var(--guide-center)); width: 1px; background: var(--control); }
+.tree-elbow.last { bottom: 50%; }
+.tree-elbow::after { content: ''; position: absolute; top: calc(var(--trace-row-height) / 2); left: 0; width: calc(var(--tree-indent) - 6px); height: 1px; background: var(--control); }
+.tree-elbow.leaf::after { width: calc(var(--tree-indent) + 4px); }
+[data-theme="dark"] .tree-guide, [data-theme="dark"] .tree-elbow::after { background: hsl(0 0% 28%); }
 .trace-operation[data-error] > .icon { color: var(--error); }
 .tree-disclosure { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 28px; flex: 0 0 24px; padding: 0; border: 0; border-radius: 3px; background: transparent; color: var(--secondary); }
 .tree-disclosure .icon { width: 12px; height: 12px; }
@@ -173,7 +189,18 @@
 .captured-message .readable-prose { padding: 4px 0; }
 .inspector-tab-content { font-size: 13px; line-height: 20px; }
 .inspector-tab-content h3 { font-size: 13px; line-height: 20px; margin: 0 0 8px; }
-.attribute-search { display: flex; flex-direction: column; gap: 4px; font-size: 12px; margin-bottom: 12px; }
+.inspector-operation[data-type] > .icon { color: var(--type-color); }
+.span-metadata { display: grid; margin: 4px 0 14px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; font-size: 12px; }
+.span-metadata > div { display: grid; grid-template-columns: minmax(96px, 32%) minmax(0, 1fr); border-bottom: 1px solid var(--border); }
+.span-metadata > div:last-child { border-bottom: 0; }
+.span-metadata dt { padding: 7px 10px; color: var(--secondary); background: var(--canvas); }
+.span-metadata dd { display: flex; align-items: center; gap: 4px; min-width: 0; margin: 0; padding: 4px 10px; min-height: 32px; overflow-wrap: anywhere; }
+.span-metadata dd code { font: 12px/18px Consolas,monospace; min-width: 0; overflow-wrap: anywhere; }
+.span-metadata .trace-icon-button { flex: 0 0 24px; min-width: 24px; height: 24px; }
+.span-metadata .icon { width: 13px; height: 13px; }
+.raw-attributes > summary { cursor: pointer; padding: 6px 0; font-size: 12px; font-weight: 600; }
+.raw-attributes[open] > summary { margin-bottom: 8px; }
+.attribute-search {display: flex; flex-direction: column; gap: 4px; font-size: 12px; margin-bottom: 12px; }
 .attribute-search input { min-height: 30px; padding: 4px 8px; background: var(--panel); border: 1px solid var(--control); border-radius: 4px; }
 .span-attributes { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 12px; }
 .span-attributes th, .span-attributes td { text-align: left; vertical-align: top; padding: 8px; border-bottom: 1px solid var(--border); overflow-wrap: anywhere; }
@@ -198,7 +225,7 @@
 @container (max-width: 440px) {
   .trace-grid { grid-template-columns: minmax(0, 1fr) 58px 62px; gap: 5px; padding-left: 6px; padding-right: 8px; }
   .trace-columns { padding-right: calc(8px + var(--tree-gutter, 0px)); }
-  .trace-operation { padding-left: calc(var(--span-depth) * 9px); }
+  .trace-operation { --tree-indent: 9px; --guide-center: 8px; }
   .trace-operation .tree-disclosure { width: 16px; flex-basis: 16px; }
   .trace-operation .trace-child-count { display: none; }
   .trace-attempt-word { display: none; }

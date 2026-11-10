@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { exactDuration, formatDuration } from './format.js'
+import { exactDuration, formatDuration, formatSpanDuration } from './format.js'
 
 describe('formatDuration boundaries', () => {
   it.each([
@@ -14,6 +14,10 @@ describe('formatDuration boundaries', () => {
     expect(formatDuration(-2)).toBe('-2.00 ms')
     for (const value of [NaN, Infinity, null, undefined]) expect(formatDuration(value)).toBe('Unavailable')
   })
+
+  it.each([
+    [0, '<1 ms'], [0.0004, '<1 µs'], [0.43, '430 µs'], [0.9996, '1.00 ms'], [1, '1.00 ms'], [6.13, '6.13 ms'], [-2, '-2.00 ms'], [NaN, 'Unavailable'],
+  ])('span duration %s ms → %s', (value, text) => expect(formatSpanDuration(value)).toBe(text))
 
   it('exact values are never rounded', () => {
     expect(exactDuration(2418.004)).toBe('2418.004 ms')
