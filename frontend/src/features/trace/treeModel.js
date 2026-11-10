@@ -96,7 +96,9 @@ export function executionPath(index, limit = 40) {
   }
   const children = parent ? [...(index.children.get(parent.id) || [])] : []
   if (children.length < 2) return { steps: [], hidden: 0 }
-  children.sort((a, b) => (Number.isFinite(a.start) ? a.start : Infinity) - (Number.isFinite(b.start) ? b.start : Infinity) || a.id.localeCompare(b.id))
+  // Stable sort: steps that share a start time (coarse clocks tick in ~1 ms
+  // steps) keep the order they were received in, which is their end order.
+  children.sort((a, b) => (Number.isFinite(a.start) ? a.start : Infinity) - (Number.isFinite(b.start) ? b.start : Infinity))
   const names = new Set()
   const steps = children.map(span => {
     const decision = span.name.startsWith('route.')

@@ -74,6 +74,10 @@ describe('execution path', () => {
     expect(executionPath(buildIndex(graph.slice(0, 3))).steps).toEqual([])
     expect(executionPath(buildIndex([...graph, { id: 'r2', parentId: null, name: 'x', start: 0 }])).steps).toEqual([])
   })
+  it('keeps received order for steps that share a start time', () => {
+    const tied = graph.map(span => span.parentId === 'w' ? { ...span, start: 2 } : span)
+    expect(executionPath(buildIndex(tied)).steps.map(s => s.id)).toEqual(['c', 'rc', 'g1', 'g2'])
+  })
   it('caps long paths', () => {
     expect(executionPath(buildIndex(graph), 2)).toMatchObject({ hidden: 2 })
   })

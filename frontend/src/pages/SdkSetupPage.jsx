@@ -64,8 +64,8 @@ export default function SdkSetupPage({ traceRepository, projectId, connected, ch
   return <section className="sdk-setup" aria-labelledby="setup-heading">
     <header className="setup-heading">
       <span className="setup-icon"><Icon name="setup"/></span>
-      <div><h1 id="setup-heading">SDK Setup</h1>
-      <p className="view-description">Send a Python SDK trace to the local workspace and verify that you can open it in Runs.</p></div>
+      <div><h1 id="setup-heading">Get started</h1>
+      <p className="view-description">Send a Python SDK trace to the local workspace and verify that you can open it in Traces.</p></div>
     </header>
     <ol className="setup-steps">
       <li>
@@ -98,7 +98,7 @@ export default function SdkSetupPage({ traceRepository, projectId, connected, ch
         {verification?.error && <p id="setup-trace-error" className="error-text" role="alert">{verification.error}</p>}
         {verification?.id && <div className="setup-actions">
           <span className="badge" data-state="ok" role="status">{verification.received} {verification.received === 1 ? 'span' : 'spans'} received</span>
-          <a className="button" href={runsHref(projectId, '', verification.id)}>Open run<Icon name="arrow"/></a>
+          <a className="button" href={runsHref(projectId, '', verification.id)}>Open trace<Icon name="arrow"/></a>
         </div>}
       </li>
     </ol>

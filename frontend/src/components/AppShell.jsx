@@ -4,6 +4,8 @@ import { accountHref, runsHref, settingsHref, setupHref } from '../app/routes.js
 import { returnQuery } from '../features/trace/traceState.js'
 import { usePreference, useTheme } from '../app/preferences.js'
 
+const DOCS_URL = 'https://github.com/gcharpe1604/ai_agent_debugger/tree/main/docs'
+
 export default function AppShell({ projects, project, route, children, header, local = project?.dataSource === 'local' }) {
   const [sidebar, setSidebar] = usePreference('sidebar', ['expanded', 'collapsed'], 'expanded')
   const theme = useTheme()
@@ -11,7 +13,8 @@ export default function AppShell({ projects, project, route, children, header, l
   const runsProjectId = project?.id || projects[0]?.id || (local ? 'local' : null)
   const runsLink = runsProjectId ? runsHref(runsProjectId, returnQuery(route.search)) : undefined
   const runsActive = route.projectId === runsProjectId && !!runsProjectId && !route.settings && !route.setup
-  const pageName = route.setup ? 'SDK Setup' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Runs'
+  const settingsProjectId = project?.id || (local ? 'local' : null)
+  const pageName = route.setup ? 'Get started' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Traces'
   const main = useRef(null)
   const previousPath = useRef(null)
   useEffect(() => {
@@ -45,14 +48,16 @@ export default function AppShell({ projects, project, route, children, header, l
         </select><span className="nav-text">{project?.environment || 'Project access'}</span></div>}
       </div>
       <nav aria-label="Project workspaces">
-        <span className="section-label nav-text" aria-hidden="true">Workspace</span>
-        <a className={`nav-item ${runsActive ? 'active' : ''}`} href={runsLink} aria-disabled={!runsLink || undefined} aria-label="Runs" aria-current={runsActive ? route.runId ? 'location' : 'page' : undefined} title="Runs"><Icon name="runs"/><span className="nav-text">Runs</span></a>
-        {local && <a className={`nav-item ${route.setup ? 'active' : ''}`} href={setupHref('local')} aria-label="SDK Setup" aria-current={route.setup ? 'page' : undefined} title="SDK Setup"><Icon name="setup"/><span className="nav-text">SDK Setup</span></a>}
+        <span className="section-label nav-text" aria-hidden="true">Observability</span>
+        <a className={`nav-item ${runsActive ? 'active' : ''}`} href={runsLink} aria-disabled={!runsLink || undefined} aria-label="Traces" aria-current={runsActive ? route.runId ? 'location' : 'page' : undefined} title="Traces"><Icon name="runs"/><span className="nav-text">Traces</span></a>
+        {local && <a className={`nav-item ${route.setup ? 'active' : ''}`} href={setupHref('local')} aria-label="Get started" aria-current={route.setup ? 'page' : undefined} title="Get started: send your first trace"><Icon name="setup"/><span className="nav-text">Get started</span></a>}
         {!local && <a className={`nav-item ${route.projectsPage ? 'active' : ''}`} href="#/projects" aria-label="Projects" aria-current={route.projectsPage ? 'page' : undefined} title="Projects"><Icon name="branch"/><span className="nav-text">Projects</span></a>}
       </nav>
-      <div className="sidebar-bottom">{!local && project && <a className={`nav-item ${route.settings ? 'active' : ''}`} href={settingsHref(project.id)} title="Project settings" aria-label="Project settings" aria-current={route.settings ? 'page' : undefined}><Icon name="settings"/><span className="nav-text">Settings</span></a>}
+      <div className="sidebar-bottom">{settingsProjectId && <a className={`nav-item ${route.settings ? 'active' : ''}`} href={settingsHref(settingsProjectId)} title="Project settings" aria-label="Project settings" aria-current={route.settings ? 'page' : undefined}><Icon name="settings"/><span className="nav-text">Settings</span></a>}
+        <a className="nav-item" href={DOCS_URL} target="_blank" rel="noreferrer" title="Documentation (opens in a new tab)" aria-label="Docs (opens in a new tab)"><Icon name="docs"/><span className="nav-text">Docs</span><span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span></a>
         {!local && <a className="nav-item" href={accountHref('login', route.path + (route.search ? '?' + route.search : ''))} title="Sign in — authentication not connected" aria-label="Sign in — authentication not connected"><Icon name="arrow"/><span className="nav-text">Sign in</span></a>}
         <div className="sidebar-divider"/>
+        {local && <div className="profile-row" title="Local mode has no accounts or sign-in"><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>Local developer</strong><span>Local mode · no sign-in</span></span></div>}
         <div className="appearance-control" title={`Appearance: ${theme.preference}`}><Icon name="theme"/><label className="sr-only" htmlFor="appearance">Appearance</label><select id="appearance" value={theme.preference} onChange={event => theme.setPreference(event.target.value)}><option value="light">Light appearance</option><option value="dark">Dark appearance</option><option value="system">System appearance</option></select></div>
       </div>
     </aside>
@@ -60,7 +65,7 @@ export default function AppShell({ projects, project, route, children, header, l
       <nav aria-label="Breadcrumb" className="breadcrumbs">
         {local ? <><span className="muted">Workspace</span><Icon name="chevron"/><span aria-current="page">{pageName}</span></>
           : route.projectsPage || route.settings ? <><a href="#/projects" aria-current={route.projectsPage === 'list' ? 'page' : undefined}>Projects</a>{(route.settings || route.projectsPage === 'new') && <><Icon name="chevron"/><span aria-current="page">{route.settings ? 'Settings' : 'Create'}</span></>}</>
-            : <><a href={runsLink || '#/projects'} aria-current={!route.runId ? 'page' : undefined}>Runs</a>{route.runId && <><Icon name="chevron"/><span aria-current="page">{route.runId}</span></>}</>}
+            : <><a href={runsLink || '#/projects'} aria-current={!route.runId ? 'page' : undefined}>Traces</a>{route.runId && <><Icon name="chevron"/><span aria-current="page">{route.runId}</span></>}</>}
       </nav>
       {local && <span className="badge capture-context">Local capture</span>}
     </header>}

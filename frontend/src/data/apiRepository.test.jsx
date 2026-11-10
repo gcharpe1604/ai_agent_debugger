@@ -45,6 +45,19 @@ it('starts without seeded projects or telemetry when no adapter is connected', a
   expect(screen.queryByRole('link', { name: 'Create project' })).toBeNull()
 })
 
+it('shows local Settings with server-reported retention, the SDK endpoint and no key creation', async () => {
+  const fetcher = vi.fn(async url => ({ ok: true, json: async () => url.endsWith('/status') ? { ...status, ttl_seconds: 14400 } : ({ mode: 'local', runs: [] }) }))
+  window.history.replaceState(null, '', '/#/projects/local/runs')
+  const user = userEvent.setup()
+  render(<App {...createApiAdapters(fetcher)}/> )
+  await user.click(await screen.findByRole('link', { name: 'Project settings' }))
+  expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy()
+  expect(screen.getByText('Traces are kept for 4 h, then removed.')).toBeTruthy()
+  expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/local\/traces/)).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Create API key' }).disabled).toBe(true)
+  expect(screen.getByRole('link', { name: 'Docs (opens in a new tab)' }).getAttribute('target')).toBe('_blank')
+})
+
 it('renders an empty captured store without inserting sample executions', async () => {
   const fetcher = vi.fn(async url => ({ ok: true, json: async () => url.endsWith('/status') ? status : ({ mode: 'local', runs: [] }) }))
   window.history.replaceState(null, '', '/#/projects/local/runs')
@@ -68,8 +81,8 @@ it('keeps SDK Setup available offline and verifies only the requested trace afte
   window.history.replaceState(null, '', '/#/projects/local/runs')
   const user = userEvent.setup()
   render(<App {...adapters}/> )
-  await user.click(await screen.findByRole('link', { name: 'SDK Setup' }))
-  expect(await screen.findByRole('heading', { name: 'SDK Setup' })).toBeTruthy()
+  await user.click(await screen.findByRole('link', { name: 'Get started' }))
+  expect(await screen.findByRole('heading', { name: 'Get started' })).toBeTruthy()
   expect(await screen.findByText('Backend unavailable')).toBeTruthy()
   expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull()
   reachable = true
@@ -79,11 +92,11 @@ it('keeps SDK Setup available offline and verifies only the requested trace afte
   await user.type(input, missingId)
   await user.click(screen.getByRole('button', { name: 'Verify trace' }))
   expect(await screen.findByText(/Captured data is unavailable/)).toBeTruthy()
-  expect(screen.queryByRole('link', { name: 'Open run' })).toBeNull()
+  expect(screen.queryByRole('link', { name: 'Open trace' })).toBeNull()
   await user.clear(input)
   await user.type(input, traceId)
   await user.click(screen.getByRole('button', { name: 'Verify trace' }))
-  await user.click(await screen.findByRole('link', { name: 'Open run' }))
+  await user.click(await screen.findByRole('link', { name: 'Open trace' }))
   expect(await screen.findByRole('heading', { name: 'Captured run' })).toBeTruthy()
 })
 

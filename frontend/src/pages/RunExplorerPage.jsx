@@ -9,6 +9,8 @@ import { changeQuery, parseQuery, queryString } from '../features/runs/query.js'
 import { replaceQuery, setupHref } from '../app/routes.jsx'
 import { usePreference } from '../app/preferences.js'
 
+const narrowScreen = () => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
+
 function RunSummary({ result, busy }) {
   const items = [
     { label: 'Matching traces', value: result?.total, icon: 'runs' },
@@ -25,7 +27,8 @@ function RunSummary({ result, busy }) {
 
 export default function RunExplorerPage({ project, search, repository }) {
   const live = project.dataSource === 'local'
-  const [filters, setFilters] = usePreference('traces.filters', ['open', 'closed'], 'open')
+  // Open by default on wide screens; on phones the table comes first. A saved choice wins.
+  const [filters, setFilters] = usePreference('traces.filters', ['open', 'closed'], narrowScreen() ? 'closed' : 'open')
   const query = useMemo(() => ({ ...parseQuery(search), ...(live ? { time: 'all' } : {}) }), [search, live])
   const key = queryString(query)
   const { result, loadedAt, error, busy, refresh } = useRuns(repository, project.id, query, key)

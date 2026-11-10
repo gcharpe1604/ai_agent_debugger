@@ -90,7 +90,8 @@ export function createApiAdapters(fetcher = fetch) {
     projectAdapter: { mode: 'local', async listProjects({ signal } = {}) {
       const response = await read('status', signal)
       if (response.mode !== 'local' || response.workspace?.id !== 'local' || typeof response.workspace.name !== 'string' || response.workspace.dataSource !== 'local') throw new Error('Unexpected workspace response')
-      workspace = response.workspace
+      // Retention is a server-reported display fact; it grants nothing.
+      workspace = { ...response.workspace, retentionSeconds: Number.isFinite(response.ttl_seconds) ? response.ttl_seconds : null }
       return [workspace]
     } },
   }

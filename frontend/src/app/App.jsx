@@ -13,6 +13,7 @@ import ProjectsPage from '../features/access/ProjectsPage.jsx'
 import AccountPage from '../features/access/AccountPage.jsx'
 import AccessState from '../features/access/AccessState.jsx'
 import SdkSetupPage from '../pages/SdkSetupPage.jsx'
+import SettingsPage from '../pages/SettingsPage.jsx'
 
 function ProjectWorkspace({ repository, traceRepository, investigationRepository, route, project, projects }) {
   const [traceViews] = useState(() => new Map())
@@ -38,7 +39,8 @@ export default function App({ repository = disconnectedRuns, traceRepository = d
       ? <SdkSetupPage traceRepository={traceRepository} projectId={route.projectId} connected={!!project} checking={state.busy} checkConnection={state.retry}/>
       : <AccessState kind="unavailable"/>}
   </AppShell>)
-  if (project?.dataSource === 'local' && (route.evidence || route.settings)) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
+  if (project?.dataSource === 'local' && route.settings) return protect(<AppShell projects={projects} project={project} route={route}><SettingsPage project={project}/></AppShell>)
+  if (project?.dataSource === 'local' && route.evidence) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
   // Account/access routes unmount project workspaces, dropping rendered trace/evidence caches.
   // Disconnected authentication never fabricates or blocks captured local telemetry.
   if (route.account) return protect(<AccountPage key={route.path} route={route} adapter={accountAdapter}/> )
