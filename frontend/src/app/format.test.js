@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { exactDuration, formatDuration, formatSpanDuration } from './format.js'
+import { agoText, exactDuration, formatDuration, formatSpanDuration, wallClock } from './format.js'
 
 describe('formatDuration boundaries', () => {
   it.each([
@@ -19,6 +19,14 @@ describe('formatDuration boundaries', () => {
     [0, '<1 ms'], [0.0004, '<1 µs'], [0.43, '430 µs'], [0.9996, '1.00 ms'], [1, '1.00 ms'], [6.13, '6.13 ms'], [-2, '-2.00 ms'], [NaN, 'Unavailable'],
   ])('span duration %s ms → %s', (value, text) => expect(formatSpanDuration(value)).toBe(text))
 
+  it('renders wall-clock times from nanosecond strings and rejects malformed values', () => {
+    expect(wallClock('1794340388420125900')).toBe('2026-11-10 19:53:08.420 UTC')
+    expect([wallClock('12a'), wallClock(17), wallClock(undefined)]).toEqual([null, null, null])
+  })
+  it('describes data freshness in coarse steps', () => {
+    const t = 1_000_000
+    expect([agoText(t, t + 4000), agoText(t, t + 25000), agoText(t, t + 125000), agoText(t, t + 7300000), agoText(t + 5000, t)]).toEqual(['Updated just now', 'Updated 25 s ago', 'Updated 2 min ago', 'Updated 2 h ago', 'Updated just now'])
+  })
   it('exact values are never rounded', () => {
     expect(exactDuration(2418.004)).toBe('2418.004 ms')
     expect(exactDuration(null)).toBe('Unavailable')

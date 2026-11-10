@@ -57,7 +57,7 @@ export function createApiAdapters(fetcher = fetch) {
       scope(projectId)
       const response = await read('runs', signal)
       if (response.mode !== 'local' || !Array.isArray(response.runs)) throw new Error('Unexpected telemetry response')
-      return selectRuns(response.runs.map(runView), projectId, { ...query, time: 'all' })
+      return selectRuns(response.runs.map(runView), projectId, { ...query, time: 'all' }, null, Date.now())
     },
   }
   const traceRepository = {

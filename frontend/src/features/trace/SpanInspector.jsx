@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useSpanRead } from './useTraceRead.js'
 import { durationText, statusText, typeLabel, operationLabel } from './treeModel.js'
-import { exactDuration } from '../../app/format.js'
+import { exactDuration, wallClock } from '../../app/format.js'
 import Payload, { JsonValue } from './Payload.jsx'
 import { hasCapturedValue } from './capture.js'
 
@@ -21,12 +21,6 @@ const metadataFields = [
   ['http.response.status_code', 'HTTP status'],
   ['resource.service.name', 'Service'],
 ]
-// "2026-11-10 19:53:08.420 UTC" from a Unix-nanosecond string; null when unusable.
-export function wallClock(nanos) {
-  if (typeof nanos !== 'string' || !/^\d{1,20}$/.test(nanos)) return null
-  const date = new Date(Number(BigInt(nanos) / 1000000n))
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().replace('T', ' ').replace('Z', ' UTC')
-}
 
 function SpanMetadata({ span, data, ui, patch, copy }) {
   const attributes = data.attributes || {}

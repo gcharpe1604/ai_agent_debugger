@@ -23,9 +23,9 @@ describe('Trace Detail interactions', () => {
     const user = await open()
     expect(screen.queryByRole('region', { name: 'Span inspector' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Timeline' }).getAttribute('aria-pressed')).toBe('false')
-    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
-    await screen.findByRole('searchbox', { name: 'Search runs' })
-    expect(screen.getByRole('searchbox', { name: 'Search runs' }).value).toBe('order')
+    await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
+    await screen.findByRole('searchbox', { name: 'Search traces' })
+    expect(screen.getByRole('searchbox', { name: 'Search traces' }).value).toBe('order')
   })
   it('opens, switches, dismisses and reopens a non-modal inspector with stable selection', async () => {
     const user = await open(); await failed(user)
@@ -161,8 +161,8 @@ describe('Trace Detail interactions', () => {
   it('restores inspection, tab and tree context after Runs navigation and browser Back', async () => {
     const user = await open(); await failed(user)
     await user.click(screen.getByRole('tab', { name: 'Metadata' }))
-    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
-    await screen.findByRole('searchbox', { name: 'Search runs' })
+    await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
+    await screen.findByRole('searchbox', { name: 'Search traces' })
     window.history.back()
     await screen.findByRole('region', { name: 'Span inspector' })
     expect(row('lookup-order · attempt 1').getAttribute('aria-selected')).toBe('true')

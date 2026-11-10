@@ -7,6 +7,7 @@ import { useTraceRead } from '../features/trace/useTraceRead.js'
 import { returnQuery } from '../features/trace/traceState.js'
 import { durationText } from '../features/trace/treeModel.js'
 import TraceWorkspace from '../features/trace/TraceWorkspace.jsx'
+import { downloadTrace } from '../features/trace/download.js'
 import '../features/trace/trace.css'
 
 export default function RunDetailPage({ repository, investigationRepository, route, project, projects, cache }) {
@@ -25,13 +26,14 @@ export default function RunDetailPage({ repository, investigationRepository, rou
   const copyId = traceId && <button className="trace-copy mono" onClick={copy} title={traceId} aria-label="Copy trace ID">{traceId.slice(0, 8)}…{traceId.slice(-4)}<Icon name="copy"/></button>
   const header = <header className="app-header trace-app-header">
     <div className="trace-run-identity">
-      <nav className="breadcrumbs" aria-label="Breadcrumb"><a href={back} aria-label="Back to Runs">Runs</a><Icon name="chevron"/><span aria-current="page">{live && copyId ? copyId : route.runId}</span></nav>
+      <nav className="breadcrumbs" aria-label="Breadcrumb"><a href={back} aria-label="Back to Traces">Traces</a><Icon name="chevron"/><span aria-current="page">{live && copyId ? copyId : route.runId}</span></nav>
       <div className="trace-title">
         <span className="trace-title-icon"><Icon name="branch"/></span>
         <h1>{data?.run.name || route.runId}</h1>
         {outcome && <span className="badge" data-state={outcome}>{outcome}</span>}
       </div>
     </div>
+    {data && <button className="button small" onClick={() => downloadTrace(data)} title="Download this trace's run summary and span metadata as JSON"><Icon name="download"/>Download JSON</button>}
     {live && <span className="badge capture-context">Local capture</span>}
     {data && !live && <div className="trace-run-actions">
       {copyId}
@@ -53,7 +55,7 @@ export default function RunDetailPage({ repository, investigationRepository, rou
         {data.quality && <div className="trace-quality"><Icon name="error"/>{data.quality}</div>}
         <TraceWorkspace data={data} route={route} repository={repository} cache={cache} busy={busy} error={error} retryRead={retry} loadMore={setLimit} receivedOnly={live}/>
       </>
-        : <section className="boundary" aria-busy={busy}>{busy ? <p role="status">Loading captured trace structure…</p> : <><h2>Run unavailable</h2><p role="alert">{error}</p><button className="button" onClick={retry}>Retry trace read</button></>}</section>}
+        : <section className="boundary" aria-busy={busy}>{busy ? <p role="status">Loading captured trace structure…</p> : <><h2>Trace unavailable</h2><p role="alert">{error}</p><button className="button" onClick={retry}>Retry trace read</button></>}</section>}
       <span className="sr-only" aria-live="polite">{copyNotice}</span>
     </div>
   </AppShell>

@@ -106,8 +106,8 @@ it('restores the timeline, window and selected span through browser workspace na
   await user.click(screen.getByRole('button', { name: 'Zoom in' }))
   await user.click(screen.getByRole('treeitem', { name: /^classify-request/ }))
   const before = screen.getByLabelText('Visible time window').textContent
-  await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
-  await screen.findByRole('searchbox', { name: 'Search runs' })
+  await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
+  await screen.findByRole('searchbox', { name: 'Search traces' })
   window.history.back()
   await screen.findByRole('region', { name: 'Span inspector' })
   expect(screen.getByRole('button', { name: 'Timeline', exact: true }).getAttribute('aria-pressed')).toBe('true')

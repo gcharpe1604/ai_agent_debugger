@@ -84,7 +84,7 @@ describe('Evidence Focus', () => {
     const user = userEvent.setup(); render(<App/>)
     expect(await screen.findByRole('heading', { name: 'Investigation pending' })).toBeTruthy()
     await user.selectOptions(screen.getByLabelText('Project'), 'agent-examples')
-    await screen.findByRole('searchbox', { name: 'Search runs' })
+    await screen.findByRole('searchbox', { name: 'Search traces' })
     window.location.hash = '#/projects/sandbox/runs/R-2041/evidence'
     expect(await screen.findByRole('heading', { name: 'Investigation unavailable' })).toBeTruthy()
     expect(screen.queryByRole('region', { name: 'Source A' })).toBeNull()

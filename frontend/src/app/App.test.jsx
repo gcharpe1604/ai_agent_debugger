@@ -28,7 +28,7 @@ describe('Milestone 1 Run Explorer', () => {
   })
   it('keeps keyboard focus on search after committing a query and on Filters after applying', async () => {
     const user = await open()
-    const input = screen.getByRole('searchbox', { name: 'Search runs' })
+    const input = screen.getByRole('searchbox', { name: 'Search traces' })
     await user.type(input, 'refund{Enter}')
     await waitFor(() => expect(document.activeElement).toBe(input))
     await user.click(screen.getByText('Filters', { exact: true }))
@@ -45,7 +45,7 @@ describe('Milestone 1 Run Explorer', () => {
   })
   it('commits search on Enter, filters and clears without losing time', async () => {
     const user = await open()
-    await user.type(screen.getByRole('searchbox', { name: 'Search runs' }), 'inventory')
+    await user.type(screen.getByRole('searchbox', { name: 'Search traces' }), 'inventory')
     expect(screen.getByRole('link', { name: 'refund-policy-review R-1042' })).toBeTruthy()
     await user.keyboard('{Enter}')
     await waitFor(() => expect(screen.queryByRole('link', { name: 'refund-policy-review R-1042' })).toBeNull())
@@ -71,16 +71,16 @@ describe('Milestone 1 Run Explorer', () => {
     await screen.findByRole('link', { name: 'sandbox-policy-check R-2042' })
     expect(screen.queryByRole('link', { name: /R-1042/ })).toBeNull()
     await user.selectOptions(screen.getByLabelText('Project'), 'new-integration')
-    await screen.findByRole('heading', { name: 'No runs recorded' })
+    await screen.findByRole('heading', { name: 'No traces yet' })
   })
   it('opens a scoped trace and restores the Runs query on return', async () => {
     const user = await open()
-    await user.type(screen.getByRole('searchbox', { name: 'Search runs' }), 'c416{Enter}')
+    await user.type(screen.getByRole('searchbox', { name: 'Search traces' }), 'c416{Enter}')
     await user.click(await screen.findByRole('link', { name: 'refund-eligibility-check R-1041' }))
     await screen.findByRole('tree', { name: 'Execution spans' })
-    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
-    await screen.findByRole('searchbox', { name: 'Search runs' })
-    expect(screen.getByRole('searchbox', { name: 'Search runs' }).value).toBe('c416')
+    await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
+    await screen.findByRole('searchbox', { name: 'Search traces' })
+    expect(screen.getByRole('searchbox', { name: 'Search traces' }).value).toBe('c416')
   })
   it('persists appearance and sidebar choices across remounts', async () => {
     const user = userEvent.setup(); const { unmount } = render(<App />)
@@ -125,8 +125,8 @@ describe('Milestone 1 Run Explorer', () => {
     await user.clear(screen.getByLabelText('Maximum'))
     await user.click(screen.getByLabelText('Running', { exact: true }))
     await user.click(screen.getByRole('button', { name: 'Apply filters' }))
-    await screen.findByRole('heading', { name: 'No matching runs' })
-    expect(screen.queryByRole('heading', { name: 'No runs recorded' })).toBeNull()
+    await screen.findByRole('heading', { name: 'No matching traces' })
+    expect(screen.queryByRole('heading', { name: 'No traces yet' })).toBeNull()
   })
   it('exposes actual loading, failure and retry states through the replaceable repository', async () => {
     let reject

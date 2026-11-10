@@ -41,6 +41,37 @@ describe('project-scoped run query', () => {
   })
 })
 
+describe('trace filters and facet counts', () => {
+  const traces = [
+    { id: 'x', projectId: 'one', name: 'rag-agent', traceId: 'x1', startedAt: '2026-11-10T10:00:00Z', outcome: 'Completed', executionMode: 'controlled', recordedErrorCount: 0, durationMs: 10 },
+    { id: 'y', projectId: 'one', name: 'rag-agent', traceId: 'y1', startedAt: '2026-11-10T11:50:00Z', outcome: 'Failed', executionMode: 'live', recordedErrorCount: 2, durationMs: 20 },
+    { id: 'z', projectId: 'one', name: 'tool-agent', traceId: 'z1', startedAt: '2026-11-10T11:55:00Z', outcome: 'Completed', executionMode: 'controlled', recordedErrorCount: 0, durationMs: 30 },
+  ]
+  const now = Date.parse('2026-11-10T12:00:00Z')
+  it('filters by execution mode and agent name, OR within a group', () => {
+    expect(selectRuns(traces, 'one', q({ modes: ['controlled'] })).items.map(r => r.id)).toEqual(['z', 'x'])
+    expect(selectRuns(traces, 'one', q({ agents: ['tool-agent', 'rag-agent'], modes: ['live'] })).items.map(r => r.id)).toEqual(['y'])
+  })
+  it('limits to a relative time range from the supplied clock only', () => {
+    expect(selectRuns(traces, 'one', q({ range: '15m' }), null, now).items.map(r => r.id)).toEqual(['z', 'y'])
+    expect(selectRuns(traces, 'one', q({ range: '15m' })).total).toBe(3)
+  })
+  it('counts each facet with every other filter applied', () => {
+    const { facets } = selectRuns(traces, 'one', q({ outcomes: ['Completed'], agents: ['rag-agent'] }))
+    // Outcome counts ignore the outcome filter but keep the agent filter.
+    expect(facets.outcome).toEqual({ Completed: 1, Failed: 1 })
+    // Agent counts ignore the agent filter but keep the outcome filter.
+    expect(facets.agent).toEqual({ 'rag-agent': 1, 'tool-agent': 1 })
+    expect(facets.mode).toEqual({ controlled: 1 })
+    expect(facets.errors).toEqual({ without: 1 })
+  })
+  it('round trips the new filters and drops unknown values', () => {
+    const query = q({ modes: ['live'], agents: ['rag-agent'], range: '1h' })
+    expect(parseQuery(queryString(query))).toEqual(query)
+    expect(parseQuery('mode=batch&range=9y&agent=')).toMatchObject({ modes: [], range: '', agents: [] })
+  })
+})
+
 describe('restorable URL query', () => {
   it('round trips filters, sort and pagination without payloads', () => {
     const query = q({ search: 'refund & order', outcomes: ['Failed'], page: 2, pageSize: 5, minMs: 0, sort: 'durationMs', direction: 'asc' })
