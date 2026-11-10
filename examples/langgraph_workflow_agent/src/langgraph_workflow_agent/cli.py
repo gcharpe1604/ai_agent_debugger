@@ -5,7 +5,7 @@ import sys
 def _ask(text):
     import httpx
 
-    from .agent import WorkflowAgent
+    from .agent import ROUTED_NODES, WorkflowAgent
     from .live_model import LiveConfig, LiveModelClient, LiveResult
 
     from ai_agent_debugger_sdk import TraceSession
@@ -17,8 +17,9 @@ def _ask(text):
         request = model.parse_request(text)
         names = ["classify", "gather_context", "evaluate", "retry_context", "execute_action", "abort", "validate", "respond"]
         nodes = {name: (lambda function, name=name: tracing.wrap_callable(function, "custom", "node." + name)) for name in names}
+        routers = {source: (lambda function, source=source: tracing.wrap_callable(function, "custom", "route." + source)) for source in ROUTED_NODES}
         with tracing.operation("agent", "WorkflowAgent.run"):
-            result = WorkflowAgent(model, nodes=nodes).run(request)
+            result = WorkflowAgent(model, nodes=nodes, routers=routers).run(request)
         tracing.record_result(result)
         return LiveResult(**result.model_dump(), original_request=text)
 

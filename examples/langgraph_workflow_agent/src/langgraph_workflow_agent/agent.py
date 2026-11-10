@@ -7,9 +7,17 @@ from langsmith import tracing_context
 from .dependencies import LocalDependencies
 from .models import RECURSION_LIMIT, GraphState, Request, Result, initial_state
 
+ROUTED_NODES = ("classify", "evaluate", "retry_context")
+
 
 class WorkflowAgent:
-    def __init__(self, dependencies: LocalDependencies | None = None, *, nodes=None):
+    def __init__(
+        self,
+        dependencies: LocalDependencies | None = None,
+        *,
+        nodes=None,
+        routers=None,
+    ):
         self.dependencies = (
             dependencies if dependencies is not None else LocalDependencies()
         )
@@ -31,21 +39,29 @@ class WorkflowAgent:
                 implementations[name] = wrap(implementations[name])
         for name, implementation in implementations.items():
             builder.add_node(name, implementation)
+        # One router per conditional edge, so each routing decision can be
+        # wrapped (and traced) under the name of the node it follows.
+        routes = {source: self.route for source in ROUTED_NODES}
+        if routers:
+            if not routers.keys() <= routes.keys():
+                raise ValueError("Unknown router override")
+            for source, wrap in routers.items():
+                routes[source] = wrap(routes[source])
         builder.add_edge(START, "classify")
         builder.add_conditional_edges(
             "classify",
-            self.route,
+            routes["classify"],
             ["gather_context", "evaluate", END],
         )
         builder.add_edge("gather_context", "evaluate")
         builder.add_conditional_edges(
             "evaluate",
-            self.route,
+            routes["evaluate"],
             ["retry_context", "execute_action", "abort", END],
         )
         builder.add_conditional_edges(
             "retry_context",
-            self.route,
+            routes["retry_context"],
             ["gather_context", "validate"],
         )
         builder.add_edge("execute_action", "validate")

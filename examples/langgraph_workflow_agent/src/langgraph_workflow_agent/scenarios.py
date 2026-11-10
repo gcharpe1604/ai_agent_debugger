@@ -5,7 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import Field, StringConstraints, model_validator
 
-from .agent import WorkflowAgent
+from .agent import ROUTED_NODES, WorkflowAgent
 from .dependencies import LocalDependencies
 from .models import Context, Destination, Model, Request, Response
 
@@ -153,4 +153,19 @@ def build_agent(config: RuntimeScenario, *, tracing=None) -> WorkflowAgent:
                 return tracing.wrap_callable(function, "custom", "node." + name)
             return wrap
         nodes = {name: wrap_node(name) for name in names}
-    return WorkflowAgent(dependencies, nodes=nodes)
+        routers = traced_routers(tracing)
+    else:
+        routers = None
+    return WorkflowAgent(dependencies, nodes=nodes, routers=routers)
+
+
+def traced_routers(tracing):
+    """Record each conditional-edge decision as its own span, e.g. route.evaluate."""
+    return {
+        source: (
+            lambda function, source=source: tracing.wrap_callable(
+                function, "custom", "route." + source
+            )
+        )
+        for source in ROUTED_NODES
+    }
