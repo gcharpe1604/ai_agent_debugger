@@ -1,0 +1,61 @@
+/* Trace preview over the trace list (Langfuse "peek"). The layer covers the
+   right part of the list; the table stays readable on the left. */
+.traces-layout { position: relative; }
+.peek-layer { position: absolute; top: 0; right: 0; bottom: 0; z-index: 25; width: min(var(--peek-width), 100%); display: flex; }
+.peek-layer > .inspector-resize { position: absolute; top: 0; bottom: 0; left: -4px; width: 8px; background: transparent; }
+.peek-layer > .inspector-resize span { opacity: 0; }
+.peek-layer > .inspector-resize:is(:hover, :focus-visible) { background: color-mix(in srgb, var(--interactive) 18%, transparent); }
+.peek-layer > .inspector-resize:is(:hover, :focus-visible) span { opacity: 1; }
+.trace-peek { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; background: var(--panel); border-left: 1px solid var(--control); box-shadow: -16px 0 32px #0000002e; container-type: inline-size; }
+.trace-peek:focus { outline: none; }
+.trace-peek:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.peek-header { display: flex; align-items: flex-start; gap: 8px; padding: 10px 10px 10px 14px; border-bottom: 1px solid var(--border); }
+.peek-heading { flex: 1; min-width: 0; }
+.peek-heading .section-label { display: flex; gap: 8px; margin-bottom: 2px; }
+.peek-position { font-weight: 400; letter-spacing: 0; text-transform: none; }
+.peek-title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.peek-title > .icon { flex: none; color: var(--type-agent); }
+.peek-title h2 { min-width: 0; overflow: hidden; font-size: 15px; line-height: 22px; white-space: nowrap; text-overflow: ellipsis; }
+.peek-toolbar { display: flex; align-items: center; gap: 2px; flex: none; }
+.peek-toolbar .trace-icon-button:disabled { opacity: .4; cursor: default; }
+.peek-toolbar a.trace-icon-button:hover { text-decoration: none; }
+.peek-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.peek-state { padding: 16px 14px; font-size: 13px; color: var(--secondary); display: grid; gap: 8px; justify-items: start; }
+.peek-facts { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px 16px; margin: 0; padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.peek-facts dt { color: var(--secondary); }
+.peek-facts dd { margin: 2px 0 0; color: var(--text); overflow-wrap: anywhere; }
+.peek-facts .trace-copy { padding: 0; min-height: 0; }
+.peek-types { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 0; padding: 8px 14px; list-style: none; border-bottom: 1px solid var(--border); font-size: 12px; color: var(--secondary); }
+.peek-types li { display: inline-flex; align-items: center; gap: 5px; }
+.peek-types .icon { width: 13px; height: 13px; color: var(--type-color); }
+.peek-error { display: flex; align-items: center; gap: 8px; margin: 10px 14px 0; padding: 8px 10px; border: 1px solid var(--error-border); border-radius: 4px; background: var(--error-surface); color: var(--error); font-size: 12px; line-height: 18px; }
+.peek-error > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.peek-error strong { color: var(--text); font-weight: 600; margin-right: 4px; }
+.peek-error .icon { flex: none; width: 14px; height: 14px; }
+.peek-body .execution-path { margin-top: 10px; border-top: 1px solid var(--border); }
+.peek-tree { margin: 0; padding: 4px 0 8px; list-style: none; }
+.peek-row { display: grid; grid-template-columns: minmax(0, 1fr) 10px 72px; align-items: center; gap: 8px; height: var(--trace-row-height); padding: 0 14px 0 8px; color: var(--text); font-size: 13px; }
+.peek-row:hover { background: var(--hover); text-decoration: none; }
+.peek-row .trace-operation { gap: 5px; }
+.peek-row .trace-operation-name { line-height: var(--trace-row-height); }
+.peek-group { padding: 6px 14px; font-size: 12px; color: var(--secondary); background: var(--subtle); }
+.peek-footer { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 4px 14px; border-top: 1px solid var(--border); font-size: 12px; color: var(--muted); }
+.peek-footer .icon { width: 14px; height: 14px; }
+kbd { display: inline-block; min-width: 18px; padding: 0 4px; border: 1px solid var(--control); border-bottom-width: 2px; border-radius: 4px; background: var(--subtle); color: var(--secondary); font: 11px/16px "Cascadia Code",Consolas,monospace; text-align: center; }
+
+/* The trace list row that is open in the preview. */
+.runs-table tbody tr[data-peeked="true"] { background: var(--selected); }
+.runs-table tbody tr[data-peekable="true"] { cursor: pointer; }
+.row-peek { display: inline-grid; place-items: center; width: 24px; height: 24px; flex: none; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--muted); opacity: 0; }
+.row-peek .icon { width: 14px; height: 14px; }
+.runs-table tbody tr:is(:hover, :focus-within, [data-peeked="true"]) .row-peek, .row-peek:focus-visible { opacity: 1; }
+.row-peek:hover { background: var(--hover); color: var(--text); }
+
+@container (max-width: 560px) {
+  .peek-facts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 767px) {
+  .peek-layer { position: fixed; top: 48px; left: 52px; width: auto; }
+  .peek-layer > .inspector-resize { display: none; }
+  .row-peek { opacity: 1; }
+}

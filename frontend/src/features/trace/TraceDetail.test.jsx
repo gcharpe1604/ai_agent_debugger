@@ -78,7 +78,14 @@ describe('Trace Detail interactions', () => {
     await user.keyboard('{ArrowLeft}')
     expect(separator.getAttribute('aria-valuenow')).toBe('496')
     await user.click(screen.getByRole('button', { name: 'Unpin span inspector' }))
-    expect(screen.queryByRole('separator')).toBeNull()
+    // The overlay floats over the tree and keeps a drag handle on its left edge.
+    // Using the handle does not dismiss the overlay, and it can widen past the
+    // pinned limit (workbench 1208 px in jsdom, minus a 160 px strip of tree).
+    const overlayHandle = screen.getByRole('separator', { name: 'Resize span inspector' })
+    await user.click(overlayHandle)
+    expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
+    overlayHandle.focus(); await user.keyboard('{End}')
+    expect(overlayHandle.getAttribute('aria-valuenow')).toBe('1048')
     await user.click(screen.getByLabelText('Inspector options'))
     fireEvent.change(screen.getByLabelText('Inspector width'), { target: { value: '560' } })
     expect(localStorage.getItem('agent-debugger.frontend.v1.inspector.width')).toBe('560')

@@ -11,9 +11,12 @@ function Started({ value }) {
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? <span>Unknown</span> : <><time className="tabular" dateTime={value}>{clock.format(date)}</time><div className="row-secondary">{calendar.format(date)} · UTC</div></>
 }
-export default function RunTable({ items, projectId, search, query, onSort, busy, children, live = false }) {
+// density: 'small' shows the name line only, 'medium' adds the first recorded
+// error, 'large' adds the I/O preview and the trace ID. hidden: optional columns
+// the user turned off. onPeek: open the trace preview (row click or the eye button).
+export default function RunTable({ items, projectId, search, query, onSort, busy, children, live = false, hidden = [], density = 'large', peek = null, onPeek }) {
   const [copyNotice, setCopyNotice] = useState('')
-  const columns = runColumns(items)
+  const columns = runColumns(items).filter(([field]) => field === 'name' || !hidden.includes(field))
   async function copy(run) {
     try { await navigator.clipboard.writeText(run.traceId); setCopyNotice(`Trace ID copied for ${run.id}`) }
     catch { setCopyNotice(`Copy unavailable. Trace ID: ${run.traceId}`) }
@@ -23,11 +26,11 @@ export default function RunTable({ items, projectId, search, query, onSort, busy
       const mode = executionModeLabel(run.executionMode), firstError = run.outcome === 'Failed' ? firstErrorText(run.firstError) : null
       const errorSearch = firstError ? new URLSearchParams(search) : null
       errorSearch?.set('span', run.firstError.spanId)
-      return <td key="name"><div className="run-identity"><span className="run-glyph"><Icon name="run"/></span><div className="run-identity-content">
-        <div className="run-name-line"><a className="run-link" href={runsHref(projectId, search, run.id)} aria-label={`${run.name} ${run.id}`} title={`${run.name} · ${run.service}`}><span>{run.name}</span></a>{mode && <span className="badge mode-badge" title={`Execution mode recorded on the root span: ${run.executionMode}`}>{mode}</span>}</div>
-        {ioPreview(run) && <div className="row-secondary io-preview mono" title={ioPreview(run, 2000)}>{ioPreview(run)}</div>}
-        {firstError && <a className="row-secondary first-error" href={runsHref(projectId, errorSearch.toString(), run.id)} title={firstErrorTitle(run.firstError)}><Icon name="error"/><span className="first-error-label">First recorded error</span><span className="first-error-text">{firstError}</span></a>}
-        <div className="row-secondary">{!live && <span>{run.id}</span>}<button className="identity-copy mono" onClick={() => copy(run)} aria-label={`Copy trace ID for ${run.id}`} title={run.traceId}>{run.traceId.slice(0, 8)}…{run.traceId.slice(-4)}<Icon name="copy"/></button></div>
+      return <td key="name"><div className="run-identity"><div className="run-identity-content">
+        <div className="run-name-line"><a className="run-link" href={runsHref(projectId, search, run.id)} aria-label={`${run.name} ${run.id}`} title={`${run.name} · ${run.service}`}><span>{run.name}</span></a>{mode && <span className="badge mode-badge" title={`Execution mode recorded on the root span: ${run.executionMode}`}>{mode}</span>}{onPeek && <button type="button" className="row-peek" data-peek-id={run.id} aria-label={`Preview ${run.name} ${run.id}`} aria-pressed={peek === run.id} title="Preview trace" onClick={() => onPeek(run.id)}><Icon name="eye"/></button>}</div>
+        {density === 'large' && ioPreview(run) && <div className="row-secondary io-preview mono" title={ioPreview(run, 2000)}>{ioPreview(run)}</div>}
+        {density !== 'small' && firstError && <a className="row-secondary first-error" href={runsHref(projectId, errorSearch.toString(), run.id)} title={firstErrorTitle(run.firstError)}><Icon name="error"/><span className="first-error-label">First recorded error</span><span className="first-error-text">{firstError}</span></a>}
+        {density === 'large' && <div className="row-secondary">{!live && <span>{run.id}</span>}<button className="identity-copy mono" onClick={() => copy(run)} aria-label={`Copy trace ID for ${run.id}`} title={run.traceId}>{run.traceId.slice(0, 8)}…{run.traceId.slice(-4)}<Icon name="copy"/></button></div>}
       </div></div></td>
     },
     startedAt: run => <td key="startedAt"><Started value={run.startedAt}/></td>,
@@ -42,9 +45,10 @@ export default function RunTable({ items, projectId, search, query, onSort, busy
   }
   const headerTitle = (field, label) => field === 'recordedErrorCount' ? live ? ERROR_SPANS_TOOLTIP : 'Supplied error-operation groups, not individual ERROR spans' : `Sort by ${label.toLowerCase()}`
   return <>{live && items.length > 0 && <p className="table-scroll-hint">Scroll the table for timing and error counts <Icon name="arrow"/></p>}<div className="table-region" role="region" aria-label="Recorded traces" tabIndex="0" aria-busy={busy}>
-    <table className="runs-table"><caption className="sr-only">{live ? "Locally captured SDK traces. Error spans count every ERROR span, including parents that carry a child's error; capture completeness remains unknown." : "Recorded traces. Outcomes, capture completeness, recorded error counts and investigation states are independent."}</caption><colgroup>{columns.map(([field]) => <col key={field} className={columnClass[field]}/>)}</colgroup>
+    <table className="runs-table" data-density={density}><caption className="sr-only">{live ? "Locally captured SDK traces. Error spans count every ERROR span, including parents that carry a child's error; capture completeness remains unknown." : "Recorded traces. Outcomes, capture completeness, recorded error counts and investigation states are independent."}</caption><colgroup>{columns.map(([field]) => <col key={field} className={columnClass[field]}/>)}</colgroup>
       <thead><tr>{columns.map(([field, label]) => <th key={field} scope="col" className={['durationMs', 'totalTokens', 'costUsd', 'recordedErrorCount'].includes(field) ? 'numeric' : ''} aria-sort={query.sort === field ? query.direction === 'asc' ? 'ascending' : 'descending' : 'none'}><button className="sort-button" aria-label={`Sort by ${label.toLowerCase()}`} title={headerTitle(field, label)} onClick={() => onSort(field)}>{label}{query.sort === field && <span aria-hidden="true">{query.direction === 'asc' ? '↑' : '↓'}</span>}</button></th>)}</tr></thead>
-      <tbody>{items.map(run => <tr key={run.id}>{columns.map(([field]) => cells[field](run))}</tr>)}</tbody>
+      {/* A click on the row's empty space previews it; links and buttons keep their own action. */}
+      <tbody>{items.map(run => <tr key={run.id} data-peekable={onPeek ? 'true' : undefined} data-peeked={peek === run.id || undefined} onClick={onPeek ? event => { if (!event.target.closest('a, button, input, select, summary, label')) onPeek(run.id) } : undefined}>{columns.map(([field]) => cells[field](run))}</tr>)}</tbody>
     </table>{children}
   </div><div className="sr-only" aria-live="polite">{copyNotice}</div>{copyNotice.startsWith('Copy unavailable') && <p className="copy-failure" role="status">{copyNotice}</p>}</>
 }

@@ -8,6 +8,12 @@ const placeholder = { completeness: 'Unknown', investigation: 'Unavailable' }
 // Model usage columns appear only once some visible trace records them.
 const optional = ['model', 'totalTokens', 'costUsd']
 
+// Table display preferences (Langfuse-style): row height and hidden columns.
+export const densityValues = ['small', 'medium', 'large']
+export const hideableColumns = allColumns.map(([field]) => field).filter(field => field !== 'name')
+// A stored hidden-column list is accepted only if every entry is a known column.
+export const isHiddenColumnList = value => value === '' || value.split(',').every(field => hideableColumns.includes(field))
+
 export function runColumns(items) {
   return allColumns.filter(([field]) => optional.includes(field) ? items.some(run => run[field] != null) : !(field in placeholder) || items.some(run => run[field] !== placeholder[field]))
 }

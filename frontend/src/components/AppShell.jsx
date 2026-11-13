@@ -1,20 +1,52 @@
 import { useEffect, useRef } from 'react'
 import Icon from './Icon.jsx'
-import { accountHref, runsHref, settingsHref, setupHref } from '../app/routes.jsx'
+import { accountHref, homeHref, runsHref, settingsHref } from '../app/routes.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
 import { usePreference, useTheme } from '../app/preferences.js'
+import { hasModifier, isTyping } from '../app/keyboard.js'
 
 const DOCS_URL = 'https://github.com/gcharpe1604/ai_agent_debugger/tree/main/docs'
 
-export default function AppShell({ projects, project, route, children, header, local = project?.dataSource === 'local' }) {
+// Local mode serves exactly one in-memory project, so its switcher is a menu
+// that names it rather than a choice. Other modes use a real project select.
+function ProjectSwitcher({ projects, project, local, projectName }) {
+  if (local) return <details className="project-menu">
+    <summary title={`${projectName} · temporary storage`}>
+      <span className="project-avatar" aria-hidden="true">{project?.initial || 'L'}</span>
+      <span className="project-name">{projectName}</span>
+      <span className="env-tag">Local</span>
+      <Icon name="chevron-down"/>
+    </summary>
+    <div className="menu-popover">
+      <p className="menu-label">Project</p>
+      <span className="menu-item" aria-current="true">{projectName}<Icon name="check"/></span>
+      <p className="menu-note">Local mode has one project, held in backend memory. Projects arrive with durable ingestion.</p>
+    </div>
+  </details>
+  return <div className="project-select">
+    <span className="project-avatar" aria-hidden="true">{project?.initial || '?'}</span>
+    <label className="sr-only" htmlFor="project">Project</label>
+    <select id="project" value={project?.id || ''} disabled={!projects.length} onChange={event => { window.location.hash = runsHref(event.target.value).slice(1) }}>
+      {!project && <option value="" disabled>{projects.length ? 'Choose a project' : 'No projects available'}</option>}
+      {projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
+    </select>
+    {project?.environment && <span className="env-tag">{project.environment}</span>}
+  </div>
+}
+
+// crumbs: the page trail after the project, e.g. [<a>Tracing</a>, 'abc…'].
+// actions: the page's own controls (Refresh, Download JSON).
+// header: an extra page header rendered under the top bar (evidence pages).
+export default function AppShell({ projects, project, route, children, header, crumbs, actions, local = project?.dataSource === 'local' }) {
   const [sidebar, setSidebar] = usePreference('sidebar', ['expanded', 'collapsed'], 'expanded')
   const theme = useTheme()
   const projectName = project?.name || (local ? 'Local captures' : null)
-  const runsProjectId = project?.id || projects[0]?.id || (local ? 'local' : null)
-  const runsLink = runsProjectId ? runsHref(runsProjectId, returnQuery(route.search)) : undefined
-  const runsActive = route.projectId === runsProjectId && !!runsProjectId && !route.settings && !route.setup
+  const projectId = project?.id || projects[0]?.id || (local ? 'local' : null)
+  const runsLink = projectId ? runsHref(projectId, returnQuery(route.search)) : undefined
+  const tracingActive = !!projectId && route.projectId === projectId && !route.settings && !route.home
   const settingsProjectId = project?.id || (local ? 'local' : null)
-  const pageName = route.setup ? 'Get started' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Traces'
+  const pageName = route.home ? 'Home' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
+  const trail = crumbs ?? [pageName]
   const main = useRef(null)
   const previousPath = useRef(null)
   useEffect(() => {
@@ -26,49 +58,56 @@ export default function AppShell({ projects, project, route, children, header, l
     function dismiss(event) {
       const open = document.querySelector('details[open]:not([data-inline])')
       if (!open) return
-      if (event.type === 'keydown' && event.key === 'Escape') { open.open = false; open.querySelector('summary')?.focus(); event.stopPropagation() }
+      // preventDefault marks the Escape as used, so a preview panel behind the menu stays open.
+      if (event.type === 'keydown' && event.key === 'Escape') { open.open = false; open.querySelector('summary')?.focus(); event.preventDefault(); event.stopPropagation() }
       if (event.type === 'pointerdown' && !open.contains(event.target)) open.open = false
     }
     document.addEventListener('keydown', dismiss); document.addEventListener('pointerdown', dismiss)
     return () => { document.removeEventListener('keydown', dismiss); document.removeEventListener('pointerdown', dismiss) }
   }, [])
+  useEffect(() => {
+    // "/" jumps to the page's search box, unless the user is already typing.
+    function shortcut(event) {
+      if (event.key !== '/' || hasModifier(event) || isTyping(event.target)) return
+      const search = main.current?.querySelector('[data-shortcut="search"]')
+      if (search) { event.preventDefault(); search.focus(); search.select?.() }
+    }
+    document.addEventListener('keydown', shortcut)
+    return () => document.removeEventListener('keydown', shortcut)
+  }, [])
+  const navItem = (label, href, icon, active, extra = {}) => <a className={`nav-item ${active ? 'active' : ''}`} href={href} aria-disabled={!href || undefined} aria-label={extra.ariaLabel || label} aria-current={active ? extra.current || 'page' : undefined} title={extra.title || label} {...extra.link}><Icon name={icon}/><span className="nav-text">{label}</span>{extra.after}</a>
   return <div className="app-shell" data-sidebar={sidebar}>
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); main.current?.focus() }}>Skip to content</a>
     <aside className="sidebar" aria-label="Project navigation">
       <div className="brand">
         <span className="brand-mark" title="Agent Debugger"><Icon name="branch"/></span>
         <strong className="nav-text">Agent Debugger</strong>
-        <button className="sidebar-toggle" aria-label={sidebar === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={sidebar === 'expanded'} title={sidebar === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'} onClick={() => setSidebar(sidebar === 'expanded' ? 'collapsed' : 'expanded')}><Icon name="panel"/></button>
-      </div>
-      <div className="project-picker" title={local ? `${projectName} · temporary storage` : projectName || 'Choose a project'}>
-        <span className="project-avatar" aria-hidden="true">{project?.initial || (local ? 'L' : '?')}</span>
-        {local ? <div className="project-context local-project"><strong>{projectName}</strong><span>Local · temporary storage</span></div> : <div className="project-context"><label className="sr-only" htmlFor="project">Project</label><select id="project" value={project?.id || ''} disabled={!projects.length} onChange={event => { window.location.hash = runsHref(event.target.value).slice(1) }}>
-          {!project && <option value="" disabled>{projects.length ? 'Choose a project' : 'No projects available'}</option>}
-          {projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-        </select><span className="nav-text">{project?.environment || 'Project access'}</span></div>}
       </div>
       <nav aria-label="Project workspaces">
+        {navItem('Home', projectId ? homeHref(projectId) : undefined, 'home', !!route.home)}
         <span className="section-label nav-text" aria-hidden="true">Observability</span>
-        <a className={`nav-item ${runsActive ? 'active' : ''}`} href={runsLink} aria-disabled={!runsLink || undefined} aria-label="Traces" aria-current={runsActive ? route.runId ? 'location' : 'page' : undefined} title="Traces"><Icon name="runs"/><span className="nav-text">Traces</span></a>
-        {local && <a className={`nav-item ${route.setup ? 'active' : ''}`} href={setupHref('local')} aria-label="Get started" aria-current={route.setup ? 'page' : undefined} title="Get started: send your first trace"><Icon name="setup"/><span className="nav-text">Get started</span></a>}
-        {!local && <a className={`nav-item ${route.projectsPage ? 'active' : ''}`} href="#/projects" aria-label="Projects" aria-current={route.projectsPage ? 'page' : undefined} title="Projects"><Icon name="branch"/><span className="nav-text">Projects</span></a>}
+        {navItem('Tracing', runsLink, 'runs', tracingActive, { current: route.runId ? 'location' : 'page' })}
+        {!local && navItem('Projects', '#/projects', 'branch', !!route.projectsPage)}
       </nav>
-      <div className="sidebar-bottom">{settingsProjectId && <a className={`nav-item ${route.settings ? 'active' : ''}`} href={settingsHref(settingsProjectId)} title="Project settings" aria-label="Project settings" aria-current={route.settings ? 'page' : undefined}><Icon name="settings"/><span className="nav-text">Settings</span></a>}
-        <a className="nav-item" href={DOCS_URL} target="_blank" rel="noreferrer" title="Documentation (opens in a new tab)" aria-label="Docs (opens in a new tab)"><Icon name="docs"/><span className="nav-text">Docs</span><span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span></a>
-        {!local && <a className="nav-item" href={accountHref('login', route.path + (route.search ? '?' + route.search : ''))} title="Sign in — authentication not connected" aria-label="Sign in — authentication not connected"><Icon name="arrow"/><span className="nav-text">Sign in</span></a>}
+      <div className="sidebar-bottom">
+        {settingsProjectId && navItem('Settings', settingsHref(settingsProjectId), 'settings', !!route.settings, { ariaLabel: 'Project settings', title: 'Project settings' })}
+        {navItem('Docs', DOCS_URL, 'docs', false, { ariaLabel: 'Docs (opens in a new tab)', title: 'Documentation (opens in a new tab)', link: { target: '_blank', rel: 'noreferrer' }, after: <span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span> })}
+        {!local && navItem('Sign in', accountHref('login', route.path + (route.search ? '?' + route.search : '')), 'arrow', false, { ariaLabel: 'Sign in — authentication not connected', title: 'Sign in — authentication not connected' })}
         <div className="sidebar-divider"/>
         {local && <div className="profile-row" title="Local mode has no accounts or sign-in"><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>Local developer</strong><span>Local mode · no sign-in</span></span></div>}
         <div className="appearance-control" title={`Appearance: ${theme.preference}`}><Icon name="theme"/><label className="sr-only" htmlFor="appearance">Appearance</label><select id="appearance" value={theme.preference} onChange={event => theme.setPreference(event.target.value)}><option value="light">Light appearance</option><option value="dark">Dark appearance</option><option value="system">System appearance</option></select></div>
       </div>
     </aside>
-    <div className="workspace">{header || <header className="app-header">
-      <nav aria-label="Breadcrumb" className="breadcrumbs">
-        {local ? <><span className="muted">Workspace</span><Icon name="chevron"/><span aria-current="page">{pageName}</span></>
-          : route.projectsPage || route.settings ? <><a href="#/projects" aria-current={route.projectsPage === 'list' ? 'page' : undefined}>Projects</a>{(route.settings || route.projectsPage === 'new') && <><Icon name="chevron"/><span aria-current="page">{route.settings ? 'Settings' : 'Create'}</span></>}</>
-            : <><a href={runsLink || '#/projects'} aria-current={!route.runId ? 'page' : undefined}>Traces</a>{route.runId && <><Icon name="chevron"/><span aria-current="page">{route.runId}</span></>}</>}
-      </nav>
-      {local && <span className="badge capture-context">Local capture</span>}
-    </header>}
+    <div className="workspace">
+      <header className="topbar">
+        <button className="sidebar-toggle" aria-label={sidebar === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={sidebar === 'expanded'} title={sidebar === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'} onClick={() => setSidebar(sidebar === 'expanded' ? 'collapsed' : 'expanded')}><Icon name="panel-left"/></button>
+        <ProjectSwitcher projects={projects} project={project} local={local} projectName={projectName}/>
+        {!header && trail.length > 0 && <nav aria-label="Breadcrumb" className="breadcrumbs">
+          {trail.map((crumb, index) => <span key={index} className="crumb" aria-current={index === trail.length - 1 && typeof crumb === 'string' ? 'page' : undefined}><span className="crumb-separator" aria-hidden="true">/</span>{crumb}</span>)}
+        </nav>}
+        {actions && <div className="topbar-actions">{actions}</div>}
+      </header>
+      {header}
       <main className="page" id="main-content" tabIndex="-1" ref={main}>{children}</main>
     </div>
   </div>

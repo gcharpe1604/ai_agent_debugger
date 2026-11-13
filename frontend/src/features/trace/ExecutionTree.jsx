@@ -8,7 +8,7 @@ import { exactDuration } from '../../app/format.js'
 
 // Parent-child connector lines. Column d (0-based) sits under the disclosure of
 // the ancestor at depth d; the last column is this row's own elbow.
-function TreeGuides({ depth, guides, last, leaf }) {
+export function TreeGuides({ depth, guides, last, leaf }) {
   const columns = []
   for (let level = 1; level < depth; level++) if (guides?.[level]) columns.push(<span key={level} className="tree-guide" style={{ '--guide-level': level - 1 }}/>)
   return <span className="tree-guides" aria-hidden="true">{columns}<span className={`tree-guide tree-elbow${last ? ' last' : ''}${leaf ? ' leaf' : ''}`} style={{ '--guide-level': depth - 1 }}/></span>
@@ -22,6 +22,9 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
   const top = Math.min(max, ui.anchor ? restoreAnchor(rows, ui.anchor, index) : ui.scrollTop)
   const rendered = useMemo(() => windowRows(rows, top, size.height, active), [rows, top, size.height, active])
   const canExpand = row => row?.hasChildren && (!receivedOnly || row.childLoaded > 0)
+  // Share of the trace's recorded extent, drawn as a thin latency bar under the duration.
+  const extent = timing.extent.available && timing.extent.source !== 'point' ? timing.extent.end - timing.extent.start : 0
+  const share = span => extent > 0 && Number.isFinite(span.duration) && span.duration > 0 ? Math.min(1, span.duration / extent) : 0
   useLayoutEffect(() => { if (treeRef.current && Math.abs(treeRef.current.scrollTop - top) > 0.5) treeRef.current.scrollTop = top }, [treeRef, top])
   function move(id) {
     const position = rows.findIndex(row => row.id === id)
@@ -88,7 +91,7 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
           <span className="trace-start-cell mono" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
           <span className="trace-type-cell">{typeLabel(row.span.type)}</span>
           <span className={`trace-status-cell ${row.span.status === 'ERROR' ? 'badge' : 'mono'}`} data-state={row.span.status} title={statusText(row.span.status)}>{statusText(row.span.status)}</span>
-          <span className="trace-duration mono" title={exactDuration(row.span.duration)}>{durationText(row.span.duration)}</span>
+          <span className="trace-duration mono latency-bar" style={{ '--share': share(row.span) }} title={`${exactDuration(row.span.duration)}${extent > 0 ? ` · ${(share(row.span) * 100).toFixed(1)}% of the trace` : ''}`}>{durationText(row.span.duration)}</span>
         </>}
       </div>})}
     </div>

@@ -33,6 +33,16 @@ const paths = {
   docs: <><path d="M6 3h9l4 4v14H6Z"/><path d="M14 3v5h5M9 12h7M9 16h7"/></>,
   user: <><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></>,
   key: <><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-4 4 3 3"/></>,
+  home: <path d="M3 11 12 4l9 7M5 10v10h5v-6h4v6h5V10"/>,
+  info: <><circle cx="12" cy="12" r="9"/><path d="M12 11v6m0-9v.5"/></>,
+  'panel-left': <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16"/></>,
+  'chevron-down': <path d="m6 9 6 6 6-6"/>,
+  up: <path d="m6 15 6-6 6 6"/>,
+  down: <path d="m6 9 6 6 6-6"/>,
+  columns: <><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m6-16v16"/></>,
+  rows: <path d="M4 6h16M4 12h16M4 18h16"/>,
+  'rows-compact': <path d="M4 5h16M4 9h16M4 13h16M4 17h16"/>,
+  keyboard: <><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M8 14h8"/></>,
   clock: <><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></>,
 }
 export default function Icon({ name }) {
