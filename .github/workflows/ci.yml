@@ -39,6 +39,9 @@ jobs:
           uv run --project backend --locked
           --with "opentelemetry-api>=1,<2" --with "opentelemetry-sdk>=1,<2"
           python -B -m unittest tests/integration/test_telemetry.py
+      - name: Backend unit tests
+        working-directory: backend
+        run: uv run --locked python -B -m unittest discover -s tests -t . -v
 
   frontend:
     name: Frontend lint, test, build
