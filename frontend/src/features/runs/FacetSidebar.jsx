@@ -45,9 +45,9 @@ export default function FacetSidebar({ query, facets, onChange, onClose }) {
   const active = query.outcomes.length + query.modes.length + query.agents.length + Number(query.hasErrors) + Number(query.minMs !== null || query.maxMs !== null)
   return <aside className="facet-sidebar" aria-label="Trace filters">
     <header className="facet-header">
+      <button type="button" id="hide-filters" className="trace-icon-button" aria-label="Hide filters" aria-expanded="true" title="Hide filters" onClick={onClose}><Icon name="panel-left"/></button>
       <strong>Filters</strong>
       {active > 0 && <button type="button" className="text-button" onClick={() => onChange({ outcomes: [], modes: [], agents: [], hasErrors: false, minMs: null, maxMs: null })}>Clear all</button>}
-      <button type="button" className="trace-icon-button" aria-label="Hide filters" title="Hide filters" onClick={onClose}><Icon name="close"/></button>
     </header>
     <FacetGroup title="Status" values={['Completed', 'Failed', 'Unknown']} counts={counts.outcome} selected={query.outcomes} onChange={outcomes => onChange({ outcomes })}/>
     <fieldset className="facet-group">

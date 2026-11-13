@@ -14,7 +14,8 @@ import TimelineControls from './TimelineControls.jsx'
 import { TimelineAxis } from './TimelineTrack.jsx'
 import './timeline.css'
 
-const widthValues = ['auto', ...Array.from({ length: 161 }, (_, index) => String(480 + index))]
+const MIN_WIDTH = 480
+const widthValues = ['auto', ...Array.from({ length: 1921 }, (_, index) => String(MIN_WIDTH + index))]
 export default function TraceWorkspace({ data, route, repository, cache, loadMore, busy, error, retryRead, receivedOnly = false }) {
   const scope = `${route.projectId}/${route.runId}`
   const [modePreference, setModePreference] = usePreference('inspector.mode', ['overlay', 'pinned'], 'overlay')
@@ -41,10 +42,11 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   const size = useElementSize(root)
   const single = size.width < 928
   const effectiveMode = single ? 'single' : ui.mode
-  // Reserve room for execution columns and, in pinned mode, the resize handle.
-  const executionReserve = ui.mode === 'pinned' ? 530 : 402
-  const maxWidth = Math.max(480, Math.floor(Math.min(640, size.width - executionReserve)))
-  const width = single ? size.width : Math.min(maxWidth, Math.max(480, widthPreference === 'auto' ? Math.min(600, size.width / 2) : Number(widthPreference)))
+  // The overlay floats over the execution view and may be dragged wide, keeping
+  // a strip of the tree visible. Pinned keeps room for the execution columns.
+  const executionReserve = ui.mode === 'pinned' ? 530 : 160
+  const maxWidth = Math.max(MIN_WIDTH, Math.floor(size.width - executionReserve))
+  const width = single ? size.width : Math.min(maxWidth, Math.max(MIN_WIDTH, widthPreference === 'auto' ? Math.min(640, size.width / 2) : Number(widthPreference)))
   const expanded = useMemo(() => { const collapsed = new Set(ui.collapsed); return new Set(data.spans.filter(span => !collapsed.has(span.id)).map(span => span.id)) }, [data.spans, ui.collapsed])
   const view = useMemo(() => visibleTree(index, expanded, { search: ui.search, type: ui.type, status: ui.status }), [index, expanded, ui.search, ui.type, ui.status])
   const contextCount = view.rows.filter(row => row.context).length
@@ -110,7 +112,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     const mode = ui.mode === 'pinned' ? 'overlay' : 'pinned'
     setModePreference(mode); patch({ mode }); writeUrl({ panel: mode })
   }
-  function resize(value) { setWidthPreference(String(Math.max(480, Math.min(maxWidth, Math.round(value))))) }
+  function resize(value) { setWidthPreference(String(Math.max(MIN_WIDTH, Math.min(maxWidth, Math.round(value))))) }
   function switchView(view) { patch({ view }); writeUrl({ view }) }
   function timeWindowChange(timeWindow) { patch({ timeWindow }); writeUrl({ from: timeWindow ? String(timeWindow.start) : '', to: timeWindow ? String(timeWindow.end) : '' }) }
   function matchingOperation(direction) {
@@ -158,7 +160,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
       <ExecutionTree index={index} rows={view.rows} ui={{ ...ui, scrollTop: top }} treeRef={treeRef} select={select} patch={patch} toggle={toggleBranch} filtered={view.filtered} showIds={showIds} timing={timing} timeWindow={timeWindow} receivedOnly={receivedOnly}/>
       <footer className="trace-footer"><span>{view.rows.filter(row => row.span).length.toLocaleString('en')} operations in hierarchy view{busy ? ' · Loading structure…' : ''}</span>{total !== null && data.spans.length < total && <button className="text-button" disabled={busy} onClick={() => loadMore(Math.min(total, data.spans.length + 420))}>Load {Math.min(420, total - data.spans.length)} more local spans</button>}</footer>
     </div>
-    {ui.open && span && effectiveMode === 'pinned' && <InspectorResize width={width} max={maxWidth} resize={resize} reset={() => setWidthPreference('auto')}/>}
+    {ui.open && span && effectiveMode !== 'single' && <InspectorResize width={width} min={MIN_WIDTH} max={maxWidth} resize={resize} reset={() => setWidthPreference('auto')}/>}
     {ui.open && span && <SpanInspector repository={repository} projectId={route.projectId} runId={route.runId} span={span} ui={ui} patch={patch} dispatch={dispatch} mode={effectiveMode} width={width} maxWidth={maxWidth} canPin={!single} pin={pin} close={close} back={() => single ? close() : treeRef.current?.focus({ preventScroll: true })} resize={resize} resetWidth={() => setWidthPreference('auto')} jump={jump} inspectorRef={inspectorRef}/>}
   </div>
 }

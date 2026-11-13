@@ -8,7 +8,7 @@ function Search({ value, onSearch }) {
   // The draft stays native/uncommitted. URL changes update it without remounting
   // the focused field; unrelated filters do not erase unfinished typing.
   useEffect(() => { if (input.current.value !== value) input.current.value = value }, [value])
-  return <form className="search-form" role="search" onSubmit={event => { event.preventDefault(); onSearch(input.current.value.trim()) }}><div className="search-field"><Icon name="search"/><input ref={input} type="search" aria-label="Search traces" placeholder="Search by agent name or trace ID…" defaultValue={value} maxLength={256}/><button className="search-submit" type="submit" aria-label="Search">↵</button></div></form>
+  return <form className="search-form" role="search" onSubmit={event => { event.preventDefault(); onSearch(input.current.value.trim()) }}><div className="search-field"><Icon name="search"/><input ref={input} type="search" aria-label="Search traces" aria-keyshortcuts="/" data-shortcut="search" placeholder="Search by agent name or trace ID…" defaultValue={value} maxLength={256}/><kbd className="search-hint" aria-hidden="true" title="Press / to search">/</kbd><button className="search-submit" type="submit" aria-label="Search">↵</button></div></form>
 }
 function AdvancedFilters({ query, onChange, live }) {
   const details = useRef(null)
@@ -35,7 +35,7 @@ function AdvancedFilters({ query, onChange, live }) {
     <button type="submit" className="button solid">Apply filters</button>
   </form></details>
 }
-export default function RunToolbar({ query, onChange, onReset, live = false, filtersOpen = false, toggleFilters }) {
+export default function RunToolbar({ query, onChange, onReset, live = false, filtersOpen = false, toggleFilters, children }) {
   const resettableView = query.sort !== 'startedAt' || query.direction !== 'desc' || query.pageSize !== 25 || query.time !== (live ? 'all' : 'window')
   const modes = query.modes || [], agents = query.agents || []
   const chips = [
@@ -51,12 +51,13 @@ export default function RunToolbar({ query, onChange, onReset, live = false, fil
   ]
   const sidebarFilters = query.outcomes.length + modes.length + agents.length + Number(query.hasErrors) + Number(query.minMs !== null || query.maxMs !== null)
   return <><div className={`query-toolbar${live ? ' local-toolbar' : ''}`}>
-    {live && <button type="button" className="button" aria-pressed={filtersOpen} aria-controls="trace-filters" onClick={toggleFilters} title={filtersOpen ? 'Hide filters' : 'Show filters'}><Icon name="filter"/>Filters{sidebarFilters > 0 && <span className="count">{sidebarFilters}</span>}</button>}
+    {live && !filtersOpen && <button type="button" id="show-filters" className="button" aria-expanded="false" onClick={toggleFilters} title="Show the filter panel"><Icon name="panel-left"/>Show filters{sidebarFilters > 0 && <span className="count">{sidebarFilters}</span>}</button>}
     <Search value={query.search} onSearch={search => onChange({ search })}/>
     {live && <><label className="sr-only" htmlFor="time-range">Time range</label><select id="time-range" value={query.range || ''} onChange={event => onChange({ range: event.target.value })}>{rangeOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></>}
     {!live && <><label className="sr-only" htmlFor="outcome">Execution outcome</label><select id="outcome" value={query.outcomes.length > 1 ? 'multiple' : query.outcomes[0] || ''} onChange={event => onChange({ outcomes: event.target.value ? [event.target.value] : [] })}><option value="">All outcomes</option>{query.outcomes.length > 1 && <option value="multiple" disabled>Multiple outcomes</option>}{['Completed', 'Failed', 'Unknown'].map(value => <option key={value}>{value}</option>)}</select></>}
     {!live && <><label className="sr-only" htmlFor="capture">Telemetry completeness</label><select id="capture" value={query.completeness.length > 1 ? 'multiple' : query.completeness[0] || ''} onChange={event => onChange({ completeness: event.target.value ? [event.target.value] : [] })}><option value="">All completeness</option>{query.completeness.length > 1 && <option value="multiple" disabled>Multiple capture states</option>}{['Complete', 'Partial', 'Unknown'].map(value => <option key={value}>{value}</option>)}</select></>}
     {!live && <AdvancedFilters live={live} query={query} onChange={onChange}/>}
+    {children && <div className="toolbar-end">{children}</div>}
   </div>{(chips.length > 0 || resettableView) && <div className="active-filters" aria-label="Active trace filters">
     {chips.map(chip => <button className="filter-chip" key={chip.label} aria-label={`Remove ${chip.label}`} onClick={() => onChange(chip.patch)}>{chip.label}<span aria-hidden="true">×</span></button>)}
     {chips.length > (live ? 1 : 0) && <button className="text-button" onClick={() => onChange({ search: '', range: '', outcomes: [], completeness: [], investigations: [], modes: [], agents: [], minMs: null, maxMs: null, hasErrors: false })}>Clear filters</button>}

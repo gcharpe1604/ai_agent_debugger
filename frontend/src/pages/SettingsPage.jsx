@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Icon from '../components/Icon.jsx'
+import { homeHref } from '../app/routes.jsx'
 import './settings.css'
 
 // The SDK's built-in local endpoint (sdk/python transport.LOCAL_ENDPOINT).
@@ -25,7 +26,7 @@ const hours = seconds => Number.isFinite(seconds) && seconds > 0 ? `${+(seconds 
 export default function SettingsPage({ project }) {
   const retention = hours(project.retentionSeconds)
   return <section className="settings-page" aria-labelledby="settings-heading">
-    <header className="view-heading"><div><h1 id="settings-heading">Settings</h1><p className="view-description">Project details and how agents send traces to it.</p></div></header>
+    <header className="view-heading"><h1 id="settings-heading">Settings</h1><span className="secondary">Project details and how agents send traces to it.</span></header>
     <section className="settings-card" aria-labelledby="settings-project">
       <h2 id="settings-project">Project</h2>
       <dl className="settings-facts">
@@ -42,7 +43,7 @@ export default function SettingsPage({ project }) {
       </div>
       <p id="keys-unavailable" className="settings-note">Local mode does not use API keys. The backend accepts traces only from this computer (loopback) and only while it runs with <code>AGENT_DEBUGGER_LOCAL_MODE=1</code>. Project API keys come with durable ingestion.</p>
       <CopyBlock label=".env for your agent" text={`# Where the SDK sends traces. TraceSession.local() uses this address by default.\nAGENT_DEBUGGER_ENDPOINT=${LOCAL_ENDPOINT}\n# Set it to an empty value to turn export off.`}/>
-      <p className="settings-note">Next: <a href={`#/projects/${encodeURIComponent(project.id)}/setup`}>Get started</a> runs an example agent and confirms its trace arrives.</p>
+      <p className="settings-note">Next: <a href={homeHref(project.id)}>Home</a> runs an example agent and confirms its trace arrives.</p>
     </section>
   </section>
 }

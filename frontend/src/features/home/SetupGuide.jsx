@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { runsHref } from '../app/routes.jsx'
-import Icon from '../components/Icon.jsx'
-import './sdkSetup.css'
+import { runsHref } from '../../app/routes.jsx'
+import Icon from '../../components/Icon.jsx'
 
 // These commands are the local development and controlled example commands in docs/local-development.md.
 const backendCommand = "$env:AGENT_DEBUGGER_LOCAL_MODE = '1'\nuv run --project backend --locked uvicorn agent_debugger_api.main:app --host 127.0.0.1 --port 8008 --workers 1 --no-proxy-headers"
@@ -26,7 +25,9 @@ function Command({ value, label }) {
   </div>
 }
 
-export default function SdkSetupPage({ traceRepository, projectId, connected, checking, checkConnection }) {
+// Three checks that take a new user from nothing to an opened trace:
+// the backend answers, an example agent runs, and its trace ID can be read back.
+export default function SetupGuide({ traceRepository, projectId, connected, checking, checkConnection }) {
   const [traceId, setTraceId] = useState('')
   const [verification, setVerification] = useState(null)
   const request = useRef(null)
@@ -61,18 +62,17 @@ export default function SdkSetupPage({ traceRepository, projectId, connected, ch
     }
   }
 
-  return <section className="sdk-setup" aria-labelledby="setup-heading">
-    <header className="setup-heading">
-      <span className="setup-icon"><Icon name="setup"/></span>
-      <div><h1 id="setup-heading">Get started</h1>
-      <p className="view-description">Send a Python SDK trace to the local workspace and verify that you can open it in Traces.</p></div>
+  return <section className="home-section sdk-setup" aria-labelledby="setup-heading">
+    <header className="home-section-heading">
+      <h2 id="setup-heading">Send your first trace</h2>
+      <p className="secondary">Three checks: the backend answers, an example agent runs, and its trace arrives here.</p>
     </header>
     <ol className="setup-steps">
       <li>
-        <h2>Check the backend</h2>
+        <h3>Check the backend</h3>
         <p className="secondary">Local captures are held in temporary memory. Restarting the backend clears them.</p>
         <div className="setup-actions">
-          <button type="button" className="button" disabled={checking} onClick={() => { resetVerification(); checkConnection() }}><Icon name="refresh"/>Check connection</button>
+          <button type="button" className="button small" disabled={checking} onClick={() => { resetVerification(); checkConnection() }}><Icon name="refresh"/>Check connection</button>
           <span className="badge" data-state={checking ? undefined : connected ? 'ok' : 'error'} role="status">{checking ? 'Checking backend…' : connected ? 'Backend reachable' : 'Backend unavailable'}</span>
         </div>
         {!connected && !checking && <div className="setup-instructions">
@@ -81,12 +81,12 @@ export default function SdkSetupPage({ traceRepository, projectId, connected, ch
         </div>}
       </li>
       <li>
-        <h2>Run a controlled example</h2>
+        <h3>Run a controlled example</h3>
         <p className="secondary">Run this from the repository root. This example uses local tools and needs no model API key.</p>
         <Command value={exampleCommand} label="controlled example"/>
       </li>
       <li>
-        <h2>Verify the captured trace</h2>
+        <h3>Verify the captured trace</h3>
         <p id="setup-trace-help" className="secondary">Paste the ID from the export receipt in your terminal.</p>
         <form className="setup-verify" onSubmit={verify}>
           <label htmlFor="setup-trace-id">Trace ID</label>
