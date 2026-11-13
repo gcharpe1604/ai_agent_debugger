@@ -6,7 +6,7 @@ This file is the contract for the ClickHouse writer and Kafka consumer, which th
 
 Sources: `LLD.md` §5–6, `database.md` §3, §5, §8, §11, `trace-protocol.md` §5, §10, §11, §13, handoff §8 action 3.
 
-**Checked so far, and only this:** on 2026-11-08 the *earlier draft* DDL parsed and created in `clickhouse local` 26.8.36.3 (in-process, not the compose server). A smoke check of option A with 4 inserts collapsed an equivalent redelivery to 1 physical row after `OPTIMIZE … FINAL` and kept 2 rows for a same-ID/different-hash pair. **The §2 DDL below was edited on 2026-11-12 (no partition, no skip indexes, no run table/MV, `Map(String, String)`) and has not been re-parsed.** Re-parse it before the writer uses it. The §6 tests are not written.
+**Checked so far, and only this:** on 2026-11-08 the *earlier draft* DDL parsed and created in `clickhouse local` 26.8.36.3 (in-process, not the compose server). A smoke check of option A with 4 inserts collapsed an equivalent redelivery to 1 physical row after `OPTIMIZE … FINAL` and kept 2 rows for a same-ID/different-hash pair. **2026-11-13: the §2 DDL as written (after the 2026-11-12 edit) was created on the compose ClickHouse server 26.8 in a throwaway database `scratch_ddl_check`: no errors, 40 columns, `SHOW CREATE TABLE` matched the DDL (ClickHouse added only the default `SETTINGS index_granularity = 8192`); the scratch database was then dropped.** `telemetry` was not touched and no data was inserted, so this checks syntax and types only, not dedup behaviour. The §6 tests are not written.
 
 ---
 
@@ -67,7 +67,7 @@ Everything below follows from those five.
 The writer's schema bootstrap must run `CREATE DATABASE IF NOT EXISTS telemetry`; do not rely on `CLICKHOUSE_DB`, which the image only applies on an empty volume.
 
 ```sql
--- DECISION 2026-11-12. Not applied to any server. Re-parse before use (see header).
+-- DECISION 2026-11-12. Not applied to `telemetry`. Parsed and created in a scratch database on 2026-11-13 (see header).
 CREATE TABLE IF NOT EXISTS telemetry.telemetry_spans
 (
     project_id            UUID,
