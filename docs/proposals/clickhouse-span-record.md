@@ -290,9 +290,11 @@ Replaces the earlier open-questions list. Each row is a **user decision, 2026-11
 - **One message per span.**
 - **Key:** `trace_id` (lowercase hex). All spans of a trace land on the same partition.
 - **Value:** JSON `SpanRecord` = the §1 columns **minus** `content_hash`, `persisted_at`, `kafka_partition`, `kafka_offset`.
+  - `duration_ns` is **not** in the message: the writer computes it from `ended_at − started_at` (§1).
   - Timestamps (`started_at`, `ended_at`, event times) are **integer nanoseconds** since the Unix epoch.
   - `cost` is a **decimal string** or `null`.
-  - `received_at` is set by **FastAPI, once per envelope**: every span from one request carries the same value.
+  - `received_at` is set by **FastAPI, once per envelope**: every span from one request carries the same value. It is **integer nanoseconds** in the message; the writer truncates it to milliseconds for the `DateTime64(3)` column.
+  - `attributes` values are strings: the ingest **stringifies attribute values before publishing**, matching the `Map(String, String)` column.
   - `project_id` is set server-side by the ingest from `DEFAULT_PROJECT_ID` (fixed UUID, documented default) via a single `resolve_project_id()` function; never accepted from the client payload.
 
 ### 8.3 Producer (FastAPI, `POST /api/v1/traces`)
