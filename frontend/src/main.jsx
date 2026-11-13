@@ -5,5 +5,5 @@ import App from './app/App.jsx'
 import { createApiAdapters } from './data/apiRepository.js'
 
 const adapters = createApiAdapters()
-if (!window.location.hash) window.location.hash = '#/projects/local/runs'
+if (!window.location.hash) window.location.hash = '#/projects/local'
 createRoot(document.getElementById('root')).render(<StrictMode><App {...adapters}/></StrictMode>)

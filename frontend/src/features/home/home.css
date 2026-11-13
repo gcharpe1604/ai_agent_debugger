@@ -1,0 +1,68 @@
+/* Project Home: a few flat summary tiles, recent failures, and the setup steps. */
+.home-page { display: flex; flex-direction: column; min-width: 0; padding-bottom: 24px; }
+.home-loading { padding: 0 16px; }
+.home-page > .read-error { margin-top: 0; }
+.home-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; padding: 0 16px 16px; }
+.home-tile { display: flex; flex-direction: column; gap: 10px; min-width: 0; padding: 12px 14px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
+.home-tile > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.home-tile h2 { font-size: 13px; line-height: 20px; font-weight: 600; }
+.home-tile > header a { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--secondary); }
+.home-tile > header a .icon { width: 12px; height: 12px; }
+.home-figure { display: flex; align-items: baseline; gap: 8px; font-size: 26px; line-height: 32px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.home-figure span { font-size: 12px; font-weight: 400; color: var(--secondary); }
+.home-rows { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; }
+.home-rows li { display: grid; grid-template-columns: minmax(0, 1fr) minmax(48px, 30%) 32px; align-items: center; gap: 10px; min-height: 26px; }
+.home-rows a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-count { text-align: right; font-variant-numeric: tabular-nums; color: var(--secondary); }
+.home-bar { display: block; height: 6px; overflow: hidden; border-radius: 2px; background: var(--subtle); }
+.home-bar > span { display: block; height: 100%; background: var(--secondary); }
+.home-bar[data-tone="error"] > span { background: var(--error); }
+.home-bar[data-tone="success"] > span { background: var(--success); }
+.home-note { font-size: 12px; line-height: 18px; color: var(--secondary); }
+.home-table { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 13px; }
+.home-table th, .home-table td { padding: 5px 0; border-bottom: 1px solid var(--border); text-align: left; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-table thead th { font-size: 12px; color: var(--secondary); }
+.home-table .numeric { width: 22%; text-align: right; }
+.home-table tbody tr:last-child > * { border-bottom: 0; }
+.home-section { padding: 16px; border-top: 1px solid var(--border); }
+.home-section-heading { margin-bottom: 10px; }
+.home-section-heading h2 { font-size: 14px; line-height: 22px; font-weight: 600; }
+.home-section-heading p { margin-top: 2px; font-size: 13px; }
+.home-failures { margin: 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 4px; }
+.home-failures li { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(0, 2fr) auto; align-items: center; gap: 12px; min-height: 36px; padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 13px; }
+.home-failures li:last-child { border-bottom: 0; }
+.home-failures li > * { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-failures a { font-weight: 500; }
+.home-failures time { font-size: 12px; }
+
+/* Setup steps (Send your first trace). */
+.sdk-setup { max-width: 920px; }
+.setup-steps { position: relative; display: grid; gap: 0; list-style: none; margin: 0; padding: 0; border: 1px solid var(--border); border-radius: 4px; counter-reset: setup; }
+.setup-steps > li { position: relative; min-width: 0; padding: 14px 16px 16px 52px; border-bottom: 1px solid var(--border); counter-increment: setup; }
+.setup-steps > li:last-child { border-bottom: 0; }
+.setup-steps > li::before { content: counter(setup); position: absolute; top: 14px; left: 16px; display: grid; place-items: center; width: 22px; height: 22px; border: 1px solid var(--control); border-radius: 50%; color: var(--secondary); font-size: 12px; font-weight: 600; }
+.setup-steps h3 { margin: 0 0 4px; font-size: 14px; line-height: 22px; }
+.setup-steps p { margin: 0; }
+.setup-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+.setup-instructions { margin-top: 12px; }
+.setup-command { position: relative; margin-top: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--subtle); }
+.setup-command pre { margin: 0; padding: 10px 74px 10px 12px; overflow-wrap: anywhere; white-space: pre-wrap; font: 12px/18px "Cascadia Code",Consolas,monospace; }
+.setup-command > button { position: absolute; top: 6px; right: 6px; }
+.setup-copy-notice { display: block; padding: 0 12px 8px; font-size: 12px; }
+.setup-copy-notice:empty { display: none; }
+.setup-verify { margin-top: 12px; }
+.setup-verify label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.setup-verify-fields { display: flex; flex-wrap: wrap; gap: 8px; }
+.setup-verify input { flex: 1 1 220px; min-width: 0; max-width: 365px; min-height: 32px; padding: 5px 8px; border: 1px solid var(--control); border-radius: 6px; background: var(--canvas); }
+.setup-verify input[aria-invalid="true"] { border-color: var(--error); }
+.setup-steps #setup-trace-error { margin-top: 8px; }
+
+@media (max-width: 767px) {
+  .home-grid { padding: 0 12px 12px; }
+  .home-section { padding: 12px; }
+  .home-failures li { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .setup-steps > li { padding: 12px 12px 14px 44px; }
+  .setup-steps > li::before { left: 12px; }
+  .setup-command pre { padding: 10px 10px 4px; }
+  .setup-command > button { position: static; margin: 4px 10px 10px; }
+}

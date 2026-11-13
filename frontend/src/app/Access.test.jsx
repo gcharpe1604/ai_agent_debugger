@@ -122,7 +122,7 @@ describe('Milestone 4A access and projects', () => {
     expect(await screen.findByText('Enter a project name.')).toBeTruthy()
     await user.type(screen.getByLabelText('Project name'), 'Research lab')
     await user.click(screen.getByRole('button', { name: 'Create project' }))
-    await screen.findByRole('heading', { name: 'No runs recorded' })
+    await screen.findByRole('heading', { name: 'No traces yet' })
     expect(screen.getByLabelText('Project').selectedOptions[0].textContent).toBe('Research lab')
     expect(screen.queryByText('Sample data')).toBeNull()
     expect(localStorage.getItem('projects')).toBeNull()

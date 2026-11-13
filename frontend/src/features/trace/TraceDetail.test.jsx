@@ -23,9 +23,9 @@ describe('Trace Detail interactions', () => {
     const user = await open()
     expect(screen.queryByRole('region', { name: 'Span inspector' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Timeline' }).getAttribute('aria-pressed')).toBe('false')
-    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
-    await screen.findByRole('searchbox', { name: 'Search runs' })
-    expect(screen.getByRole('searchbox', { name: 'Search runs' }).value).toBe('order')
+    await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
+    await screen.findByRole('searchbox', { name: 'Search traces' })
+    expect(screen.getByRole('searchbox', { name: 'Search traces' }).value).toBe('order')
   })
   it('opens, switches, dismisses and reopens a non-modal inspector with stable selection', async () => {
     const user = await open(); await failed(user)
@@ -78,7 +78,14 @@ describe('Trace Detail interactions', () => {
     await user.keyboard('{ArrowLeft}')
     expect(separator.getAttribute('aria-valuenow')).toBe('496')
     await user.click(screen.getByRole('button', { name: 'Unpin span inspector' }))
-    expect(screen.queryByRole('separator')).toBeNull()
+    // The overlay floats over the tree and keeps a drag handle on its left edge.
+    // Using the handle does not dismiss the overlay, and it can widen past the
+    // pinned limit (workbench 1208 px in jsdom, minus a 160 px strip of tree).
+    const overlayHandle = screen.getByRole('separator', { name: 'Resize span inspector' })
+    await user.click(overlayHandle)
+    expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
+    overlayHandle.focus(); await user.keyboard('{End}')
+    expect(overlayHandle.getAttribute('aria-valuenow')).toBe('1048')
     await user.click(screen.getByLabelText('Inspector options'))
     fireEvent.change(screen.getByLabelText('Inspector width'), { target: { value: '560' } })
     expect(localStorage.getItem('agent-debugger.frontend.v1.inspector.width')).toBe('560')
@@ -91,11 +98,24 @@ describe('Trace Detail interactions', () => {
     expect(within(screen.getByRole('region', { name: 'Span inspector' }).querySelector('.inspector-meta')).getAllByText('UNSET').length).toBeGreaterThan(0)
     await user.click(row('lookup-catalog-entry'))
     await screen.findByText('Redacted'); expect(screen.getByText('Truncated')).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Arguments' })).toBeTruthy()
+    expect(screen.getByRole('heading', { name: 'Result' })).toBeTruthy()
     expect(screen.getAllByText('Unknown · VENDOR_PENDING').length).toBeGreaterThan(0)
     await user.click(screen.getByRole('tab', { name: 'Events' }))
     await screen.findByText('catalog.lookup')
   })
-  it('ignores late details from an earlier selection and supports Attributes/Errors tabs', async () => {
+  it('focuses error matches and keeps the healthy ancestor as context', async () => {
+    const user = await open()
+    const errors = screen.getByRole('button', { name: 'Focus errors' })
+    await user.click(errors)
+    expect(row('lookup-order · attempt 1')).toBeTruthy()
+    expect(row('order-status-lookup').getAttribute('aria-label')).toContain('Ancestor context')
+    expect(screen.queryByRole('treeitem', { name: /lookup-order · attempt 2/ })).toBeNull()
+    expect(window.location.hash).toContain('spanStatus=ERROR')
+    await user.click(errors)
+    expect(row('lookup-order · attempt 2')).toBeTruthy()
+  })
+  it('ignores late details from an earlier selection and supports Metadata/Errors tabs', async () => {
     let release
     const repository = { ...traceRepository, readSpan: vi.fn().mockImplementationOnce(() => new Promise(resolve => { release = resolve })).mockImplementation(traceRepository.readSpan) }
     const user = await open(repository)
@@ -104,7 +124,7 @@ describe('Trace Detail interactions', () => {
     await screen.findByText('refund_request')
     release({ name: 'old span', input: { secret: 'STALE_PAYLOAD' }, output: {} })
     await waitFor(() => expect(screen.queryByText('STALE_PAYLOAD')).toBeNull())
-    await user.click(screen.getByRole('tab', { name: 'Attributes' }))
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }))
     await screen.findByText('service.name')
     await user.click(row('lookup-order · attempt 1'))
     await user.click(screen.getByRole('tab', { name: 'Errors' }))
@@ -147,13 +167,13 @@ describe('Trace Detail interactions', () => {
   })
   it('restores inspection, tab and tree context after Runs navigation and browser Back', async () => {
     const user = await open(); await failed(user)
-    await user.click(screen.getByRole('tab', { name: 'Attributes' }))
-    await user.click(screen.getByRole('link', { name: 'Back to Runs' }))
-    await screen.findByRole('searchbox', { name: 'Search runs' })
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }))
+    await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
+    await screen.findByRole('searchbox', { name: 'Search traces' })
     window.history.back()
     await screen.findByRole('region', { name: 'Span inspector' })
     expect(row('lookup-order · attempt 1').getAttribute('aria-selected')).toBe('true')
-    expect(screen.getByRole('tab', { name: 'Attributes' }).getAttribute('aria-selected')).toBe('true')
+    expect(screen.getByRole('tab', { name: 'Metadata' }).getAttribute('aria-selected')).toBe('true')
     expect(window.location.hash).toContain('search=order')
   })
   it('keeps payload reading position and selection when pinning or unpinning', async () => {

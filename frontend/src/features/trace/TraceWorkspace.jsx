@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
 import { usePreference } from '../../app/preferences.js'
 import { parseRoute } from '../../app/routes.jsx'
-import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount } from './treeModel.js'
+import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount, operationLabel, executionPath } from './treeModel.js'
+import ExecutionPath from './ExecutionPath.jsx'
 import { autoSelectedSpan, initialTraceState, traceReducer } from './traceState.js'
 import { useElementSize } from './useElementSize.js'
 import ExecutionTree from './ExecutionTree.jsx'
@@ -13,12 +14,14 @@ import TimelineControls from './TimelineControls.jsx'
 import { TimelineAxis } from './TimelineTrack.jsx'
 import './timeline.css'
 
-const widthValues = ['auto', ...Array.from({ length: 161 }, (_, index) => String(480 + index))]
-export default function TraceWorkspace({ data, route, repository, cache, loadMore, busy, error, retryRead }) {
+const MIN_WIDTH = 480
+const widthValues = ['auto', ...Array.from({ length: 1921 }, (_, index) => String(MIN_WIDTH + index))]
+export default function TraceWorkspace({ data, route, repository, cache, loadMore, busy, error, retryRead, receivedOnly = false }) {
   const scope = `${route.projectId}/${route.runId}`
   const [modePreference, setModePreference] = usePreference('inspector.mode', ['overlay', 'pinned'], 'overlay')
   const [widthPreference, setWidthPreference] = usePreference('inspector.width', widthValues, 'auto')
   const index = useMemo(() => buildIndex(data.spans), [data.spans])
+  const path = useMemo(() => executionPath(index), [index])
   const timing = useMemo(() => buildTimingIndex(data.spans, data.run.durationMs), [data.spans, data.run.durationMs])
   const total = knownCount(data.knownCount)
   const [ui, dispatch] = useReducer(traceReducer, null, () => {
@@ -39,13 +42,15 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   const size = useElementSize(root)
   const single = size.width < 928
   const effectiveMode = single ? 'single' : ui.mode
-  // Pinned: keep >= 520 px for the execution pane, plus the 8 px resize handle and
-  // the 2 px workbench border. The stored width preference is clamped here at use;
-  // persistence is unchanged.
-  const maxWidth = Math.max(480, Math.floor(Math.min(640, size.width - (ui.mode === 'pinned' ? 530 : 16))))
-  const width = single ? size.width : Math.min(maxWidth, Math.max(480, widthPreference === 'auto' ? Math.min(600, size.width / 2) : Number(widthPreference)))
+  // The overlay floats over the execution view and may be dragged wide, keeping
+  // a strip of the tree visible. Pinned keeps room for the execution columns.
+  const executionReserve = ui.mode === 'pinned' ? 530 : 160
+  const maxWidth = Math.max(MIN_WIDTH, Math.floor(size.width - executionReserve))
+  const width = single ? size.width : Math.min(maxWidth, Math.max(MIN_WIDTH, widthPreference === 'auto' ? Math.min(640, size.width / 2) : Number(widthPreference)))
   const expanded = useMemo(() => { const collapsed = new Set(ui.collapsed); return new Set(data.spans.filter(span => !collapsed.has(span.id)).map(span => span.id)) }, [data.spans, ui.collapsed])
   const view = useMemo(() => visibleTree(index, expanded, { search: ui.search, type: ui.type, status: ui.status }), [index, expanded, ui.search, ui.type, ui.status])
+  const contextCount = view.rows.filter(row => row.context).length
+  const loaded = data.spans.length.toLocaleString('en')
   const span = index.byId.get(ui.selected)
   const explorerSize = useElementSize(treeRef)
   const top = ui.anchor ? restoreAnchor(view.rows, ui.anchor, index) : ui.scrollTop
@@ -107,7 +112,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     const mode = ui.mode === 'pinned' ? 'overlay' : 'pinned'
     setModePreference(mode); patch({ mode }); writeUrl({ panel: mode })
   }
-  function resize(value) { setWidthPreference(String(Math.max(480, Math.min(maxWidth, Math.round(value))))) }
+  function resize(value) { setWidthPreference(String(Math.max(MIN_WIDTH, Math.min(maxWidth, Math.round(value))))) }
   function switchView(view) { patch({ view }); writeUrl({ view }) }
   function timeWindowChange(timeWindow) { patch({ timeWindow }); writeUrl({ from: timeWindow ? String(timeWindow.start) : '', to: timeWindow ? String(timeWindow.end) : '' }) }
   function matchingOperation(direction) {
@@ -131,29 +136,31 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     const panel = inspectorRef.current?.getBoundingClientRect(), rect = target.getBoundingClientRect()
     if (panel && rect.width && rect.height && rect.right > panel.left && rect.left < panel.right && rect.bottom > panel.top && rect.top < panel.bottom) close()
   }
-  return <div className="trace-workbench" data-mode={ui.open && span ? effectiveMode : 'explore'} data-view={ui.view} data-single={single} data-open={!!(ui.open && span)} data-show-ids={showIds} ref={root} style={{ '--inspector-width': `${width}px`, '--tree-gutter': `${explorerSize.gutter || 0}px` }} onFocusCapture={exposeKeyboardFocus} onKeyDown={event => {
+  return <div className="trace-workbench" data-mode={ui.open && span ? effectiveMode : 'explore'} data-view={ui.view} data-single={single} data-open={!!(ui.open && span)} data-show-ids={showIds} ref={root} style={{ '--inspector-width': `${width}px`, '--tree-gutter': `${explorerSize.gutter || 0}px`, '--trace-row-height': `${ROW_HEIGHT}px` }} onFocusCapture={exposeKeyboardFocus} onKeyDown={event => {
     if (event.key === 'Escape' && !document.querySelector('.trace-menu[open]') && ui.open && effectiveMode !== 'pinned') { event.preventDefault(); close(); treeRef.current?.focus({ preventScroll: true }) }
     if (event.key === 'F6' && ui.open && span) { event.preventDefault(); if (single) close(); else if (inspectorRef.current?.contains(document.activeElement)) treeRef.current.focus({ preventScroll: true }); else inspectorRef.current.focus({ preventScroll: true }) }
   }}>
     <div className="trace-explorer">
+      <ExecutionPath path={path} selected={ui.selected} select={jump}/>
       <TraceToolbar ui={ui} filter={filter} patch={patch} index={index} jump={jump} projectId={route.projectId} search={route.search} wide={ui.view !== 'timeline' && explorerSize.width >= 840} switchView={switchView} timing={timing} timeWindowChange={timeWindowChange}/>
-      <div className="trace-context"><span className="trace-loaded">{total === null ? `${data.spans.length.toLocaleString('en')} loaded` : `${data.spans.length.toLocaleString('en')} / ${total.toLocaleString('en')} loaded`}</span>
-        {view.filtered && <span>{view.matches.length} matches · ancestors retained</span>}
-        {span && <details className="trace-menu trace-path"><summary aria-label={`Selected operation path and full name: ${span.name}`}>Path · {span.name}</summary><div className="trace-popover">{[...ancestors(index, span.id), span].map(parent => <button key={parent.id} data-inspector-trigger className="text-button" onClick={() => jump(parent.id)} title={parent.id}>{parent.name}</button>)}</div></details>}
+      {(!receivedOnly || view.filtered || ui.selected || ui.reveal) && <div className="trace-context">
+        {!receivedOnly && <span className="trace-loaded">{total === null ? `${loaded} loaded` : `${loaded} / ${total.toLocaleString('en')} loaded`}</span>}
+        {view.filtered && <span>{view.matches.length} {view.matches.length === 1 ? 'match' : 'matches'}{contextCount > 0 ? ` · ${contextCount} ${contextCount === 1 ? 'ancestor' : 'ancestors'}` : ''}</span>}
+        {span && <details className="trace-menu trace-path"><summary aria-label={`Selected operation path and full name: ${span.name}`}>Selected path</summary><div className="trace-popover">{[...ancestors(index, span.id), span].map(parent => <button key={parent.id} data-inspector-trigger className="text-button" onClick={() => jump(parent.id)} title={`${parent.name} · ${parent.id}`}>{operationLabel(parent)}</button>)}</div></details>}
         {selectionHidden && <button className="text-button" data-inspector-trigger onClick={() => jump(ui.selected)}>Reveal selected span</button>}
         {ui.selected && !span && <span>Selected span is not loaded.</span>}
         {ui.open && span && <button className="text-button" data-inspector-trigger onClick={() => inspectorRef.current?.focus({ preventScroll: true })}>Focus inspector</button>}
         {view.filtered && view.matches.length > 0 && <div className="trace-match-navigation" data-inspector-trigger><button className="trace-icon-button" aria-label="Previous matching span" onClick={() => matchingOperation(-1)}>↑</button><button className="trace-icon-button" aria-label="Next matching span" onClick={() => matchingOperation(1)}>↓</button></div>}
         {ui.reveal && <><span>Filters temporarily relaxed</span><button className="text-button" onClick={() => { const previous = ui.reveal; patch({ ...previous, reveal: null, anchor: null, scrollTop: 0 }); writeUrl({ spanSearch: previous.search, spanType: previous.type, spanStatus: previous.status }) }}>Restore filters</button></>}
-      </div>
+      </div>}
       {ui.notice && <div className="trace-notice" role="status">{ui.notice}{ui.pending && index.byId.has(ui.pending) && <button className="text-button" onClick={() => jump(ui.pending)}>Open loaded requested span</button>}</div>}
       {error && <div className="trace-notice error-text" role="alert">{error} · Previously loaded structure remains visible.<button className="text-button" onClick={retryRead}>Retry structure read</button></div>}
       {ui.view === 'timeline' && <TimelineControls timing={timing} window={timeWindow} selected={timing.byId.get(ui.selected)} change={timeWindowChange}/>}
       {ui.view === 'timeline' ? <TimelineAxis window={timeWindow} available={timing.extent.available}/> : <div className="trace-columns trace-grid"><span>Operation</span>{showIds && <span className="trace-id-cell">Span ID</span>}<span className="trace-start-cell">Start offset</span><span className="trace-type-cell">Type</span><span>Status</span><span className="trace-duration">Duration</span></div>}
-      <ExecutionTree index={index} rows={view.rows} ui={{ ...ui, scrollTop: top }} treeRef={treeRef} select={select} patch={patch} toggle={toggleBranch} filtered={view.filtered} showIds={showIds} timing={timing} timeWindow={timeWindow}/>
+      <ExecutionTree index={index} rows={view.rows} ui={{ ...ui, scrollTop: top }} treeRef={treeRef} select={select} patch={patch} toggle={toggleBranch} filtered={view.filtered} showIds={showIds} timing={timing} timeWindow={timeWindow} receivedOnly={receivedOnly}/>
       <footer className="trace-footer"><span>{view.rows.filter(row => row.span).length.toLocaleString('en')} operations in hierarchy view{busy ? ' · Loading structure…' : ''}</span>{total !== null && data.spans.length < total && <button className="text-button" disabled={busy} onClick={() => loadMore(Math.min(total, data.spans.length + 420))}>Load {Math.min(420, total - data.spans.length)} more local spans</button>}</footer>
     </div>
-    {ui.open && span && effectiveMode === 'pinned' && <InspectorResize width={width} max={maxWidth} resize={resize} reset={() => setWidthPreference('auto')}/>}
+    {ui.open && span && effectiveMode !== 'single' && <InspectorResize width={width} min={MIN_WIDTH} max={maxWidth} resize={resize} reset={() => setWidthPreference('auto')}/>}
     {ui.open && span && <SpanInspector repository={repository} projectId={route.projectId} runId={route.runId} span={span} ui={ui} patch={patch} dispatch={dispatch} mode={effectiveMode} width={width} maxWidth={maxWidth} canPin={!single} pin={pin} close={close} back={() => single ? close() : treeRef.current?.focus({ preventScroll: true })} resize={resize} resetWidth={() => setWidthPreference('auto')} jump={jump} inspectorRef={inspectorRef}/>}
   </div>
 }

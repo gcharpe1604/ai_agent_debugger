@@ -5,7 +5,7 @@ import pytest
 from ground_truth_schema import load_truth
 from langgraph.graph.state import CompiledStateGraph
 
-from langgraph_workflow_agent.agent import WorkflowAgent
+from langgraph_workflow_agent.agent import ROUTED_NODES, WorkflowAgent
 from langgraph_workflow_agent.dependencies import LocalDependencies
 from langgraph_workflow_agent.models import (
     MAX_RETRIES,
@@ -247,9 +247,40 @@ def test_validation_failure_paths(result, issue):
     }
 
 
+class RecordingTracing:
+    """Stands in for TraceSession.wrap_callable; records operation names in call order."""
+
+    def __init__(self):
+        self.calls = []
+
+    def wrap_callable(self, function, kind, name):
+        def wrapped(*args, **kwargs):
+            self.calls.append((kind, name))
+            return function(*args, **kwargs)
+
+        return wrapped
+
+
+@pytest.mark.parametrize("scenario_id", IDS)
+def test_traced_run_records_each_routing_decision(scenario_id):
+    config = load_scenario(scenario_id)
+    plain = build_agent(config).run(config.request)
+    tracing = RecordingTracing()
+    traced = build_agent(config, tracing=tracing).run(config.request)
+    # Instrumentation must not change behaviour.
+    assert traced.path == plain.path
+    assert traced.state == plain.state
+    assert all(kind == "custom" for kind, _ in tracing.calls)
+    routes = [name for _, name in tracing.calls if name.startswith("route.")]
+    routed = [node for node in traced.path if node in ROUTED_NODES]
+    assert routes == ["route." + node for node in routed]
+
+
 def test_unknown_overrides_and_unexpected_dependency_errors():
     with pytest.raises(ValueError, match="Unknown node"):
         WorkflowAgent(nodes={"invented": lambda original: original})
+    with pytest.raises(ValueError, match="Unknown router"):
+        WorkflowAgent(routers={"validate": lambda original: original})
 
     class Broken(LocalDependencies):
         def gather(self, request, *, attempt):

@@ -24,6 +24,11 @@ describe('project-scoped run query', () => {
     const result = selectRuns(items, 'one', q({ pageSize: 2, page: 9 }))
     expect(result.items.map(r => r.id)).toEqual(['a']); expect(result.page).toBe(2); expect(result.total).toBe(3)
   })
+  it('summarizes matching runs across pages and counts execution failures separately from span errors', () => {
+    const result = selectRuns(items, 'one', q({ pageSize: 1, hasErrors: true }))
+    expect(result.items.map(run => run.id)).toEqual(['b'])
+    expect(result).toMatchObject({ total: 2, summary: { failed: 1, withSpanErrors: 2 } })
+  })
   it('applies an explicit fixed sample time window, not the computer clock', () => expect(selectRuns(items, 'one', q({ time: 'recent' }), fixtureTimeWindow).total).toBe(0))
   it('returns distinct first-use empty and no-match counts', () => {
     expect(selectRuns(items, 'one', q({ search: 'missing' })).projectTotal).toBe(3)
@@ -33,6 +38,37 @@ describe('project-scoped run query', () => {
     await expect(fixtureRepository.listRuns({ projectId: 'missing', query: q() })).rejects.toThrow('Project unavailable')
     const controller = new AbortController(); controller.abort()
     await expect(fixtureRepository.listRuns({ projectId: 'agent-examples', query: q(), signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' })
+  })
+})
+
+describe('trace filters and facet counts', () => {
+  const traces = [
+    { id: 'x', projectId: 'one', name: 'rag-agent', traceId: 'x1', startedAt: '2026-11-10T10:00:00Z', outcome: 'Completed', executionMode: 'controlled', recordedErrorCount: 0, durationMs: 10 },
+    { id: 'y', projectId: 'one', name: 'rag-agent', traceId: 'y1', startedAt: '2026-11-10T11:50:00Z', outcome: 'Failed', executionMode: 'live', recordedErrorCount: 2, durationMs: 20 },
+    { id: 'z', projectId: 'one', name: 'tool-agent', traceId: 'z1', startedAt: '2026-11-10T11:55:00Z', outcome: 'Completed', executionMode: 'controlled', recordedErrorCount: 0, durationMs: 30 },
+  ]
+  const now = Date.parse('2026-11-10T12:00:00Z')
+  it('filters by execution mode and agent name, OR within a group', () => {
+    expect(selectRuns(traces, 'one', q({ modes: ['controlled'] })).items.map(r => r.id)).toEqual(['z', 'x'])
+    expect(selectRuns(traces, 'one', q({ agents: ['tool-agent', 'rag-agent'], modes: ['live'] })).items.map(r => r.id)).toEqual(['y'])
+  })
+  it('limits to a relative time range from the supplied clock only', () => {
+    expect(selectRuns(traces, 'one', q({ range: '15m' }), null, now).items.map(r => r.id)).toEqual(['z', 'y'])
+    expect(selectRuns(traces, 'one', q({ range: '15m' })).total).toBe(3)
+  })
+  it('counts each facet with every other filter applied', () => {
+    const { facets } = selectRuns(traces, 'one', q({ outcomes: ['Completed'], agents: ['rag-agent'] }))
+    // Outcome counts ignore the outcome filter but keep the agent filter.
+    expect(facets.outcome).toEqual({ Completed: 1, Failed: 1 })
+    // Agent counts ignore the agent filter but keep the outcome filter.
+    expect(facets.agent).toEqual({ 'rag-agent': 1, 'tool-agent': 1 })
+    expect(facets.mode).toEqual({ controlled: 1 })
+    expect(facets.errors).toEqual({ without: 1 })
+  })
+  it('round trips the new filters and drops unknown values', () => {
+    const query = q({ modes: ['live'], agents: ['rag-agent'], range: '1h' })
+    expect(parseQuery(queryString(query))).toEqual(query)
+    expect(parseQuery('mode=batch&range=9y&agent=')).toMatchObject({ modes: [], range: '', agents: [] })
   })
 })
 
