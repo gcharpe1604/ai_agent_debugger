@@ -219,6 +219,10 @@ Conflicting versions are counted once per version in `span_count`; the read API 
   - Token counts and `attempt` as JSON integers; IDs as lowercase hex strings.
   - Lists keep their order: event order is content, not presentation.
   - Then SHA-256, lowercase hex.
+- **Hashed fields are classified explicitly.** A test pins the exact set of hashed fields (every `SpanRecord` field except `project_id`, `received_at`, `protocol_version`). A new `SpanRecord` field fails that test until it is deliberately classified as span content or delivery metadata.
+
+**Known limitations:**
+- **Cost formatting.** `cost` is hashed as the string it arrives as. The same value formatted differently (e.g. `"0.00125"` and `"0.001250000"`) gives two different hashes, so it would show up as a conflict. This is not expected from redeliveries, which carry the same bytes; it would only happen if the same span were re-sent with its cost re-formatted.
 
 ---
 
@@ -322,7 +326,9 @@ The non-envelope test message at `agentdbg.traces.v1` partition 0 offset 0 (hand
 | Interface | Methods | Owner |
 |---|---|---|
 | `SpanPublisher` | `publish(spans)`: returns only when every span is broker-acked; otherwise raises `PublishError` | FastAPI |
-| `TraceStore` | `insert_spans`, `get_trace`, `get_conflicts`, `list_runs` | trace-writer (insert) and read API (reads) |
+| `TraceStore` | `insert_spans(spans, positions=None)`, `get_trace`, `get_conflicts`, `list_runs` | trace-writer (insert) and read API (reads) |
+
+`positions` is optional: `positions[i]` is the `(kafka_partition, kafka_offset)` that `spans[i]` was read from. The trace-writer passes it so the ClickHouse store can fill those two columns; other callers (tests, fakes) may omit it, and the in-memory fake ignores it.
 
 `get_trace` returns deduplicated spans with conflicting versions flagged (§3). `get_conflicts` runs the §3 conflict query. `list_runs` runs the §4 run-list query.
 

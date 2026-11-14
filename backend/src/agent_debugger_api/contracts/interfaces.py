@@ -77,8 +77,16 @@ class TraceStore(Protocol):
     """Synchronous: the trace-writer is a plain consumer loop. Async callers must
     not call it on the event loop (use a thread, e.g. `run_in_threadpool`)."""
 
-    def insert_spans(self, spans: Sequence[SpanRecord]) -> None:
-        """Persist one batch (one INSERT). Identical redelivery is one logical row."""
+    def insert_spans(
+        self,
+        spans: Sequence[SpanRecord],
+        positions: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
+        """Persist one batch (one INSERT). Identical redelivery is one logical row.
+
+        `positions[i]` is the (kafka_partition, kafka_offset) that `spans[i]` was
+        read from; the trace-writer passes it, other callers may omit it.
+        """
         ...
 
     def get_trace(self, project_id: UUID, trace_id: str) -> TraceRead | None:

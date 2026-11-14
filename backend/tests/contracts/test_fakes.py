@@ -1,3 +1,4 @@
+import inspect
 import unittest
 
 from agent_debugger_api.contracts import PublishError, SpanPublisher, TraceStore
@@ -52,6 +53,18 @@ class InMemoryTraceStoreTests(unittest.TestCase):
 
     def test_satisfies_protocol(self):
         self.assertIsInstance(self.store, TraceStore)
+
+    def test_insert_spans_positions_is_optional_in_the_protocol(self):
+        param = inspect.signature(TraceStore.insert_spans).parameters["positions"]
+        self.assertIsNone(param.default)
+
+    def test_positions_are_accepted_and_ignored(self):
+        span = make_span()
+        self.store.insert_spans([span], positions=[(2, 41)])
+        without = InMemoryTraceStore()
+        without.insert_spans([span])
+        self.assertEqual(self.store.get_trace(PROJECT_A, TRACE_1), without.get_trace(PROJECT_A, TRACE_1))
+        self.assertEqual(self.store.insert_batch_sizes, [1])
 
     def test_unknown_trace_is_none(self):
         self.assertIsNone(self.store.get_trace(PROJECT_A, TRACE_1))
