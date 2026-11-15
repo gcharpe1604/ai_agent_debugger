@@ -54,8 +54,10 @@ class WriterTests(ClickHouseTestCase):
         self.optimize_final()
         self.assertEqual(self.physical_rows(trace(1)), 1)
 
-    def test_received_at_is_sorted_in_ms(self):
-        span = make_span(received_at=1_700_000_000_123_456_789)
+    def test_received_at_is_stored_in_ms(self):
+        # Own trace: received_at is not hashed, so on the shared default trace this
+        # would be the same logical row as test_duplicate_is_one_logical_row's span.
+        span = make_span(trace_id=trace(2), received_at=1_700_000_000_123_456_789)
         self.store.insert_spans([span])
         row = self.store.get_rows(span.project_id, span.trace_id)[0]
         self.assertEqual(row["received_at"], 1_700_000_000_123)
@@ -83,6 +85,15 @@ class WriterTests(ClickHouseTestCase):
         self.store.insert_spans([make_span(trace_id=t)])      #plain redelivery: must not add a version
         conflicts = self.store.get_conflicts(PROJECT_A, t)
         self.assertEqual([(c.span_id, c.versions) for c in conflicts], [(ROOT, 2)])
+
+    def test_get_conflicts_are_ordered_by_span_id(self):
+        t = trace(107)
+        # Inserted CHILD first so that insert order and span_id order differ.
+        for span_id in (CHILD, ROOT):
+            self.store.insert_spans([make_span(trace_id=t, span_id=span_id)])
+            self.store.insert_spans([make_span(trace_id=t, span_id=span_id, status_code="ERROR")])
+        conflicts = self.store.get_conflicts(PROJECT_A, t)
+        self.assertEqual([(c.span_id, c.versions) for c in conflicts], [(ROOT, 2), (CHILD, 2)])
 
     # §6.3
     def test_late_span_is_added_and_earlier_rows_are_unchanged(self):
@@ -223,9 +234,6 @@ class WriterTests(ClickHouseTestCase):
         read = self.store.get_trace(PROJECT_A, trace(106))
         self.assertEqual(len(read.spans), 2)
         self.assertEqual(read.conflicted_span_ids, frozenset({ROOT}))
-
-    def setUp(self):
-        self.store = ClickHouseTraceStore(self.client, table=self.table)
 
     # Needs ClickHouseTraceStore.list_runs (§6.13: "appears in the run list with missing_root = 1").
     def test_trace_without_root_is_listed_with_missing_root(self):

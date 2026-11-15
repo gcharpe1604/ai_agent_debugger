@@ -67,7 +67,8 @@ class ClickHouseTraceStore:
             f"SELECT span_id, groupArray(content_hash) AS hashes "
             f"FROM (SELECT DISTINCT span_id, content_hash FROM {self._table} "
             "      WHERE project_id = {p:UUID} AND trace_id = {t:FixedString(32)}) "
-            "GROUP BY span_id HAVING length(hashes) > 1",
+            "GROUP BY span_id HAVING length(hashes) > 1 "
+            "ORDER BY span_id",  # same order as InMemoryTraceStore.get_conflicts
             parameters={"p": project_id, "t": trace_id},
             query_formats={"FixedString": "string"},
         )
