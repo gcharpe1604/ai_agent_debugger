@@ -30,6 +30,24 @@ jobs:
   integration:
     name: Backend + SDK integration
     runs-on: ubuntu-latest
+    # Same image and dev credentials as compose.yaml; tests/clickhouse uses
+    # throwaway scratch databases on it.
+    services:
+      clickhouse:
+        image: clickhouse/clickhouse-server:26.8
+        env:
+          CLICKHOUSE_USER: agentdbg
+          CLICKHOUSE_PASSWORD: agentdbg
+          CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+        ports:
+          - 8123:8123
+        options: >-
+          --ulimit nofile=262144:262144
+          --health-cmd "wget -q --spider http://127.0.0.1:8123/ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+          --health-start-period 10s
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -39,8 +57,10 @@ jobs:
           uv run --project backend --locked
           --with "opentelemetry-api>=1,<2" --with "opentelemetry-sdk>=1,<2"
           python -B -m unittest tests/integration/test_telemetry.py
-      - name: Backend unit tests
+      - name: Backend unit tests (ClickHouse tests required, not skipped)
         working-directory: backend
+        env:
+          CLICKHOUSE_REQUIRED: "1"
         run: uv run --locked python -B -m unittest discover -s tests -t . -v
 
   frontend:
