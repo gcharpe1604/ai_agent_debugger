@@ -56,7 +56,12 @@ class InMemoryTraceStore:
         self._rows: dict[tuple[UUID, str, str, str], SpanRecord] = {}
         self.insert_batch_sizes: list[int] = []  # one entry per insert_spans call
 
-    def insert_spans(self, spans: Sequence[SpanRecord]) -> None:
+    def insert_spans(
+        self,
+        spans: Sequence[SpanRecord],
+        positions: Sequence[tuple[int, int]] | None = None,
+    ) -> None:
+        # positions (Kafka partition/offset) are accepted for the Protocol and ignored here.
         self.insert_batch_sizes.append(len(spans))
         for span in spans:
             key = (span.project_id, span.trace_id, span.span_id, placeholder_content_hash(span))
