@@ -43,7 +43,7 @@ class WriterTests(ClickHouseTestCase):
         span = make_span()
         self.store.insert_spans([span])
         self.store.insert_spans([span])         # redelivery = second part
-        rows = self.store.get_trace(span.project_id, span.trace_id)
+        rows = self.store.get_rows(span.project_id, span.trace_id)
         self.assertEqual(len(rows), 1)
 
     def test_duplicate_collapses_to_one_physical_row_after_optimize_final(self):
@@ -57,7 +57,7 @@ class WriterTests(ClickHouseTestCase):
     def test_received_at_is_sorted_in_ms(self):
         span = make_span(received_at=1_700_000_000_123_456_789)
         self.store.insert_spans([span])
-        row = self.store.get_trace(span.project_id, span.trace_id)[0]
+        row = self.store.get_rows(span.project_id, span.trace_id)[0]
         self.assertEqual(row["received_at"], 1_700_000_000_123)
 
     # §6.5 (storage half; the conflict query and flag are in PendingReadMethodTests)
@@ -69,7 +69,7 @@ class WriterTests(ClickHouseTestCase):
         self.optimize_final()
 
         self.assertEqual(self.physical_rows(trace(5)), 2)
-        rows = self.store.get_trace(PROJECT_A, trace(5))
+        rows = self.store.get_rows(PROJECT_A, trace(5))
         self.assertEqual(len(rows), 2)
         self.assertEqual({r["span_id"] for r in rows}, {ROOT})
         self.assertEqual(len({r["content_hash"] for r in rows}), 2)
@@ -88,14 +88,14 @@ class WriterTests(ClickHouseTestCase):
     def test_late_span_is_added_and_earlier_rows_are_unchanged(self):
         root = make_span(trace_id=trace(3))
         self.store.insert_spans([root])
-        before = self.store.get_trace(PROJECT_A, trace(3))
+        before = self.store.get_rows(PROJECT_A, trace(3))
 
         late = make_span(
             trace_id=trace(3), span_id=CHILD, parent_span_id=ROOT,
             started_at=T0 + 100, ended_at=T0 + 900, received_at=T0 + 60_000_000_000,
         )
         self.store.insert_spans([late])
-        after = self.store.get_trace(PROJECT_A, trace(3))
+        after = self.store.get_rows(PROJECT_A, trace(3))
 
         self.assertEqual([r["span_id"] for r in after], [ROOT, CHILD])
         self.assertEqual(after[0], before[0])  # every column, persisted_at included
@@ -113,7 +113,7 @@ class WriterTests(ClickHouseTestCase):
         self.store.insert_spans([child, sibling])
         self.store.insert_spans([root])              # root last
 
-        rows = self.store.get_trace(PROJECT_A, t)
+        rows = self.store.get_rows(PROJECT_A, t)
         self.assertEqual([r["span_id"] for r in rows], [ROOT, "0" * 16, CHILD, GRANDCHILD])
         self.assertEqual([r["started_at"] for r in rows], [T0, T0 + 200, T0 + 200, T0 + 300])
 
@@ -124,8 +124,8 @@ class WriterTests(ClickHouseTestCase):
         b = make_span(project_id=PROJECT_B, trace_id=t, span_name="b.run")
         self.store.insert_spans([a, b])
 
-        rows_a = self.store.get_trace(PROJECT_A, t)
-        rows_b = self.store.get_trace(PROJECT_B, t)
+        rows_a = self.store.get_rows(PROJECT_A, t)
+        rows_b = self.store.get_rows(PROJECT_B, t)
         self.assertEqual([(r["project_id"], r["span_name"]) for r in rows_a], [(PROJECT_A, "a.run")])
         self.assertEqual([(r["project_id"], r["span_name"]) for r in rows_b], [(PROJECT_B, "b.run")])
         self.assertEqual(self.physical_rows(t), 2)  # same trace_id/span_id, two spans
@@ -140,7 +140,7 @@ class WriterTests(ClickHouseTestCase):
         ]
         self.store.insert_spans(spans)
 
-        rows = self.store.get_trace(PROJECT_A, t)
+        rows = self.store.get_rows(PROJECT_A, t)
         self.assertEqual(
             [(r["span_id"], r["parent_span_id"]) for r in rows],
             [(ROOT, None), (CHILD, None), (GRANDCHILD, ABSENT)],
@@ -159,7 +159,7 @@ class WriterTests(ClickHouseTestCase):
 
         self.assertEqual(insert.call_count, 1)
         self.assertEqual(len(insert.call_args.args[1]), 25)
-        self.assertEqual(len(self.store.get_trace(PROJECT_A, t)), 25)
+        self.assertEqual(len(self.store.get_rows(PROJECT_A, t)), 25)
 
     # §6.11
     def test_payload_states_are_stored_with_their_payloads(self):
@@ -172,7 +172,7 @@ class WriterTests(ClickHouseTestCase):
         )
         self.store.insert_spans([span])
 
-        [row] = self.store.get_trace(PROJECT_A, t)
+        [row] = self.store.get_rows(PROJECT_A, t)
         self.assertEqual((row["input_state"], row["input_payload"]), ("disabled", ""))
         self.assertEqual((row["output_state"], row["output_payload"]), ("truncated", '{"answer": "The first part of a long ans'))
         self.assertEqual((row["error_state"], row["error_payload"]), ("unavailable", ""))
@@ -188,7 +188,7 @@ class WriterTests(ClickHouseTestCase):
         t = trace(12)
         self.store.insert_spans([make_span(trace_id=t)])
 
-        [row] = self.store.get_trace(PROJECT_A, t)
+        [row] = self.store.get_rows(PROJECT_A, t)
         for column in ("model", "provider", "input_tokens", "output_tokens", "total_tokens", "cost",
                        "attempt", "retry_of_span_id", "parent_span_id"):
             self.assertIsNone(row[column], column)
@@ -208,21 +208,9 @@ class WriterTests(ClickHouseTestCase):
         ]
         self.store.insert_spans(spans)
 
-        rows = self.store.get_trace(PROJECT_A, t)
+        rows = self.store.get_rows(PROJECT_A, t)
         self.assertEqual([r["span_id"] for r in rows], [CHILD, GRANDCHILD])
         self.assertTrue(all(r["parent_span_id"] is not None for r in rows))
-
-
-@unittest.expectedFailure
-class PendingReadMethodTests(ClickHouseTestCase):
-    """§6 checks that need TraceStore read methods ClickHouseTraceStore does not have yet.
-
-    Each test names the missing method. When it is written, the test starts to
-    pass and unittest reports an "unexpected success": move it to WriterTests.
-    """
-
-    def setUp(self):
-        self.store = ClickHouseTraceStore(self.client, table=self.table)
 
     def insert_conflict(self, t: str) -> None:
         self.store.insert_spans([make_span(trace_id=t)])
@@ -236,6 +224,9 @@ class PendingReadMethodTests(ClickHouseTestCase):
         self.assertEqual(len(read.spans), 2)
         self.assertEqual(read.conflicted_span_ids, frozenset({ROOT}))
 
+    def setUp(self):
+        self.store = ClickHouseTraceStore(self.client, table=self.table)
+
     # Needs ClickHouseTraceStore.list_runs (§6.13: "appears in the run list with missing_root = 1").
     def test_trace_without_root_is_listed_with_missing_root(self):
         t = trace(113)
@@ -247,7 +238,6 @@ class PendingReadMethodTests(ClickHouseTestCase):
     # Needs ClickHouseTraceStore.get_conflicts and list_runs: the TraceStore Protocol has four methods.
     def test_store_satisfies_trace_store_protocol(self):
         self.assertIsInstance(self.store, TraceStore)
-
 
 if __name__ == "__main__":
     unittest.main()
