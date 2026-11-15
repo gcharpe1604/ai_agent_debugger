@@ -3,7 +3,7 @@ from uuid import uuid4
 
 from agent_debugger_api.contracts.span_record import SpanRecord
 from agent_debugger_api.trace_writer.content_hash import EXCLUDED_FIELDS, content_hash
-from tests.contracts.factories import make_span
+from tests.contracts.factories import make_span, span_fields
 
 
 class ContentHashTests(unittest.TestCase):
@@ -21,6 +21,15 @@ class ContentHashTests(unittest.TestCase):
         a = make_span()
         b = a.model_copy(update={"span_name": "something else"})
         self.assertNotEqual(content_hash(a), content_hash(b))
+
+    def test_optional_field_set_to_its_default_hashes_like_an_omitted_one(self):
+        # D15: default-valued fields are not hashed. Checks set (model=None,
+        # display_label="", events=()) against omitted, which would differ if the
+        # canonical form used exclude_unset instead of exclude_defaults.
+        omitted = SpanRecord.model_validate(span_fields())
+        explicit = SpanRecord.model_validate(span_fields(model=None, display_label="", events=()))
+        self.assertEqual(explicit.model_fields_set - omitted.model_fields_set, {"model", "display_label", "events"})
+        self.assertEqual(content_hash(explicit), content_hash(omitted))
 
     def test_hashed_fields_are_classified_explicitly(self):
         # Adding a SpanRecord field fails this test until it is deliberately
