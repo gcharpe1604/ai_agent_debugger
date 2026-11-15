@@ -235,6 +235,15 @@ class WriterTests(ClickHouseTestCase):
         self.assertTrue(run.missing_root)
         self.assertIsNone(run.root_name)
 
+    # Same case as InMemoryTraceStoreTests.test_run_list_counts_a_conflicted_span_once.
+    def test_run_list_counts_a_conflicted_span_once(self):
+        t = trace(114)
+        self.insert_conflict(t)
+        self.store.insert_spans([make_span(trace_id=t, span_id=CHILD, parent_span_id=ROOT,
+                                           started_at=T0 + 10, ended_at=T0 + 20)])
+        [run] = [r for r in self.store.list_runs(PROJECT_A, 0, 2**63) if r.trace_id == t]
+        self.assertEqual((run.span_count, run.error_span_count), (2, 1))
+
     # Needs ClickHouseTraceStore.get_conflicts and list_runs: the TraceStore Protocol has four methods.
     def test_store_satisfies_trace_store_protocol(self):
         self.assertIsInstance(self.store, TraceStore)

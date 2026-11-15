@@ -114,8 +114,10 @@ class InMemoryTraceStore:
                 root_name=roots[0].span_name if roots else None,
                 missing_root=not roots,
                 execution_mode=modes[0] if modes else "",
-                span_count=len(records),
-                error_span_count=sum(r.status_code is StatusCode.ERROR for r in records),
+                # Distinct span_ids, like uniqExact(span_id) in ClickHouseTraceStore:
+                # a conflicted span counts once, and is an error span if any version is ERROR.
+                span_count=len({r.span_id for r in records}),
+                error_span_count=len({r.span_id for r in records if r.status_code is StatusCode.ERROR}),
             )
             if started_from <= run.run_started_at < started_to:
                 runs.append(run)
