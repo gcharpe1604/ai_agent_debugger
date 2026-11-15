@@ -55,7 +55,7 @@ class ClickHouseTraceStore:
         result = self._client.query(
             f"SELECT * FROM {self._table} "
             "WHERE project_id = {p:UUID} AND trace_id = {t:FixedString(32)} "
-            "ORDER BY started_at, span_id, content_hash "
+            "ORDER BY started_at, span_id, content_hash, received_at DESC "
             "LIMIT 1 BY span_id, content_hash",          # hides unmerged duplicates
             parameters={"p": project_id, "t": trace_id},
             query_formats={"DateTime64": "int", "FixedString": "string"},  # keep ns, str IDs
@@ -81,10 +81,13 @@ class ClickHouseTraceStore:
         rows = self.get_rows(project_id, trace_id)
         if not rows:
             return None
-        conflicts = self.get_conflicts(project_id, trace_id)
+        hashes_by_span = {}
+        for r in rows:
+            hashes_by_span.setdefault(r["span_id"], set()).add(r["content_hash"])
+        conflicted = frozenset(s for s, h in hashes_by_span.items() if len(h) > 1)
         return TraceRead(
             spans=tuple(from_row(r) for r in rows),
-            conflicted_span_ids=frozenset(c.span_id for c in conflicts),
+            conflicted_span_ids=conflicted
         )
 
     def list_runs(self, project_id, started_from, started_to, limit=50):
