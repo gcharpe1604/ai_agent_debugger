@@ -63,6 +63,18 @@ class WriterTests(ClickHouseTestCase):
         self.assertEqual(row["received_at"], 1_700_000_000_123)
 
     # §6.5 (storage half; the conflict query and flag are in PendingReadMethodTests)
+    def test_duplicate_deliveries_read_back_the_latest_received_at(self):
+        # D16: before a merge, LIMIT 1 BY keeps the latest receipt, the same row
+        # ReplacingMergeTree(received_at) keeps after one. Earlier receipt inserted second,
+        # so insertion order cannot make this pass.
+        early, late = 1_700_000_000_000_000_000, 1_700_000_060_000_000_000
+        span = make_span(trace_id=trace(30))
+        self.store.insert_spans([span.model_copy(update={"received_at": late})])
+        self.store.insert_spans([span.model_copy(update={"received_at": early})])
+        self.assertEqual(self.physical_rows(trace(30)), 2)
+        [row] = self.store.get_rows(span.project_id, span.trace_id)
+        self.assertEqual(row["received_at"], late // 1_000_000)  # get_rows returns the raw ms column
+
     def test_conflicting_duplicate_keeps_both_versions_after_optimize_final(self):
         ok = make_span(trace_id=trace(5))
         failed = make_span(trace_id=trace(5), status_code="ERROR", error_type="TimeoutError")

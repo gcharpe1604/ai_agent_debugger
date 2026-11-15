@@ -218,6 +218,7 @@ LIMIT 50;
   - **`cost` as a decimal string** (e.g. `"0.001250000"`, the `Decimal(18,9)` form), or `null`. Never a float.
   - Token counts and `attempt` as JSON integers; IDs as lowercase hex strings.
   - Lists keep their order: event order is content, not presentation.
+  - Built with `model_dump(mode="json", exclude=<excluded fields>, exclude_defaults=True)`: a field still at its default value is left out of the hashed JSON. An optional field explicitly set to its default (e.g. `parent_span_id=None`) hashes the same as one that omits it, and adding a defaulted `SpanRecord` field later does not change the hash of existing spans (D15).
   - Then SHA-256, lowercase hex.
 - **Hashed fields are classified explicitly.** A test pins the exact set of hashed fields (every `SpanRecord` field except `project_id`, `received_at`, `protocol_version`). A new `SpanRecord` field fails that test until it is deliberately classified as span content or delivery metadata.
 
@@ -269,9 +270,10 @@ Replaces the earlier open-questions list. Each row is a **user decision, 2026-11
 | D12 | Tests | Partition-safety test removed (§6) |
 | D13 | Kafka message and consumer rules | **Decided (user decision, 2026-11-13).** See §8 |
 | D14 | Run-list span counts | **Decided (user decision, 2026-11-15).** `span_count` / `error_span_count` count distinct span_ids, so a conflicted span counts once (§4). Replaces "counted once per version" |
+| D15 | `content_hash` and defaults | content_hash excludes default-valued fields (user decision 2026-11-16, review finding 2). See §5 |
+| D16 | Duplicate deliveries before a merge | Before a merge, reads return the latest received_at for duplicate deliveries (`ORDER BY ... received_at DESC` before `LIMIT 1 BY span_id, content_hash`), matching what ReplacingMergeTree keeps after a merge; resolves the first-vs-latest receipt question (user decision 2026-11-16, review finding 5) |
 
 **Still open (not decided on 2026-11-12):**
-- Version column: `ReplacingMergeTree(received_at)` keeps the **latest** redelivery's receipt time after a merge. If the first receipt time matters, take `min(received_at)` at query time.
 - `execution_mode` and `display_label`: root span only or every span, and which SDK attribute names feed them.
 - `cost` currency.
 - Confirm `graph_node_parent_id` is graph topology only and never feeds the span tree.
