@@ -23,6 +23,20 @@ class PublishError(Exception):
     """
 
 
+class SpanTooLargeError(Exception):
+    """One span is larger than one Kafka record may be. Nothing in the batch was sent.
+
+    Deliberately not a PublishError: retrying the same batch fails the same
+    way, so the ingest answers 413 (no Retry-After), not 503.
+    """
+
+    def __init__(self, index: int, size: int, limit: int) -> None:
+        super().__init__(f"span {index} is {size} bytes as a Kafka record; the limit is {limit} bytes")
+        self.index = index
+        self.size = size
+        self.limit = limit
+
+
 @dataclass(frozen=True, slots=True)
 class StoredSpan:
     """One stored version of a span: the record plus the writer-owned hash."""

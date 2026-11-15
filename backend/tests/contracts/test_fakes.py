@@ -7,6 +7,7 @@ from agent_debugger_api.contracts.fakes import (
     InMemoryTraceStore,
     placeholder_content_hash,
 )
+from agent_debugger_api.trace_writer.content_hash import content_hash
 from tests.contracts.factories import PROJECT_A, PROJECT_B, T0, TRACE_1, TRACE_2, make_span
 
 ROOT = "a" * 16
@@ -48,8 +49,10 @@ class InMemorySpanPublisherTests(unittest.IsolatedAsyncioTestCase):
 
 
 class InMemoryTraceStoreTests(unittest.TestCase):
+    # These tests describe the behaviour ClickHouseTraceStore must match, so the
+    # store uses the writer's real content_hash, not the placeholder.
     def setUp(self):
-        self.store = InMemoryTraceStore()
+        self.store = InMemoryTraceStore(content_hash)
 
     def test_satisfies_protocol(self):
         self.assertIsInstance(self.store, TraceStore)
@@ -61,10 +64,29 @@ class InMemoryTraceStoreTests(unittest.TestCase):
     def test_positions_are_accepted_and_ignored(self):
         span = make_span()
         self.store.insert_spans([span], positions=[(2, 41)])
-        without = InMemoryTraceStore()
+        without = InMemoryTraceStore(content_hash)
         without.insert_spans([span])
         self.assertEqual(self.store.get_trace(PROJECT_A, TRACE_1), without.get_trace(PROJECT_A, TRACE_1))
         self.assertEqual(self.store.insert_batch_sizes, [1])
+
+    def test_attribute_key_order_is_not_a_conflict_with_the_real_hash(self):
+        self.store.insert_spans([make_span(attributes={"a": "1", "b": "2"})])
+        self.store.insert_spans([make_span(attributes={"b": "2", "a": "1"})])
+        trace = self.store.get_trace(PROJECT_A, TRACE_1)
+        self.assertEqual(len(trace.spans), 1)
+        self.assertFalse(trace.conflicted)
+        self.assertEqual(trace.spans[0].content_hash, content_hash(make_span(attributes={"a": "1", "b": "2"})))
+
+    def test_default_hash_is_the_placeholder(self):
+        # Why the ClickHouse-modelling tests pass the real hash: the placeholder
+        # turns a key-order difference into a false conflict.
+        store = InMemoryTraceStore()
+        store.insert_spans([make_span(attributes={"a": "1", "b": "2"})])
+        store.insert_spans([make_span(attributes={"b": "2", "a": "1"})])
+        trace = store.get_trace(PROJECT_A, TRACE_1)
+        self.assertTrue(trace.conflicted)
+        self.assertEqual({row.content_hash for row in trace.spans},
+                         {placeholder_content_hash(row.record) for row in trace.spans})
 
     def test_unknown_trace_is_none(self):
         self.assertIsNone(self.store.get_trace(PROJECT_A, TRACE_1))

@@ -1,4 +1,7 @@
+from functools import lru_cache
+
 from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
     AsyncSession,
     async_sessionmaker,
     create_async_engine,
@@ -6,15 +9,22 @@ from sqlalchemy.ext.asyncio import (
 
 from agent_debugger_api.config import get_settings
 
-settings = get_settings()
+# Built on first use, not at import: only GET /health uses Postgres today, and
+# importing the app must not require DATABASE_URL.
 
-engine = create_async_engine(
-    settings.database_url,
-    pool_pre_ping=True,
-)
 
-async_session_factory = async_sessionmaker(
-    bind=engine,
-    class_=AsyncSession,
-    expire_on_commit=False,
-)
+@lru_cache(maxsize=1)
+def get_engine() -> AsyncEngine:
+    return create_async_engine(
+        get_settings().database_url,
+        pool_pre_ping=True,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_session_factory() -> async_sessionmaker[AsyncSession]:
+    return async_sessionmaker(
+        bind=get_engine(),
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )

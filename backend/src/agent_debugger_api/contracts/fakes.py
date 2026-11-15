@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from uuid import UUID
 
 from .interfaces import PublishError, RunSummary, SpanConflict, StoredSpan, TraceRead
@@ -50,9 +50,15 @@ class InMemoryTraceStore:
 
     Same identity and same hash collapse to one row (the later one wins, like
     ReplacingMergeTree(persisted_at)); a different hash is kept as a conflict.
+
+    `content_hash` decides what counts as "same content". The default is the
+    placeholder, which is attribute-order sensitive; tests that stand in for
+    ClickHouseTraceStore pass trace_writer.content_hash.content_hash so dedup
+    and conflicts match the real writer.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, content_hash: Callable[[SpanRecord], str] = placeholder_content_hash) -> None:
+        self._content_hash = content_hash
         self._rows: dict[tuple[UUID, str, str, str], SpanRecord] = {}
         self.insert_batch_sizes: list[int] = []  # one entry per insert_spans call
 
@@ -64,7 +70,7 @@ class InMemoryTraceStore:
         # positions (Kafka partition/offset) are accepted for the Protocol and ignored here.
         self.insert_batch_sizes.append(len(spans))
         for span in spans:
-            key = (span.project_id, span.trace_id, span.span_id, placeholder_content_hash(span))
+            key = (span.project_id, span.trace_id, span.span_id, self._content_hash(span))
             self._rows[key] = span
 
     def _trace_rows(self, project_id: UUID, trace_id: str) -> list[StoredSpan]:
