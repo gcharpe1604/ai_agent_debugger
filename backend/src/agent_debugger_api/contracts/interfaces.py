@@ -61,8 +61,8 @@ class RunSummary:
     root_name: str | None  # None when no root span has arrived
     missing_root: bool
     execution_mode: str  # "" when no span carries it
-    span_count: int  # conflicting versions count once each
-    error_span_count: int
+    span_count: int  # distinct span_ids: a span with conflicting versions counts once
+    error_span_count: int  # distinct span_ids with at least one ERROR version
 
 
 @runtime_checkable

@@ -6,7 +6,8 @@ documented schema. Nothing here touches the `telemetry` database.
 
 Connection settings come from the environment, with the compose defaults from
 .env.example: CLICKHOUSE_HOST, CLICKHOUSE_PORT (HTTP), CLICKHOUSE_USER,
-CLICKHOUSE_PASSWORD. If the server is unreachable the whole class is skipped.
+CLICKHOUSE_PASSWORD. If the server is unreachable the whole class is skipped,
+unless CLICKHOUSE_REQUIRED=1 (set in CI), which makes it an error.
 """
 import os
 import re
@@ -58,6 +59,8 @@ class ClickHouseTestCase(unittest.TestCase):
             )
             cls.client.command("SELECT 1")
         except Exception as exc:  # any connection or auth failure means "no server for tests"
+            if os.environ.get("CLICKHOUSE_REQUIRED") == "1":  # CI: a missing server is an error, not a skip
+                raise RuntimeError(f"ClickHouse not reachable at {host}:{port}") from exc
             raise unittest.SkipTest(
                 f"ClickHouse not reachable at {host}:{port} ({type(exc).__name__}). "
                 "Start it with `docker compose up -d clickhouse` to run these tests."

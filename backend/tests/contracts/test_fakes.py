@@ -117,6 +117,14 @@ class InMemoryTraceStoreTests(unittest.TestCase):
         )
         self.assertEqual((run.execution_mode, run.span_count, run.error_span_count), ("controlled", 2, 1))
 
+    def test_run_list_counts_a_conflicted_span_once(self):
+        # ROOT has two versions (OK and ERROR); CHILD has one.
+        self.store.insert_spans([make_span(), make_span(status_code="ERROR")])
+        self.store.insert_spans([make_span(span_id=CHILD, parent_span_id=ROOT, started_at=T0 + 10, ended_at=T0 + 20)])
+        self.assertEqual(len(self.store.get_trace(PROJECT_A, TRACE_1).spans), 3)
+        [run] = self.store.list_runs(PROJECT_A, 0, 2**63)
+        self.assertEqual((run.span_count, run.error_span_count), (2, 1))
+
     def test_trace_without_root_is_listed_as_missing_root(self):
         self.store.insert_spans([make_span(span_id=CHILD, parent_span_id=ROOT)])
         [run] = self.store.list_runs(PROJECT_A, 0, 2**63)
