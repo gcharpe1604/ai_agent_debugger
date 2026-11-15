@@ -75,6 +75,15 @@ class WriterTests(ClickHouseTestCase):
         self.assertEqual(len({r["content_hash"] for r in rows}), 2)
         self.assertEqual(sorted(r["status_code"] for r in rows), ["ERROR", "OK"])
 
+    # §6.5 (conflict query)
+    def test_get_conflicts_reports_the_conflicting_span(self):
+        t = trace(105)
+        self.store.insert_spans([make_span(trace_id=t)])
+        self.store.insert_spans([make_span(trace_id=t, status_code="ERROR")])
+        self.store.insert_spans([make_span(trace_id=t)])      #plain redelivery: must not add a version
+        conflicts = self.store.get_conflicts(PROJECT_A, t)
+        self.assertEqual([(c.span_id, c.versions) for c in conflicts], [(ROOT, 2)])
+
     # §6.3
     def test_late_span_is_added_and_earlier_rows_are_unchanged(self):
         root = make_span(trace_id=trace(3))
@@ -218,12 +227,6 @@ class PendingReadMethodTests(ClickHouseTestCase):
     def insert_conflict(self, t: str) -> None:
         self.store.insert_spans([make_span(trace_id=t)])
         self.store.insert_spans([make_span(trace_id=t, status_code="ERROR")])
-
-    # Needs ClickHouseTraceStore.get_conflicts (§6.5: "the conflict query reports it").
-    def test_get_conflicts_reports_the_conflicting_span(self):
-        self.insert_conflict(trace(105))
-        conflicts = self.store.get_conflicts(PROJECT_A, trace(105))
-        self.assertEqual([(c.span_id, c.versions) for c in conflicts], [(ROOT, 2)])
 
     # Needs ClickHouseTraceStore.get_trace to return TraceRead (it returns list[dict]),
     # built on get_conflicts (§6.5: "the read API returns both versions with a conflict flag").

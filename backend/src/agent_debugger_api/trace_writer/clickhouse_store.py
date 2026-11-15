@@ -2,6 +2,7 @@ from decimal import Decimal
 
 from agent_debugger_api.contracts.span_record import SpanRecord
 from agent_debugger_api.trace_writer.content_hash import content_hash
+from agent_debugger_api.contracts.interfaces import SpanConflict
 
 # Columns we insert: every SpanRecord field + the 4 the writer adds.
 # persisted_at is left out so ClickHouse fills it (DEFAULT now64(3)).
@@ -47,9 +48,23 @@ class ClickHouseTraceStore:
         result = self._client.query(
             f"SELECT * FROM {self._table} "
             "WHERE project_id = {p:UUID} AND trace_id = {t:FixedString(32)} "
-            "ORDER BY started_at, span_id "
+            "ORDER BY started_at, span_id, content_hash "
             "LIMIT 1 BY span_id, content_hash",          # hides unmerged duplicates
             parameters={"p": project_id, "t": trace_id},
             query_formats={"DateTime64": "int", "FixedString": "string"},  # keep ns, str IDs
         )
         return list(result.named_results())
+
+    def get_conflicts(self, project_id, trace_id):
+        result = self._client.query(
+            f"SELECT span_id, groupArray(content_hash) AS hashes "
+            f"FROM (SELECT DISTINCT span_id, content_hash FROM {self._table} "
+            "      WHERE project_id = {p:UUID} AND trace_id = {t:FixedString(32)}) "
+            "GROUP BY span_id HAVING length(hashes) > 1",
+            parameters={"p": project_id, "t": trace_id},
+            query_formats={"FixedString": "string"},
+        )
+        return [
+            SpanConflict(span_id=row["span_id"], versions=len(row["hashes"]))
+            for row in result.named_results()
+        ]     #build SpanConflict objects from result.named_results()
