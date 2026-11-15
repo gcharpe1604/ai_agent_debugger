@@ -2,8 +2,8 @@ from collections.abc import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from agent_debugger_api.db.session import async_session_factory
+from agent_debugger_api.db.session import get_session_factory
 
 async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session_factory() as session:
+    async with get_session_factory()() as session:
         yield session
