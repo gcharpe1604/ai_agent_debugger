@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from agent_debugger_api.api.routes.traces import get_span_publisher
 from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
+from agent_debugger_api.ingest.kafka_publisher import KafkaSpanPublisher
 from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID, resolve_project_id
 from agent_debugger_api.main import app
 
@@ -184,6 +185,32 @@ class DurableIngestTests(unittest.TestCase):
                                     headers={"content-type": "text/plain"})
         self.assertEqual(response.status_code, 415)
         self.assertEqual(self.published(), [])
+
+    def test_content_type_is_case_insensitive(self):
+        for content_type in ("Application/JSON", "APPLICATION/JSON; charset=UTF-8"):
+            with self.subTest(content_type):
+                response = self.client.post("/api/v1/traces", content=json.dumps(batch()),
+                                            headers={"content-type": content_type})
+                self.assertEqual(response.status_code, 202)
+        self.assertEqual(len(self.published()), 2)
+
+    def test_span_too_large_for_kafka_is_413_and_publishes_nothing(self):
+        # The real publisher's size check runs before it creates a producer, so
+        # no broker is needed; a created producer would mean something was sent.
+        created = []
+        kafka = KafkaSpanPublisher("unused:9092", "agentdbg.traces.v1", max_request_size=2048,
+                                   producer_factory=lambda: created.append(1))
+        app.dependency_overrides[get_span_publisher] = lambda: kafka
+        small = wire_span()
+        big = wire_span(span_id=CHILD, parent_span_id=ROOT, input_state="captured", input_payload="x" * 4096)
+
+        response = self.post(batch(small, big))
+
+        self.assertEqual(response.status_code, 413)
+        self.assertNotIn("retry-after", response.headers)
+        self.assertTrue(response.json()["detail"].startswith("Span 1 is "))
+        self.assertIn("limit is 2048 bytes", response.json()["detail"])
+        self.assertEqual(created, [])
 
     def test_body_over_4_mib_is_413(self):
         big = wire_span(input_state="captured", input_payload="x" * (4 * 1024 * 1024))

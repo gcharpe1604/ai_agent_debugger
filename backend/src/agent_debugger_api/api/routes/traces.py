@@ -2,7 +2,9 @@
 
 202 means every span is acked by Kafka (in the ingestion buffer), not that
 ClickHouse has stored it (trace-protocol.md §12.3). 503 means at least one span
-was not acked; the client should retry the whole batch.
+was not acked; the client should retry the whole batch. 413 means the body,
+or one span as a Kafka record, is too large; nothing was published and a
+retry of the same batch cannot succeed.
 
 No authentication yet (handoff action 6): `project_id` comes from
 resolve_project_id(). The local profile's loopback/origin/header gating and
@@ -17,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from agent_debugger_api.contracts import PublishError, SpanPublisher
+from agent_debugger_api.contracts import PublishError, SpanPublisher, SpanTooLargeError
 from agent_debugger_api.ingest.schemas import TraceBatch, to_span_record
 from agent_debugger_api.ingest.settings import resolve_project_id
 
@@ -38,7 +40,8 @@ def _invalid(exc: ValidationError) -> JSONResponse:
 
 @router.post("/traces", status_code=status.HTTP_202_ACCEPTED)
 async def ingest_traces(request: Request, publisher: SpanPublisher = Depends(get_span_publisher)):
-    if request.headers.get("content-type", "").split(";")[0].strip() != "application/json":
+    # Media types are case-insensitive (RFC 9110 §8.3.1).
+    if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "JSON required")
     body = bytearray()
     async for chunk in request.stream():
@@ -60,6 +63,13 @@ async def ingest_traces(request: Request, publisher: SpanPublisher = Depends(get
 
     try:
         await publisher.publish(records)
+    except SpanTooLargeError as exc:
+        # No Retry-After: the same batch fails the same way.
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE,
+            f"Span {exc.index} is {exc.size} bytes as a Kafka record; the limit is {exc.limit} bytes. "
+            "Batch not accepted.",
+        ) from None
     except PublishError:
         raise HTTPException(
             status.HTTP_503_SERVICE_UNAVAILABLE,

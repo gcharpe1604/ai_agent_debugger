@@ -14,13 +14,19 @@ import uuid
 
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.admin import AIOKafkaAdminClient, NewTopic
+from aiokafka.record.default_records import DefaultRecordBatchBuilder
 
-from agent_debugger_api.contracts import PublishError, SpanRecord
+from agent_debugger_api.contracts import PublishError, SpanRecord, SpanTooLargeError
 from agent_debugger_api.ingest.kafka_publisher import KafkaSpanPublisher
 from tests.contracts.factories import TRACE_1, TRACE_2, make_span
 
 BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 PARTITIONS = 3
+SMALL_LIMIT = 2048  # bytes per Kafka record; make_span() is well under it
+
+
+def big_span():
+    return make_span(span_id="b" * 16, input_state="captured", input_payload="x" * 4096)
 
 
 async def _admin(action):
@@ -102,6 +108,18 @@ class KafkaPublisherRoundTripTests(KafkaTopicTestCase):
             await publisher.close()
 
 
+    async def test_oversized_span_publishes_nothing(self):
+        publisher = KafkaSpanPublisher(BOOTSTRAP, self.topic, timeout_s=10, max_request_size=SMALL_LIMIT)
+        try:
+            with self.assertRaises(SpanTooLargeError) as raised:
+                await publisher.publish([make_span(), big_span()])
+        finally:
+            await publisher.close()
+        self.assertEqual(raised.exception.index, 1)
+        # The small span went before the big one in the batch, and it is not in the topic either.
+        self.assertEqual(await read_all(self.topic, expected=1, timeout_s=3), [])
+
+
 class KafkaPublisherWithoutBrokerTests(unittest.IsolatedAsyncioTestCase):
     async def test_unreachable_broker_raises_publish_error(self):
         publisher = KafkaSpanPublisher("127.0.0.1:1", "agentdbg.traces.v1", timeout_s=5)
@@ -115,6 +133,100 @@ class KafkaPublisherWithoutBrokerTests(unittest.IsolatedAsyncioTestCase):
         publisher = KafkaSpanPublisher("127.0.0.1:1", "agentdbg.traces.v1", timeout_s=1)
         await publisher.publish([])
         self.assertIsNone(publisher._producer)
+
+
+    async def test_oversized_span_raises_before_connecting(self):
+        publisher = KafkaSpanPublisher("127.0.0.1:1", "agentdbg.traces.v1", max_request_size=SMALL_LIMIT)
+        with self.assertRaises(SpanTooLargeError) as raised:
+            await publisher.publish([make_span(), big_span()])
+        error = raised.exception
+        self.assertEqual((error.index, error.limit), (1, SMALL_LIMIT))
+        self.assertGreater(error.size, SMALL_LIMIT)
+        self.assertNotIsInstance(error, PublishError)  # 413, not a retryable 503
+        self.assertIsNone(publisher._producer)
+
+    async def test_limit_matches_what_the_producer_enforces(self):
+        # A span exactly at the limit passes the pre-check; one byte more fails.
+        span = make_span()
+        size = DefaultRecordBatchBuilder.estimate_size_in_bytes(span.kafka_key, span.model_dump_json().encode(), [])
+        producers = []
+        at_limit = KafkaSpanPublisher("unused", "t", max_request_size=size,
+                                      producer_factory=lambda: producers.append(FakeProducer()) or producers[-1])
+        await at_limit.publish([span])
+        self.assertEqual(len(producers[0].sent), 1)
+        with self.assertRaises(SpanTooLargeError):
+            await KafkaSpanPublisher("unused", "t", max_request_size=size - 1).publish([span])
+
+
+class FakeProducer:
+    """Stands in for AIOKafkaProducer. fail="send" raises from send(); fail="ack"
+    returns a failed ack future; hang=True returns an ack that never resolves."""
+
+    def __init__(self, fail=None, hang=False):
+        self.fail, self.hang = fail, hang
+        self.started = self.stopped = False
+        self.sent = []
+
+    async def start(self):
+        self.started = True
+
+    async def stop(self):
+        self.stopped = True
+
+    async def send(self, topic, value=None, key=None):
+        if self.fail == "send":
+            raise ConnectionError("broker connection lost")
+        ack = asyncio.get_running_loop().create_future()
+        if self.fail == "ack":
+            ack.set_exception(ConnectionError("produce request failed"))
+        elif not self.hang:
+            self.sent.append((key, value))
+            ack.set_result(None)
+        return ack
+
+
+class ProducerLifecycleTests(unittest.IsolatedAsyncioTestCase):
+    def publisher(self, *producers, timeout_s=5):
+        queue = list(producers)
+        self.created = []
+
+        def factory():
+            producer = queue.pop(0)
+            self.created.append(producer)
+            return producer
+
+        return KafkaSpanPublisher("unused", "t", timeout_s=timeout_s, producer_factory=factory)
+
+    async def test_failed_send_stops_and_replaces_the_producer(self):
+        for mode in ("send", "ack"):
+            with self.subTest(mode):
+                broken, fresh = FakeProducer(fail=mode), FakeProducer()
+                publisher = self.publisher(broken, fresh)
+                with self.assertRaises(PublishError):
+                    await publisher.publish([make_span()])
+                self.assertTrue(broken.stopped)
+                self.assertIsNone(publisher._producer)
+
+                await publisher.publish([make_span()])
+                self.assertEqual(self.created, [broken, fresh])
+                self.assertEqual(len(fresh.sent), 1)
+                self.assertIs(publisher._producer, fresh)
+
+    async def test_healthy_producer_is_reused(self):
+        producer = FakeProducer()
+        publisher = self.publisher(producer)
+        await publisher.publish([make_span()])
+        await publisher.publish([make_span()])
+        self.assertEqual(self.created, [producer])
+        self.assertEqual(len(producer.sent), 2)
+
+    async def test_timeout_keeps_the_producer(self):
+        slow = FakeProducer(hang=True)
+        publisher = self.publisher(slow, timeout_s=0.1)
+        with self.assertRaises(PublishError):
+            await publisher.publish([make_span()])
+        self.assertFalse(slow.stopped)
+        self.assertIs(publisher._producer, slow)
 
 
 if __name__ == "__main__":
