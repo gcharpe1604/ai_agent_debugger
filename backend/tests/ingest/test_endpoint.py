@@ -1,0 +1,210 @@
+"""POST /api/v1/traces (protocol "1") with the in-memory publisher."""
+
+import json
+import os
+import time
+import unittest
+from unittest import mock
+
+from fastapi.testclient import TestClient
+
+from agent_debugger_api.api.routes.traces import get_span_publisher
+from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
+from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID, resolve_project_id
+from agent_debugger_api.main import app
+
+T0 = 1_763_000_000_000_000_000
+TRACE_1 = "1" * 32
+TRACE_2 = "2" * 32
+ROOT = "a" * 16
+CHILD = "b" * 16
+CLIENT_PROJECT = "00000000-0000-4000-8000-0000000000ff"
+
+
+def wire_span(**overrides) -> dict:
+    span = {
+        "trace_id": TRACE_1,
+        "span_id": ROOT,
+        "parent_span_id": None,
+        "name": "rag.run",
+        "operation_type": "run",
+        "start_time": T0,
+        "end_time": T0 + 1_000,
+        "status": {"code": "OK"},
+    }
+    span.update(overrides)
+    return span
+
+
+def batch(*spans) -> dict:
+    return {"protocol_version": "1", "spans": list(spans) or [wire_span()]}
+
+
+class DurableIngestTests(unittest.TestCase):
+    def setUp(self):
+        self.publisher = InMemorySpanPublisher()
+        app.dependency_overrides[get_span_publisher] = lambda: self.publisher
+        self.addCleanup(app.dependency_overrides.clear)
+        # A non-loopback client: the local-1 gating must not apply here.
+        self.client = TestClient(app, client=("203.0.113.7", 50000))
+
+    def post(self, body, **kwargs):
+        return self.client.post("/api/v1/traces", json=body, **kwargs)
+
+    def published(self):
+        return [record for _, record in self.publisher.acked]
+
+    # 202
+    def test_valid_batch_is_published_one_message_per_span_keyed_by_trace(self):
+        before = time.time_ns()
+        response = self.post(batch(
+            wire_span(),
+            wire_span(span_id=CHILD, parent_span_id=ROOT, name="llm.generate", operation_type="model",
+                      start_time=T0 + 100, end_time=T0 + 900),
+            wire_span(trace_id=TRACE_2),
+        ))
+        after = time.time_ns()
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json(), {"status": "accepted", "protocol_version": "1", "spans": 3})
+        self.assertEqual([key for key, _ in self.publisher.acked],
+                         [TRACE_1.encode(), TRACE_1.encode(), TRACE_2.encode()])
+        records = self.published()
+        self.assertEqual([r.span_name for r in records], ["rag.run", "llm.generate", "rag.run"])
+        self.assertEqual({r.protocol_version for r in records}, {"1"})
+        # received_at: one value for the whole envelope, taken during the request.
+        self.assertEqual(len({r.received_at for r in records}), 1)
+        self.assertTrue(before <= records[0].received_at <= after)
+
+    def test_wire_fields_map_to_span_record(self):
+        self.post(batch(wire_span(
+            status={"code": "ERROR", "description": "timeout"},
+            error_type="TimeoutError",
+            service_name="rag_agent",
+            model="gpt-4o-mini", input_tokens=12, output_tokens=3, total_tokens=15, cost="0.00125",
+            input_state="captured", input_payload='{"q": "hi"}',
+            links=[{"trace_id": TRACE_2, "span_id": CHILD, "relation": "retry_of"}],
+        )))
+        [record] = self.published()
+        self.assertEqual((record.started_at, record.ended_at), (T0, T0 + 1_000))
+        self.assertEqual((record.status_code.value, record.status_description, record.error_type),
+                         ("ERROR", "timeout", "TimeoutError"))
+        self.assertEqual((record.model, record.total_tokens, record.cost), ("gpt-4o-mini", 15, "0.00125"))
+        # Payloads are accepted on the durable path (local-1 rejects them).
+        self.assertEqual((record.input_state.value, record.input_payload), ("captured", '{"q": "hi"}'))
+        # Payload states the client did not send are "unavailable", never guessed.
+        self.assertEqual((record.output_state.value, record.error_state.value), ("unavailable", "unavailable"))
+        self.assertEqual(record.links[0].relation, "retry_of")
+
+    def test_attribute_values_are_stringified(self):
+        attributes = {"s": "text", "i": 3, "f": 0.2, "b": True, "l": ["a", 1, False]}
+        self.post(batch(wire_span(
+            attributes=attributes,
+            events=[{"name": "retry", "time": T0 + 1, "attributes": {"attempt": 2, "final": False}}],
+        )))
+        [record] = self.published()
+        self.assertEqual(record.attributes, {"s": "text", "i": "3", "f": "0.2", "b": "true", "l": '["a",1,false]'})
+        self.assertEqual(record.events[0].attributes, {"attempt": "2", "final": "false"})
+
+    # project_id
+    def test_project_id_comes_from_resolve_project_id(self):
+        self.post(batch())
+        [record] = self.published()
+        self.assertEqual(record.project_id, resolve_project_id())
+
+    def test_project_id_env_override_is_used(self):
+        override = "00000000-0000-4000-8000-0000000000aa"
+        with mock.patch.dict(os.environ, {"DEFAULT_PROJECT_ID": override}):
+            from agent_debugger_api.ingest import settings
+            settings.get_ingest_settings.cache_clear()
+            self.addCleanup(settings.get_ingest_settings.cache_clear)
+            self.post(batch())
+        self.assertEqual(str(self.published()[0].project_id), override)
+
+    def test_client_project_id_is_rejected_in_span_and_envelope(self):
+        in_span = self.post(batch(wire_span(project_id=CLIENT_PROJECT)))
+        in_envelope = self.post({**batch(), "project_id": CLIENT_PROJECT})
+        self.assertEqual((in_span.status_code, in_envelope.status_code), (422, 422))
+        self.assertEqual(self.published(), [])
+
+    def test_default_project_id_is_the_documented_value(self):
+        self.assertEqual(str(DEFAULT_PROJECT_ID), "00000000-0000-4000-8000-000000000001")
+
+    # 503
+    def test_publish_failure_is_503_never_202(self):
+        self.publisher.fail_after = 1
+        response = self.post(batch(wire_span(), wire_span(span_id=CHILD, parent_span_id=ROOT)))
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.headers["retry-after"], "1")
+        # The first span was acked before the failure and stays (§8.3); the client retries the batch.
+        self.assertEqual(len(self.published()), 1)
+
+    def test_publish_failure_before_any_ack_is_503(self):
+        self.publisher.fail_after = 0
+        self.assertEqual(self.post(batch()).status_code, 503)
+        self.assertEqual(self.published(), [])
+
+    # 422 and other rejections: nothing is published
+    def test_invalid_batches_are_422_and_publish_nothing(self):
+        cases = {
+            "local-1 protocol": {"protocol_version": "local-1", "spans": [wire_span()]},
+            "missing protocol": {"spans": [wire_span()]},
+            "no spans": {"protocol_version": "1", "spans": []},
+            "too many spans": {"protocol_version": "1", "spans": [wire_span(span_id=f"{i:016x}") for i in range(257)]},
+            "missing name": batch({k: v for k, v in wire_span().items() if k != "name"}),
+            "uppercase trace_id": batch(wire_span(trace_id="A" * 32)),
+            "unknown operation": batch(wire_span(operation_type="planner")),
+            "time as string": batch(wire_span(start_time=str(T0))),
+            "end before start": batch(wire_span(end_time=T0 - 1)),
+            "received_at from client": batch(wire_span(received_at=T0)),
+            "unknown field": batch(wire_span(colour="blue")),
+            "object attribute": batch(wire_span(attributes={"nested": {"a": 1}})),
+            "null attribute": batch(wire_span(attributes={"x": None})),
+            "payload with disabled state": batch(wire_span(input_state="disabled", input_payload="x")),
+            "cost as number": batch(wire_span(cost=0.001)),
+        }
+        for label, body in cases.items():
+            with self.subTest(label):
+                self.assertEqual(self.post(body).status_code, 422)
+        self.assertEqual(self.published(), [])
+
+    def test_422_does_not_echo_submitted_values(self):
+        response = self.post(batch(wire_span(input_state="disabled", input_payload="sk-live-SECRET")))
+        self.assertEqual(response.status_code, 422)
+        self.assertNotIn("SECRET", response.text)
+        self.assertTrue(all(set(e) == {"loc", "msg", "type"} for e in response.json()["detail"]))
+
+    def test_malformed_json_is_422(self):
+        response = self.client.post("/api/v1/traces", content=b"{not json",
+                                    headers={"content-type": "application/json"})
+        self.assertEqual(response.status_code, 422)
+
+    def test_non_json_content_type_is_415(self):
+        response = self.client.post("/api/v1/traces", content=json.dumps(batch()),
+                                    headers={"content-type": "text/plain"})
+        self.assertEqual(response.status_code, 415)
+        self.assertEqual(self.published(), [])
+
+    def test_body_over_4_mib_is_413(self):
+        big = wire_span(input_state="captured", input_payload="x" * (4 * 1024 * 1024))
+        self.assertEqual(self.post(batch(big)).status_code, 413)
+        self.assertEqual(self.published(), [])
+
+    # Not the local profile
+    def test_no_local_gating_mode_header_or_origin_needed(self):
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AGENT_DEBUGGER_LOCAL_MODE", None)
+            response = self.post(batch(), headers={"origin": "https://example.com"})
+        self.assertEqual(response.status_code, 202)
+
+    def test_local_endpoint_is_unchanged(self):
+        # Still gated: LOCAL_MODE unset -> 503, and it never reaches the durable publisher.
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop("AGENT_DEBUGGER_LOCAL_MODE", None)
+            response = self.client.post("/api/v1/local/traces", json=batch())
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(self.published(), [])
+
+
+if __name__ == "__main__":
+    unittest.main()
