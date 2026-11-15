@@ -187,8 +187,8 @@ SELECT
     anyIf(span_name, parent_span_id IS NULL)          AS root_name,
     countIf(parent_span_id IS NULL) = 0               AS missing_root,
     anyIf(execution_mode, execution_mode != '')       AS execution_mode,
-    count()                                           AS span_count,
-    countIf(status_code = 'ERROR')                    AS error_span_count
+    uniqExact(span_id)                                AS span_count,
+    uniqExactIf(span_id, status_code = 'ERROR')       AS error_span_count
 FROM
 (
     SELECT * FROM telemetry.telemetry_spans
@@ -201,7 +201,7 @@ ORDER BY run_started_at DESC
 LIMIT 50;
 ```
 
-Conflicting versions are counted once per version in `span_count`; the read API reports conflicts separately (§3). **Validate with `EXPLAIN indexes = 1`** and a timing on realistic data before action 5 is called done. If the run list becomes the bottleneck, the next step is a measured change (a run table or projection), recorded as a new decision.
+`span_count` and `error_span_count` count **distinct span_ids** (D14, user decision 2026-11-15): a span with conflicting versions counts once, and counts as an error span if any version is ERROR. The read API reports conflicts separately (§3). **Validate with `EXPLAIN indexes = 1`** and a timing on realistic data before action 5 is called done. If the run list becomes the bottleneck, the next step is a measured change (a run table or projection), recorded as a new decision.
 
 ---
 
@@ -268,6 +268,7 @@ Replaces the earlier open-questions list. Each row is a **user decision, 2026-11
 | D11 | Conflicts | Read API **returns both versions** with a conflict flag (§3) |
 | D12 | Tests | Partition-safety test removed (§6) |
 | D13 | Kafka message and consumer rules | **Decided (user decision, 2026-11-13).** See §8 |
+| D14 | Run-list span counts | **Decided (user decision, 2026-11-15).** `span_count` / `error_span_count` count distinct span_ids, so a conflicted span counts once (§4). Replaces "counted once per version" |
 
 **Still open (not decided on 2026-11-12):**
 - Version column: `ReplacingMergeTree(received_at)` keeps the **latest** redelivery's receipt time after a merge. If the first receipt time matters, take `min(received_at)` at query time.
