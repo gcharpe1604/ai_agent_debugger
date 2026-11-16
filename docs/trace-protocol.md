@@ -112,12 +112,14 @@ Field names and defaults for `POST /api/v1/traces` with `protocol_version: "1"`,
 | `input_tokens`, `output_tokens`, `total_tokens` | integer 0–4294967295 [`null`] |
 | `cost` | non-negative decimal string with at most 9 digits before and 9 after the point, e.g. `"0.00125"`; never a number [`null`] |
 | `input_state`, `output_state`, `error_state` | `captured`, `disabled`, `redacted`, `truncated` or `unavailable` [`"unavailable"`] |
-| `input_payload`, `output_payload`, `error_payload` | string [`""`] |
+| `input_payload`, `output_payload`, `error_payload` | string of at most 131,072 UTF-8 bytes [`""`] |
 | `attributes` | object of string keys to a string, number, boolean or list of those [`{}`] |
 | `events` | list of `{"name": string, "time": integer ns, "attributes": object}` [`[]`] |
 | `links` | list of `{"trace_id", "span_id", "relation": string}` [`[]`] |
 
 **Payload-state default:** a payload state the client does not send is `"unavailable"` (no payload was produced or captured). The server never guesses `captured`, `disabled` or any other state. A non-empty payload with a `disabled` or `unavailable` state is rejected.
+
+**Payload size (user decision 2026-11-16):** each of the three payloads may be at most 131,072 bytes, counted as UTF-8. A larger payload is rejected with 422 (`type: payload_too_large`, `loc` naming the span index and field) and nothing from the batch is published. The server never truncates a payload: the client cuts it and sends the state `truncated` (`proposals/clickhouse-span-record.md` §9).
 
 **Set by the server, rejected from the client:** `project_id`, `received_at`, and a per-span `protocol_version`.
 

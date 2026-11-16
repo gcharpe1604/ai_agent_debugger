@@ -7,8 +7,9 @@ Shape follows docs/trace-protocol.md §4 (envelope with `protocol_version` and
 
 The client never sends `project_id`, `received_at` or per-span
 `protocol_version`: the server sets them, and `extra="forbid"` rejects them.
-Payloads are accepted as sent (capture/redaction policy is handoff action 7);
-the local-1 payload rejection does not apply here.
+Payloads are accepted as sent, up to MAX_PAYLOAD_BYTES each: a larger one is
+rejected, never truncated here (clickhouse-span-record.md §9 P9). The local-1
+payload rejection does not apply.
 """
 
 from __future__ import annotations
@@ -17,7 +18,8 @@ import json
 from typing import Annotated, Literal, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr
+from pydantic_core import PydanticCustomError
 
 from agent_debugger_api.contracts import PayloadState, SpanRecord, StatusCode
 from agent_debugger_api.contracts.span_record import (
@@ -31,6 +33,24 @@ from agent_debugger_api.contracts.span_record import (
 )
 
 MAX_SPANS_PER_BATCH = 256
+# One payload, in UTF-8 bytes. The same number is the SDK's hard maximum
+# (ai_agent_debugger_sdk.capture.MAX_PAYLOAD_BYTES): three payloads at this
+# size still fit one Kafka record (clickhouse-span-record.md §9.3).
+MAX_PAYLOAD_BYTES = 131_072
+
+
+def _within_payload_cap(value: str) -> str:
+    # UTF-8 is 1 to 4 bytes per character, so most values need no encoding to decide.
+    too_long = len(value) > MAX_PAYLOAD_BYTES or (
+        len(value) * 4 > MAX_PAYLOAD_BYTES and len(value.encode("utf-8", "surrogatepass")) > MAX_PAYLOAD_BYTES
+    )
+    if too_long:
+        # The message carries the limit only, never the value.
+        raise PydanticCustomError("payload_too_large", "Payload exceeds {limit} bytes", {"limit": MAX_PAYLOAD_BYTES})
+    return value
+
+
+Payload = Annotated[StrictStr, AfterValidator(_within_payload_cap)]
 
 Scalar = Union[StrictStr, StrictBool, StrictInt, StrictFloat]
 # OTel attribute values: a scalar or a homogeneous-in-practice list of scalars.
@@ -90,9 +110,9 @@ class WireSpan(_Wire):
     input_state: PayloadState = PayloadState.UNAVAILABLE
     output_state: PayloadState = PayloadState.UNAVAILABLE
     error_state: PayloadState = PayloadState.UNAVAILABLE
-    input_payload: StrictStr = ""
-    output_payload: StrictStr = ""
-    error_payload: StrictStr = ""
+    input_payload: Payload = ""
+    output_payload: Payload = ""
+    error_payload: Payload = ""
 
     attributes: Attributes = Field(default_factory=dict)
     events: list[WireEvent] = Field(default_factory=list)

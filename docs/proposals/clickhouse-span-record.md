@@ -1,7 +1,7 @@
 # ClickHouse span record — DECISION
 
 **Status: DECISION (user decision 2026-11-12). Docs only: no code written, nothing applied to the ClickHouse or Kafka server.**
-**§9 (payload capture policy) is a user decision of 2026-11-16, implemented in the SDK on branch `feat/payload-capture`.**
+**§9 (payload capture policy) is a user decision of 2026-11-16, implemented in the SDK (on `main` via PR #15) and, for P9, in the ingest (branch `feat/ingest-payload-cap`).**
 Names: ClickHouse database `telemetry`, table `telemetry.telemetry_spans`. Kafka topic `agentdbg.traces.v1` (3 partitions) and DLQ `agentdbg.traces.v1.dlq` (1 partition). The `agentdbg` prefix is an identifier only, not an approved product name.
 This file is the contract for the ClickHouse writer and Kafka consumer, which the user writes. `database.md` and `LLD.md` are not edited. Where they differ (the `database.md` §5.2 ordering-key hypothesis, the run-list table), this decision governs the implementation (§7).
 
@@ -273,7 +273,7 @@ Replaces the earlier open-questions list. Each row is a **user decision, 2026-11
 | D14 | Run-list span counts | **Decided (user decision, 2026-11-15).** `span_count` / `error_span_count` count distinct span_ids, so a conflicted span counts once (§4). Replaces "counted once per version" |
 | D15 | `content_hash` and defaults | content_hash excludes default-valued fields (user decision 2026-11-16, review finding 2). See §5 |
 | D16 | Duplicate deliveries before a merge | Before a merge, reads return the latest received_at for duplicate deliveries (`ORDER BY ... received_at DESC` before `LIMIT 1 BY span_id, content_hash`), matching what ReplacingMergeTree keeps after a merge; resolves the first-vs-latest receipt question (user decision 2026-11-16, review finding 5) |
-| D17 | Payload capture policy | **Decided (user decision, 2026-11-16).** Redaction marker, truncation rule, per-payload cap, state precedence, error payload, transport and 503 retry: see §9 (P1–P8). P9, a server-side payload cap, is approved and not yet implemented |
+| D17 | Payload capture policy | **Decided (user decision, 2026-11-16).** Redaction marker, truncation rule, per-payload cap, state precedence, error payload, transport and 503 retry: see §9 (P1–P8). P9, a server-side payload cap, is implemented in the ingest on branch `feat/ingest-payload-cap` |
 
 **Still open (not decided on 2026-11-12):**
 - `execution_mode` and `display_label`: root span only or every span, and which SDK attribute names feed them.
@@ -342,7 +342,7 @@ The non-envelope test message at `agentdbg.traces.v1` partition 0 offset 0 (hand
 
 ## 9. Payload capture policy (user decision, 2026-11-16)
 
-**Status: DECISION (user decision 2026-11-16).** P1–P8 were approved, with P7 changed to retry HTTP 503. Two changes that went beyond the original request were approved by name the same day: the capture budget that counts serialized bytes (part of P2) and the `capture_errors` switch (part of P6). P9 is approved but **not implemented**: it is a separate PR after `feat/payload-capture`. Rows were written by the assistant as proposals earlier the same day. Implemented in the SDK on branch `feat/payload-capture`. Durable path only: local-1 still exports no payloads.
+**Status: DECISION (user decision 2026-11-16).** P1–P8 were approved, with P7 changed to retry HTTP 503. Two changes that went beyond the original request were approved by name the same day: the capture budget that counts serialized bytes (part of P2) and the `capture_errors` switch (part of P6). P9 was approved as a separate PR and is implemented in the ingest on branch `feat/ingest-payload-cap`. Rows were written by the assistant as proposals earlier the same day. P1–P8 are implemented in the SDK, on `main` via PR #15 (merged 2026-11-16 as `a7cefd9`). Durable path only: local-1 still exports no payloads.
 
 **Simply:** before a span leaves the agent process, the SDK turns each input, output and error into a small JSON text, removes secret fields, cuts it to a size limit, and labels it with one state. The server stores what it gets and never guesses a state.
 
@@ -358,7 +358,7 @@ The non-envelope test message at `agentdbg.traces.v1` partition 0 offset 0 (hand
 | P6 | Error payload | `{"type": ..., "message": ...}` from the span's first `exception` event, bounded by the same cap. **No stack trace is exported** (not in the payload, not in events). Switch `CaptureConfig.capture_errors` (default `True`); when off: `error_state = disabled`, and `exception.message` and the status description are not exported either. `error_type` is still sent | Exception messages can carry user data, so they need the same switch as inputs and outputs. `TraceSession` already records the message as `"<Type> during <operation>"` |
 | P7 | Transport and retry | `DurableSpanExporter` posts to `/api/v1/traces` only. `https` is required unless the host is loopback. Requests are split at 256 spans and 4 MiB (the route's limits). Success = HTTP 202 with a matching span count. **HTTP 503 is retried up to 3 times with exponential backoff (1 s, 2 s, 4 s) on the exporter's own background thread, then dropped and counted** (`failures`, `dropped_spans`; `retries` counts the attempts). **413 and 422 are never retried**; neither is any other status or a connection error. `export()` never waits for a backoff. At most 8 requests wait for a retry; further ones are dropped and counted. `force_flush(timeout)` waits for pending retries up to its timeout; `shutdown()` gives them up | 503 is the ingest's "buffer unavailable, retry the whole batch" (§8.3), and a resent batch is harmless under option A dedup (§3). A 413 or 422 fails the same way again. Payloads over plain HTTP to another machine would expose prompts. No API key until action 6. Why its own thread: see §9.5 |
 | P8 | Non-payload bounds | Per span: attributes 32 KiB serialized, events 32 KiB and 32 events, strings 1,024 characters, lists 32 items. Attributes past the budget are dropped and counted in `debugger.export.dropped_attributes`. An attribute whose **key** is a secret name is sent as `"[redacted]"` | Needed for the guarantee in §9.3 |
-| P9 | Server-side cap | **Approved, not implemented** (separate PR after `feat/payload-capture`): the ingest rejects any payload over 131,072 bytes with 422 and never truncates it itself; `trace-protocol.md` §4.1 is updated in that PR | The server did not capture the value and cannot cut JSON safely |
+| P9 | Server-side cap | The ingest rejects any payload over 131,072 bytes (counted as UTF-8) with 422 and never truncates it itself. The 422 names the span index and field (`type: payload_too_large`), never the value; nothing from the batch is published. Recorded in `trace-protocol.md` §4.1. Implemented on branch `feat/ingest-payload-cap` (`ingest/schemas.py`) | The server did not capture the value and cannot cut JSON safely |
 
 ### 9.2 State mapping (as implemented)
 
@@ -389,7 +389,7 @@ At the default cap, three payloads are at most 3 × 2 × 16,384 = 98,304 bytes p
 ### 9.4 What this does not cover
 
 - **Example agents send no input or output payloads yet.** `TraceSession.wrap_callable` records no arguments or results, and the agents' results are application objects (P5 would mark them `unavailable`). Pointed at `/api/v1/traces` they export error payloads only. The agents need explicit capture calls with plain data.
-- **P9** (server-side cap) is not implemented; until then a non-SDK client can send a payload of any size that fits the span limit.
+- **The cap is enforced at the ingest only.** `SpanRecord` itself has no payload length limit, so the trace-writer does not re-check messages already in Kafka.
 - **OpenTelemetry's 128-attribute limit** evicts the *oldest* attributes first, and the captured payloads are attributes. A span with more than about 115 application attributes can lose its payload; it is then exported as `unavailable`.
 - **`execution_mode`** is fed from `debugger.execution.mode` (the only attribute that exists). §7 still lists the attribute names as open. `display_label`, token counts, cost and OTel links are not sent.
 - Redaction is by field name. A secret inside prose (a prompt, an exception message) is not found.

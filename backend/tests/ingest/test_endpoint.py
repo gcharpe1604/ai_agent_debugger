@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from agent_debugger_api.api.routes.traces import get_span_publisher
 from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
 from agent_debugger_api.ingest.kafka_publisher import KafkaSpanPublisher
+from agent_debugger_api.ingest.schemas import MAX_PAYLOAD_BYTES
 from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID, resolve_project_id
 from agent_debugger_api.main import app
 
@@ -174,6 +175,45 @@ class DurableIngestTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertNotIn("SECRET", response.text)
         self.assertTrue(all(set(e) == {"loc", "msg", "type"} for e in response.json()["detail"]))
+
+    # Payload cap (clickhouse-span-record.md §9 P9)
+    def test_payload_at_the_cap_is_accepted_for_each_kind(self):
+        at_cap = "x" * MAX_PAYLOAD_BYTES
+        for kind in ("input", "output", "error"):
+            with self.subTest(kind):
+                response = self.post(batch(wire_span(**{f"{kind}_state": "captured", f"{kind}_payload": at_cap})))
+                self.assertEqual(response.status_code, 202)
+        self.assertEqual([len(r.input_payload) for r in self.published()], [MAX_PAYLOAD_BYTES, 0, 0])
+
+    def test_payload_over_the_cap_is_422_names_the_field_and_publishes_nothing(self):
+        over = "sk-live-SECRET" + "x" * MAX_PAYLOAD_BYTES
+        for kind in ("input", "output", "error"):
+            with self.subTest(kind):
+                response = self.post(batch(
+                    wire_span(),
+                    wire_span(span_id=CHILD, parent_span_id=ROOT,
+                              **{f"{kind}_state": "truncated", f"{kind}_payload": over}),
+                ))
+                self.assertEqual(response.status_code, 422)
+                [error] = response.json()["detail"]
+                self.assertEqual(error["loc"], ["spans", 1, f"{kind}_payload"])
+                self.assertEqual(error["type"], "payload_too_large")
+                self.assertIn("131072 bytes", error["msg"])
+                self.assertNotIn("SECRET", response.text)
+                self.assertLess(len(response.content), 1024)
+        # The valid span in the same batch is not published either.
+        self.assertEqual(self.published(), [])
+
+    def test_payload_cap_counts_utf8_bytes_not_characters(self):
+        # 65,536 two-byte characters are exactly the cap; one more is 2 bytes over.
+        fits, over = "é" * (MAX_PAYLOAD_BYTES // 2), "é" * (MAX_PAYLOAD_BYTES // 2 + 1)
+        self.assertLess(len(over), MAX_PAYLOAD_BYTES)
+        self.assertEqual(self.post(batch(wire_span(output_state="captured", output_payload=fits))).status_code, 202)
+        self.assertEqual(self.post(batch(wire_span(output_state="captured", output_payload=over))).status_code, 422)
+        self.assertEqual(len(self.published()), 1)
+
+    def test_payload_cap_is_the_decided_value(self):
+        self.assertEqual(MAX_PAYLOAD_BYTES, 131_072)
 
     def test_malformed_json_is_422(self):
         response = self.client.post("/api/v1/traces", content=b"{not json",

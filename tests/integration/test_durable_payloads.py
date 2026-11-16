@@ -28,6 +28,7 @@ from agent_debugger_api.api.routes.traces import get_span_publisher
 from agent_debugger_api.contracts import PayloadState
 from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
 from agent_debugger_api.ingest.kafka_publisher import DEFAULT_MAX_REQUEST_SIZE, KafkaSpanPublisher
+from agent_debugger_api.ingest.schemas import MAX_PAYLOAD_BYTES as INGEST_MAX_PAYLOAD_BYTES
 from agent_debugger_api.main import app
 from ai_agent_debugger_sdk import CaptureConfig, Debugger, DurableSpanExporter
 from ai_agent_debugger_sdk.capture import MAX_PAYLOAD_BYTES
@@ -135,6 +136,10 @@ class DurablePayloadTests(unittest.TestCase):
             self.assertEqual(getattr(record, f"{kind}_payload"), "")
         self.assertEqual(record.error_type, "ValueError")
         self.assertNotIn(SECRET, record.model_dump_json())
+
+    def test_sdk_and_ingest_agree_on_the_payload_cap(self):
+        # The SDK never produces a payload the ingest would reject (§9 P3, P9).
+        self.assertEqual(MAX_PAYLOAD_BYTES, INGEST_MAX_PAYLOAD_BYTES)
 
     def test_three_payloads_at_the_hard_cap_fit_one_kafka_record(self):
         # Quotes are the worst case: each doubles when the payload text is a JSON string.
