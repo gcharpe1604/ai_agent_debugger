@@ -198,7 +198,17 @@ Attribute keys that match a secret field name are exported as `"[redacted]"`.
 Per span, attributes and events are each limited to 32 KiB; attributes past
 that are dropped and counted in `debugger.export.dropped_attributes`.
 
-This policy is a proposal awaiting approval:
+Delivery: `export` makes one attempt on the calling thread. An HTTP 503 is
+retried up to 3 times with exponential backoff (1 s, 2 s, 4 s) on the
+exporter's own daemon thread, then dropped. A 413, a 422, any other status and
+a connection error are dropped at once and never retried. `export` never waits
+for a backoff. `force_flush(timeout_millis)` waits for pending retries up to
+its timeout (`TraceSession` calls it once, with 10 s, when the run ends);
+`shutdown()` gives them up. Counters: `exported_spans`, `retries`, `failures`
+and `dropped_spans`. Use `BatchSpanProcessor`, as above: with
+`SimpleSpanProcessor` the first attempt runs on the thread that ends the span.
+
+This policy is a user decision of 2026-11-16:
 `docs/proposals/clickhouse-span-record.md` §9.
 
 ## Tests and demo

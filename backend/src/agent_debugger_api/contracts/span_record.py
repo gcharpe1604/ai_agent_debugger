@@ -45,7 +45,7 @@ class PayloadState(str, Enum):
     CAPTURED = "captured"  # stored as given
     DISABLED = "disabled"  # capture switched off
     REDACTED = "redacted"  # removed by a secret rule
-    TRUNCATED = "truncated"  # cut at the size limit; the stored prefix is real but partial
+    TRUNCATED = "truncated"  # cut at the size limit; everything stored is real, some is missing
     UNAVAILABLE = "unavailable"  # not produced or lost
 
 
