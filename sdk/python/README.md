@@ -3,7 +3,9 @@
 This package currently provides OpenTelemetry span helpers and bounded capture.
 Standalone Debugger use exports ended spans to the console. `HttpSpanExporter`
 and `TraceSession` now support bounded batched HTTP export to the explicit local
-capture profile; remote authenticated production transport remains deferred.
+capture profile. `DurableSpanExporter` sends protocol "1" batches, with
+payloads, to `POST /api/v1/traces` (see Durable export). API-key authentication
+is not implemented yet.
 See [normal development setup](../../docs/local-development.md).
 
 ## Public API
@@ -98,7 +100,8 @@ construction; it is a developer configuration error.
 | Option | Default | Accepted values |
 |---|---|---|
 | `capture_inputs` / `capture_outputs` | `True` | Exact booleans |
-| `max_payload_bytes` | 16,384 | Integer, 64–1,048,576 |
+| `capture_errors` | `True` | Exact boolean; used by the durable exporter only |
+| `max_payload_bytes` | 16,384 | Integer, 64–131,072 |
 | `max_depth` | 8 | Integer, 0–32; root is depth 0 |
 | `max_nodes` | 512 | Integer, 1–10,000; total visited values, including root |
 | `secret_fields` | `()` | Tuple of additional nonempty field names, each at most 256 characters |
@@ -118,12 +121,13 @@ authorization, cookies, tokens, client secrets, private keys and credentials.
 Additional `secret_fields` extend these defaults. The input object is never
 modified.
 
-Traversal is bounded by depth, node count and a shared character budget. Large
-strings may be shortened; large keys may be omitted. Cycles become
-`"[circular]"`; excessive depth or integer magnitude becomes `"[truncated]"`.
-Integer conversion is limited to at most 1,024 bits (and the remaining budget).
-If the final escaped JSON exceeds `max_payload_bytes`, the entire captured value
-becomes `"[truncated]"`. The result remains valid JSON within the byte limit,
+Traversal is bounded by depth, node count and a shared byte budget. The budget
+counts bytes of the final ASCII-escaped JSON, including escapes, quotes, commas
+and brackets, so a value is cut inside its structure: a long string keeps a
+real prefix, and list items or dictionary keys that no longer fit are dropped.
+Cycles become `"[circular]"`; excessive depth or integer magnitude becomes
+`"[truncated]"`. Integer conversion is limited to at most 1,024 bits (and the
+remaining budget). The result is always valid JSON within `max_payload_bytes`,
 including Unicode and lone-surrogate input.
 
 `debugger.input` and `debugger.output` hold the JSON strings. Each has boolean
@@ -151,6 +155,62 @@ OpenTelemetry's automatic exception messages/stack traces, application-created
 events or writes made directly to the underlying OTel span. Host exporters can
 still emit those fields. This preserves existing OTel event/status behavior.
 
+## Durable export (protocol "1")
+
+```python
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from ai_agent_debugger_sdk import CaptureConfig, Debugger, DurableSpanExporter
+
+capture = CaptureConfig(secret_fields=("session_id",))
+provider = TracerProvider(resource=Resource.create({"service.name": "my-agent"}))
+provider.add_span_processor(
+    BatchSpanProcessor(DurableSpanExporter("http://127.0.0.1:8008/api/v1/traces", capture))
+)
+debugger = Debugger("my-agent", capture=capture, tracer_provider=provider)
+```
+
+The endpoint must be `/api/v1/traces`; `https` is required unless the host is
+loopback. `TraceSession` picks this exporter when its endpoint has that path
+and accepts the same `capture=` option; its wrapped calls still record no
+arguments or results.
+
+Each exported span carries three payloads, each with its own state:
+
+| State | Meaning | Payload |
+|---|---|---|
+| `captured` | stored as recorded | JSON |
+| `redacted` | at least one secret field was replaced by `"[redacted]"` | JSON |
+| `truncated` | something was cut at a limit | the cut JSON (still valid JSON) |
+| `disabled` | the capture switch is off | empty |
+| `unavailable` | never set, capture failed, or the whole value is not JSON | empty |
+
+When several apply, the first of `disabled`, `unavailable`, `truncated`,
+`redacted`, `captured` is used, and the flags it cannot express remain as
+attributes (`debugger.input.redacted`, `.truncated`, `.unsupported`).
+
+The error payload is `{"type", "message"}` from the first exception event. A
+stack trace is never exported. With `capture_errors=False` the exception
+message and the status description are not exported either.
+
+Attribute keys that match a secret field name are exported as `"[redacted]"`.
+Per span, attributes and events are each limited to 32 KiB; attributes past
+that are dropped and counted in `debugger.export.dropped_attributes`.
+
+Delivery: `export` makes one attempt on the calling thread. An HTTP 503 is
+retried up to 3 times with exponential backoff (1 s, 2 s, 4 s) on the
+exporter's own daemon thread, then dropped. A 413, a 422, any other status and
+a connection error are dropped at once and never retried. `export` never waits
+for a backoff. `force_flush(timeout_millis)` waits for pending retries up to
+its timeout (`TraceSession` calls it once, with 10 s, when the run ends);
+`shutdown()` gives them up. Counters: `exported_spans`, `retries`, `failures`
+and `dropped_spans`. Use `BatchSpanProcessor`, as above: with
+`SimpleSpanProcessor` the first attempt runs on the thread that ends the span.
+
+This policy is a user decision of 2026-11-16:
+`docs/proposals/clickhouse-span-record.md` §9.
+
 ## Tests and demo
 
 The optional `test` extra declares pytest; runtime dependencies remain only
@@ -160,8 +220,9 @@ OpenTelemetry API/SDK. With pytest already available, from `sdk/python` run:
 .\.venv\Scripts\python.exe -B -m pytest -q -p no:cacheprovider
 ```
 
-The tests use real providers and an in-memory exporter, make no HTTP/provider
+The tests use real providers and an in-memory exporter, make no provider
 calls, and assert that SDK imports resolve to this package's source directory.
+The durable exporter tests post to a stub HTTP server on loopback.
 They cover hierarchy, async concurrency, failures/recovery, capture safety and
 limits, and host-provider ownership.
 

@@ -1,6 +1,7 @@
 # ClickHouse span record — DECISION
 
 **Status: DECISION (user decision 2026-11-12). Docs only: no code written, nothing applied to the ClickHouse or Kafka server.**
+**§9 (payload capture policy) is a user decision of 2026-11-16, implemented in the SDK on branch `feat/payload-capture`.**
 Names: ClickHouse database `telemetry`, table `telemetry.telemetry_spans`. Kafka topic `agentdbg.traces.v1` (3 partitions) and DLQ `agentdbg.traces.v1.dlq` (1 partition). The `agentdbg` prefix is an identifier only, not an approved product name.
 This file is the contract for the ClickHouse writer and Kafka consumer, which the user writes. `database.md` and `LLD.md` are not edited. Where they differ (the `database.md` §5.2 ordering-key hypothesis, the run-list table), this decision governs the implementation (§7).
 
@@ -58,7 +59,7 @@ Everything below follows from those five.
 | `kafka_partition`, `kafka_offset` | `UInt16`, `UInt64` | Where the writer read it. Debugging only | persist metadata |
 | `content_hash` | `FixedString(64)` lowercase hex SHA-256 | Fingerprint of the immutable content, computed by the writer (§5) | content hash |
 
-**Payload states, simply:** `captured` = stored as given; `disabled` = capture switched off; `redacted` = removed by a secret rule; `truncated` = cut at the size limit (the stored prefix is real but partial); `unavailable` = not produced or lost. Each payload carries its own state, so "the output was truncated but the error was captured" is representable.
+**Payload states, simply:** `captured` = stored as given; `disabled` = capture switched off; `redacted` = removed by a secret rule; `truncated` = cut at the size limit (everything stored is real, some is missing); `unavailable` = not produced or lost. Each payload carries its own state, so "the output was truncated but the error was captured" is representable.
 
 ---
 
@@ -272,12 +273,12 @@ Replaces the earlier open-questions list. Each row is a **user decision, 2026-11
 | D14 | Run-list span counts | **Decided (user decision, 2026-11-15).** `span_count` / `error_span_count` count distinct span_ids, so a conflicted span counts once (§4). Replaces "counted once per version" |
 | D15 | `content_hash` and defaults | content_hash excludes default-valued fields (user decision 2026-11-16, review finding 2). See §5 |
 | D16 | Duplicate deliveries before a merge | Before a merge, reads return the latest received_at for duplicate deliveries (`ORDER BY ... received_at DESC` before `LIMIT 1 BY span_id, content_hash`), matching what ReplacingMergeTree keeps after a merge; resolves the first-vs-latest receipt question (user decision 2026-11-16, review finding 5) |
+| D17 | Payload capture policy | **Decided (user decision, 2026-11-16).** Redaction marker, truncation rule, per-payload cap, state precedence, error payload, transport and 503 retry: see §9 (P1–P8). P9, a server-side payload cap, is approved and not yet implemented |
 
 **Still open (not decided on 2026-11-12):**
 - `execution_mode` and `display_label`: root span only or every span, and which SDK attribute names feed them.
 - `cost` currency.
 - Confirm `graph_node_parent_id` is graph topology only and never feeds the span tree.
-- Payload limits and redaction marker format (handoff action 7).
 
 ---
 
@@ -336,3 +337,70 @@ The non-envelope test message at `agentdbg.traces.v1` partition 0 offset 0 (hand
 `get_trace` returns deduplicated spans with conflicting versions flagged (§3). `get_conflicts` runs the §3 conflict query. `list_runs` runs the §4 run-list query.
 
 **Read API project mapping:** the route's `local` project (`#/projects/local/...`, `projectId: 'local'` in the frontend) maps to the same `DEFAULT_PROJECT_ID` value, resolved through the same `resolve_project_id()`. The read API never queries ClickHouse with the string `local`.
+
+---
+
+## 9. Payload capture policy (user decision, 2026-11-16)
+
+**Status: DECISION (user decision 2026-11-16).** P1–P8 were approved, with P7 changed to retry HTTP 503. Two changes that went beyond the original request were approved by name the same day: the capture budget that counts serialized bytes (part of P2) and the `capture_errors` switch (part of P6). P9 is approved but **not implemented**: it is a separate PR after `feat/payload-capture`. Rows were written by the assistant as proposals earlier the same day. Implemented in the SDK on branch `feat/payload-capture`. Durable path only: local-1 still exports no payloads.
+
+**Simply:** before a span leaves the agent process, the SDK turns each input, output and error into a small JSON text, removes secret fields, cuts it to a size limit, and labels it with one state. The server stores what it gets and never guesses a state.
+
+### 9.1 Decisions
+
+| # | Topic | Decision | Why, and what was rejected |
+|---|---|---|---|
+| P1 | Redaction marker | The value of a secret field is replaced by the JSON string `"[redacted]"`. The key stays. Fields match by name (case and punctuation ignored; built-in list plus `CaptureConfig.secret_fields`), at any depth, and the value is never inspected | The key staying shows that the field existed, so "absent" and "removed" look different. Rejected: dropping the key (hides that); an object marker such as `{"$redacted": true}` (changes the value's type); a hash of the value (leaks equality and can be brute-forced for short secrets). Limit: an application value that really is `"[redacted]"` looks the same |
+| P2 | Truncation rule | **Valid JSON, cut inside the structure. Not a raw byte prefix.** A long string keeps a real prefix; list items and dict keys that no longer fit are dropped; no marker is inserted for a size cut. The budget counts bytes of the final ASCII-escaped JSON (escapes, quotes, commas, brackets) | `*_payload` is "bounded serialized JSON" (§1), so the UI, the investigator and ClickHouse JSON functions need one parser path. A raw prefix makes every truncated payload unparseable. Cost: the payload does not show where it was cut; the state says it is partial. Before the byte budget, non-ASCII text longer than about cap/6 characters collapsed the whole payload to `"[truncated]"` |
+| P3 | Per-payload cap | Default **16,384 bytes** (unchanged). Hard maximum **131,072 bytes (128 KiB)**, down from 1,048,576. `CaptureConfig` rejects a larger value | With the old maximum, one payload could fill the 1 MiB Kafka record and the batch would get a 413 that no retry fixes. Size math in §9.3 |
+| P4 | One state per payload | Most limiting first: `disabled` > `unavailable` > `truncated` > `redacted` > `captured` (§9.2). Flags the state cannot express are kept as attributes: `debugger.input.redacted`, `.truncated`, `.unsupported` (and the same for `output`), value `true` | A payload can be both redacted and truncated but the column holds one value. `truncated` wins because missing content changes what a reader may conclude; redaction is visible in the payload itself |
+| P5 | Values that are not JSON | Only exact `None`, `bool`, `int`, finite `float`, `str`, `dict`, `list`, `tuple` are captured. Anything else is never passed to `str()`, `repr()` or iteration. Nested: the value becomes `"[unsupported]"` and the state is not changed. Whole payload: state `unavailable`, payload `''` | Calling `str()` on an application object can run application code and can leak fields. A marker never stands in for a whole payload |
+| P6 | Error payload | `{"type": ..., "message": ...}` from the span's first `exception` event, bounded by the same cap. **No stack trace is exported** (not in the payload, not in events). Switch `CaptureConfig.capture_errors` (default `True`); when off: `error_state = disabled`, and `exception.message` and the status description are not exported either. `error_type` is still sent | Exception messages can carry user data, so they need the same switch as inputs and outputs. `TraceSession` already records the message as `"<Type> during <operation>"` |
+| P7 | Transport and retry | `DurableSpanExporter` posts to `/api/v1/traces` only. `https` is required unless the host is loopback. Requests are split at 256 spans and 4 MiB (the route's limits). Success = HTTP 202 with a matching span count. **HTTP 503 is retried up to 3 times with exponential backoff (1 s, 2 s, 4 s) on the exporter's own background thread, then dropped and counted** (`failures`, `dropped_spans`; `retries` counts the attempts). **413 and 422 are never retried**; neither is any other status or a connection error. `export()` never waits for a backoff. At most 8 requests wait for a retry; further ones are dropped and counted. `force_flush(timeout)` waits for pending retries up to its timeout; `shutdown()` gives them up | 503 is the ingest's "buffer unavailable, retry the whole batch" (§8.3), and a resent batch is harmless under option A dedup (§3). A 413 or 422 fails the same way again. Payloads over plain HTTP to another machine would expose prompts. No API key until action 6. Why its own thread: see §9.5 |
+| P8 | Non-payload bounds | Per span: attributes 32 KiB serialized, events 32 KiB and 32 events, strings 1,024 characters, lists 32 items. Attributes past the budget are dropped and counted in `debugger.export.dropped_attributes`. An attribute whose **key** is a secret name is sent as `"[redacted]"` | Needed for the guarantee in §9.3 |
+| P9 | Server-side cap | **Approved, not implemented** (separate PR after `feat/payload-capture`): the ingest rejects any payload over 131,072 bytes with 422 and never truncates it itself; `trace-protocol.md` §4.1 is updated in that PR | The server did not capture the value and cannot cut JSON safely |
+
+### 9.2 State mapping (as implemented)
+
+| Condition, checked in this order | State | Payload |
+|---|---|---|
+| Capture switched off for this kind | `disabled` | `''` |
+| Never set, capture failed, the whole value is not JSON (P5), or the text is over the hard cap | `unavailable` | `''` |
+| Something was cut: a string, dropped items, depth, node count, a cycle, an oversized integer | `truncated` | the cut JSON (`''` if nothing fit) |
+| At least one secret field was replaced | `redacted` | JSON with `"[redacted]"` values |
+| Otherwise | `captured` | the JSON |
+
+For errors: no exception event → `unavailable`; `capture_errors` off → `disabled`.
+
+### 9.3 Size math against the Kafka record limit
+
+The producer rejects a record over `max_request_size` = 1,048,576 bytes (§8.3: 413, nothing published).
+
+- A payload is already JSON text. Stored inside the `SpanRecord` JSON it is a JSON *string*, so every `"` and `\` in it is escaped again. Worst case: **2 ×** its size.
+- Three payloads at the hard cap: 3 × 2 × 131,072 = **786,432 bytes**.
+- Attributes and events: at most 2 × (32 + 32) KiB = 131,072 bytes (list values are stringified by the ingest, which can double them).
+- Fixed fields (IDs, name, status, model, times): under 16 KiB.
+- Worst case total ≈ 934,000 bytes, about 110 KiB under the limit.
+
+**Measured (2026-11-16):** a span with input, output and error all cut at 131,072 bytes of `"` characters, plus attributes filled to their budget, is a Kafka record of **802,032 bytes** by aiokafka's own size estimate (the case in `tests/integration/test_durable_payloads.py`).
+
+At the default cap, three payloads are at most 3 × 2 × 16,384 = 98,304 bytes per span.
+
+### 9.4 What this does not cover
+
+- **Example agents send no input or output payloads yet.** `TraceSession.wrap_callable` records no arguments or results, and the agents' results are application objects (P5 would mark them `unavailable`). Pointed at `/api/v1/traces` they export error payloads only. The agents need explicit capture calls with plain data.
+- **P9** (server-side cap) is not implemented; until then a non-SDK client can send a payload of any size that fits the span limit.
+- **OpenTelemetry's 128-attribute limit** evicts the *oldest* attributes first, and the captured payloads are attributes. A span with more than about 115 application attributes can lose its payload; it is then exported as `unavailable`.
+- **`execution_mode`** is fed from `debugger.execution.mode` (the only attribute that exists). §7 still lists the attribute names as open. `display_label`, token counts, cost and OTel links are not sent.
+- Redaction is by field name. A secret inside prose (a prompt, an exception message) is not found.
+- `investigator.md` was updated on 2026-11-16 (its D7): a `redacted` payload is read like `captured`, except its `[redacted]` values.
+
+### 9.5 Retry and the agent's thread (P7)
+
+**Simply:** the first attempt is made where the span batch is exported. Only a 503 is handed to a second, exporter-owned thread, which waits and resends. Nothing the agent calls waits for those sleeps.
+
+- **Why the exporter needs its own thread.** In OpenTelemetry SDK 1.45.1 (the locked version), `BatchSpanProcessor.force_flush()` runs the export on the **caller's** thread and ignores its timeout, and `SimpleSpanProcessor` exports on the thread that ended the span. A retry loop inside `export()` would therefore sleep on the agent's thread.
+- **The one place the agent waits.** `TraceSession` calls `exporter.force_flush(10 s)` once when the run ends, so a short CLI run does not exit before a pending retry is sent. That wait is bounded at 10 s and happens after the agent's work. The full retry schedule is 7 s of backoff plus request time. Other callers choose their own timeout, or none.
+- **Still on the calling thread:** the first attempt, bounded by the 5 s HTTP timeout. With `BatchSpanProcessor` that is its worker thread during a run.
+- **Backoff is counted from the failed attempt**, so several queued requests do not add up each other's waits.
+- **`Retry-After` is not read.** The ingest sends `Retry-After: 1`, which the first delay already matches.

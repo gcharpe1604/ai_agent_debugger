@@ -11,6 +11,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Status, StatusCode, format_span_id, format_trace_id
 
+from .durable import DURABLE_PATH, DurableSpanExporter
 from .transport import HttpSpanExporter, LOCAL_ENDPOINT
 
 
@@ -18,10 +19,14 @@ class TraceSession:
     """A CLI-owned run; no global provider replacement or argument/payload capture.
 
     No endpoint means no instrumentation. HTTP errors remain telemetry and never
-    replace the agent's result. This implementation exports only to local capture.
+    replace the agent's result. The endpoint path picks the exporter: the local
+    capture route (local-1, metadata only) or /api/v1/traces (protocol "1").
+    `capture` applies to the durable exporter only. Wrapped calls still record
+    no arguments or results on either path.
     """
 
-    def __init__(self, service_name, *, model=None, provider=None, endpoint=None, local_dependencies=False, execution_mode="live"):
+    def __init__(self, service_name, *, model=None, provider=None, endpoint=None, local_dependencies=False, execution_mode="live", capture=None):
+        self.capture = capture
         self.endpoint = endpoint if endpoint is not None else os.environ.get("AGENT_DEBUGGER_ENDPOINT")
         self.service_name, self.model, self.provider_name = service_name, model, provider
         self.local_dependencies = local_dependencies
@@ -42,7 +47,10 @@ class TraceSession:
     def __enter__(self):
         if not self.endpoint:
             return self
-        self.exporter = HttpSpanExporter(self.endpoint)
+        if urlsplit(self.endpoint).path == DURABLE_PATH:
+            self.exporter = DurableSpanExporter(self.endpoint, self.capture)
+        else:
+            self.exporter = HttpSpanExporter(self.endpoint)
         self.provider = TracerProvider(resource=Resource.create({"service.name": self.service_name}))
         self.provider.add_span_processor(BatchSpanProcessor(self.exporter, max_queue_size=256, max_export_batch_size=64, schedule_delay_millis=1000))
         self.tracer = self.provider.get_tracer("ai_agent_debugger_sdk")
@@ -63,6 +71,8 @@ class TraceSession:
         try:
             self._root_context.__exit__(kind, error, traceback)
             flushed = self.provider.force_flush(timeout_millis=10000)
+            # The durable exporter may still be retrying a 503 on its own thread.
+            flushed = self.exporter.force_flush(timeout_millis=10000) and flushed
             delivered = flushed and not self.exporter.failures
             print(f"Trace {self.trace_id}: {'exported' if delivered else 'delivery failed'} ({self.exporter.exported_spans} acknowledged spans)", file=sys.stderr)
         finally:

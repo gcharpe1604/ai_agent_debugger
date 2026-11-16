@@ -1,6 +1,6 @@
 # Investigator (OJT MVP): PROPOSAL
 
-**Status:** PROPOSAL, 2026-11-16. Nothing here is a decision until the user accepts it (§12). Decided so far: D1 (user decision 2026-11-16). No code exists; `backend/src/agent_debugger_api/analysis/*` is still 0-byte scaffold.
+**Status:** PROPOSAL, 2026-11-16. Nothing here is a decision until the user accepts it (§12). Decided so far: D1 and D7 (user decisions 2026-11-16). No code exists; `backend/src/agent_debugger_api/analysis/*` is still 0-byte scaffold.
 **Scope:** handoff action 8, smallest reliable version: one provider call per analysis, direct mode only, trace evidence only.
 **Sources read:** `analysis-engine.md`, `PRD.md`, `LLD.md` §9–10, `database.md` §4.3–4.5, `handoff.md`, `contracts/{span_record,interfaces}.py`, `ingest/schemas.py` (on `feat/durable-ingest`), SDK `session.py`/`transport.py`, the four agents' `cli.py`, all 39 `ground_truth/*` files.
 **Not run:** no scenario was executed for this doc. Every statement about what a scenario's trace contains is derived from reading code and is marked as an assumption (§10).
@@ -11,7 +11,7 @@ Markers used below: **[A]** = assumption, **[C]** = conflicts with or is missing
 
 ## 1. The constraint that shapes everything
 
-Today's telemetry is metadata only. The SDK exporter whitelists 10 attributes (`sdk/python/src/ai_agent_debugger_sdk/transport.py:16`) and exports no payloads; the durable route (branch `feat/durable-ingest`, PR #11, not on `main` when this was written) accepts payloads but nothing sends them (handoff action 7).
+Today's telemetry is metadata only. The SDK exporter whitelists 10 attributes (`sdk/python/src/ai_agent_debugger_sdk/transport.py:16`) and exports no payloads; the durable route (branch `feat/durable-ingest`, PR #11, not on `main` when this was written) accepts payloads but nothing sends them (handoff action 7). *Update 2026-11-16: the SDK can send payloads on the durable path (branch `feat/payload-capture`, `clickhouse-span-record.md` §9); the example agents still record no inputs or outputs.*
 
 What a span carries today: name, operation type, status code, parent, times, `debugger.step`, `debugger.attempt`, `debugger.retry_of`, `debugger.result.status` (root only), `http.response.status_code`, and an `exception` event with `exception.type` and a generic message (`"<Type> during <span name>"`, `session.py:86`).
 
@@ -68,7 +68,7 @@ Rendered span:
 | `model`, `provider`, token counts | record | omitted when None |
 | `attributes` | record | allowlist: `debugger.*`, `http.response.status_code`; values cut to 256 chars **[P]** |
 | `events[]` | record | max 16 per span **[P]**; each has `index`, `name`, `offset_ms`, `attributes` |
-| `input`, `output`, `error` | payload + state | `{state, excerpt, full_length}`; `excerpt` only when state is `captured` or `truncated` |
+| `input`, `output`, `error` | payload + state | `{state, excerpt, full_length}`; `excerpt` only when state is `captured`, `truncated` or `redacted`. A `redacted` payload is read like `captured`, except that its `[redacted]` values are markers, not recorded content (D7) |
 
 Event order is fixed by the builder: `(time, name, original position)`. An event is cited as `(span_id, event_index)` **[C3]**.
 
@@ -185,7 +185,7 @@ A candidate that fails any rule is dropped as a whole. First failing rule wins.
 | R2 | span is conflicted → `content_hash` given and matches one version | `ambiguous_version` |
 | R3 | `field = "event"` → `event_index` exists on that span | `unknown_event` |
 | R4 | `field = "attribute"` → `key` exists on that span | `unknown_field` |
-| R5 | cited field is recorded: not None/empty; a payload field must have state `captured` or `truncated` | `field_not_recorded` |
+| R5 | cited field is recorded: not None/empty; a payload field must have state `captured`, `truncated` or `redacted`; a `quote` that contains the marker `[redacted]` cites a value that was not recorded (D7) | `field_not_recorded` |
 | R6 | `quote`, when given, is an exact substring of the cited value as rendered in the snapshot | `quote_mismatch` |
 | R7 | each relation exists: `parent_of` in the parent index, `retry_of` in `retry_of_span_id`, `link` in `links` | `unknown_relationship` |
 | R8 | `suspicious_span_id`, when given, has at least one evidence ref on that same span | `unsupported_suspect` |
@@ -303,7 +303,7 @@ All unit tests use `InMemoryTraceStore` and `ScriptedProvider`; none needs Kafka
 2. Spans are in tree pre-order with siblings by `(started_at, span_id)`; arrival order (`received_at`) has no effect.
 3. Orphan, multiple roots, no root and a parent cycle are each reported in `completeness`, and the build terminates.
 4. A conflicted span renders once per version, each with its `content_hash`.
-5. Payload state `disabled`/`unavailable`/`redacted` → no excerpt; `captured` longer than the limit → head + tail excerpt with the omitted count.
+5. Payload state `disabled`/`unavailable` → no excerpt; `redacted` → excerpt like `captured`, with its `[redacted]` values in place (D7); `captured` longer than the limit → head + tail excerpt with the omitted count.
 6. Over the span limit: non-decisive OK leaves collapse into rollups; every `ERROR` span, its ancestors, all retry-group members and the root are still rendered.
 7. Over the size limit after all reductions → `input_too_large`, provider not called.
 8. Each reduction appears in `completeness.reductions`.
@@ -327,7 +327,7 @@ All unit tests use `InMemoryTraceStore` and `ScriptedProvider`; none needs Kafka
 20. R2: conflicted span cited without a hash → `ambiguous_version`; with a wrong hash → same; with the right hash → kept.
 21. R3: `event_index` out of range → `unknown_event`.
 22. R4: attribute key not on the span → `unknown_field`.
-23. R5: payload cited with state `unavailable` → `field_not_recorded`; `error_type` cited when empty → same.
+23. R5: payload cited with state `unavailable` → `field_not_recorded`; `error_type` cited when empty → same; a `redacted` payload quoted outside its markers → kept; a quote containing `[redacted]` → `field_not_recorded`.
 24. R6: quote differing by one character → `quote_mismatch`; quote taken from the omitted middle of a truncated payload → `quote_mismatch`.
 25. R7: `retry_of` relation between unrelated spans → `unknown_relationship`.
 26. R8: suspect with no evidence on itself → `unsupported_suspect`.
@@ -405,6 +405,7 @@ All unit tests use `InMemoryTraceStore` and `ScriptedProvider`; none needs Kafka
 | D4 | Skip the provider call when a trace has no `ERROR` span, no structural warning and no payloads? | No for now: one code path, and R9/R10 already stop ungrounded output |
 | D5 | Limits in §3.2 and the category enum in §5 | Accept as starting values; revisit after the first live run |
 | D6 | Scenario set in §8.2 | Accept; add LG-08 and RP-09 after their traces are inspected |
+| D7 | How is a payload with state `redacted` read? | **DECIDED** (user decision 2026-11-16): a redacted payload is readable like `captured`, except the `[redacted]` values (§3.1, R5, tests 5 and 23). Redaction is per field (`clickhouse-span-record.md` §9 P1), so the rest of the payload is real |
 
 ## 13. Suggested build order
 
