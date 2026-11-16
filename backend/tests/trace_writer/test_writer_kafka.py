@@ -91,6 +91,14 @@ class RecordingStore:
 
 
 class WriterKafkaTests(ClickHouseTestCase, unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        # The writer gets its own ClickHouse session: the test polls on self.client
+        # while the writer inserts, and one session cannot run two queries at once.
+        # In setUp, not asyncSetUp: the blocking connect stays out of the event loop.
+        self.writer_client = clickhouse_client()
+        self.addCleanup(self.writer_client.close)
+        self.store = ClickHouseTraceStore(self.writer_client, table=self.table)
+
     async def asyncSetUp(self):
         suffix = uuid.uuid4().hex[:8]
         self.topic = f"scratch.writer.{suffix}"
@@ -106,11 +114,6 @@ class WriterKafkaTests(ClickHouseTestCase, unittest.IsolatedAsyncioTestCase):
                 raise RuntimeError(f"Kafka not reachable at {BOOTSTRAP}") from exc
             raise unittest.SkipTest(f"Kafka not reachable at {BOOTSTRAP} ({type(exc).__name__})") from None
         self.addAsyncCleanup(self._admin, lambda a: a.delete_topics([self.topic, self.dlq]))
-        # The writer gets its own ClickHouse session: the test polls on self.client
-        # while the writer inserts, and one session cannot run two queries at once.
-        self.writer_client = clickhouse_client()
-        self.addCleanup(self.writer_client.close)
-        self.store = ClickHouseTraceStore(self.writer_client, table=self.table)
 
     # Kafka helpers
     @staticmethod
