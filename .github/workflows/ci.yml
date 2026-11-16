@@ -30,8 +30,9 @@ jobs:
   integration:
     name: Backend + SDK integration
     runs-on: ubuntu-latest
-    # Same image and dev credentials as compose.yaml; tests/clickhouse uses
-    # throwaway scratch databases on it.
+    # Same images as compose.yaml. tests/clickhouse uses throwaway scratch
+    # databases; tests/ingest creates and deletes its own scratch topics, so
+    # Kafka needs no kafka-init step here.
     services:
       clickhouse:
         image: clickhouse/clickhouse-server:26.8
@@ -48,6 +49,34 @@ jobs:
           --health-timeout 5s
           --health-retries 12
           --health-start-period 10s
+      # Single-node KRaft like compose.yaml, but one client listener advertised
+      # as localhost:9092: the tests run on the runner host, not in a container.
+      kafka:
+        image: apache/kafka:4.3.2
+        env:
+          CLUSTER_ID: "TqBMhjDQRcCSjbFREjzraQ"
+          KAFKA_NODE_ID: 1
+          KAFKA_PROCESS_ROLES: broker,controller
+          KAFKA_CONTROLLER_QUORUM_VOTERS: 1@localhost:9093
+          KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://localhost:9093
+          KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+          KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+          KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+          KAFKA_MIN_INSYNC_REPLICAS: 1
+          KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+        ports:
+          - 9092:9092
+        options: >-
+          --health-cmd "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092"
+          --health-interval 5s
+          --health-timeout 10s
+          --health-retries 24
+          --health-start-period 15s
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -57,10 +86,12 @@ jobs:
           uv run --project backend --locked
           --with "opentelemetry-api>=1,<2" --with "opentelemetry-sdk>=1,<2"
           python -B -m unittest tests/integration/test_telemetry.py
-      - name: Backend unit tests (ClickHouse tests required, not skipped)
+      - name: Backend unit tests (ClickHouse and Kafka tests required, not skipped)
         working-directory: backend
         env:
           CLICKHOUSE_REQUIRED: "1"
+          KAFKA_REQUIRED: "1"
+          KAFKA_BOOTSTRAP_SERVERS: localhost:9092
         run: uv run --locked python -B -m unittest discover -s tests -t . -v
 
   frontend:
