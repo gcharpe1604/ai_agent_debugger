@@ -63,65 +63,9 @@ Everything below follows from those five.
 
 ---
 
-## 2. DDL (decided; not applied)
+## 2. DDL (decided)
 
-The writer's schema bootstrap must run `CREATE DATABASE IF NOT EXISTS telemetry`; do not rely on `CLICKHOUSE_DB`, which the image only applies on an empty volume.
-
-```sql
--- DECISION 2026-11-12. Not applied to `telemetry`. Parsed and created in a scratch database on 2026-11-13 (see header).
-CREATE TABLE IF NOT EXISTS telemetry.telemetry_spans
-(
-    project_id            UUID,
-    trace_id              FixedString(32),
-    span_id               FixedString(16),
-    parent_span_id        Nullable(FixedString(16)),
-    content_hash          FixedString(64),
-
-    service_name          LowCardinality(String),
-    operation_type        LowCardinality(String),
-    span_name             String,
-    display_label         String DEFAULT '',
-    execution_mode        LowCardinality(String) DEFAULT '',
-    graph_node_id         String DEFAULT '',
-    graph_node_parent_id  String DEFAULT '',
-
-    status_code           Enum8('UNSET' = 0, 'OK' = 1, 'ERROR' = 2),
-    status_description    String DEFAULT '',
-    error_type            LowCardinality(String) DEFAULT '',
-    started_at            DateTime64(9, 'UTC'),
-    ended_at              DateTime64(9, 'UTC'),
-    duration_ns           UInt64,
-    attempt               Nullable(UInt16),
-    retry_of_span_id      Nullable(FixedString(16)),
-
-    model                 LowCardinality(Nullable(String)),
-    provider              LowCardinality(Nullable(String)),
-    input_tokens          Nullable(UInt32),
-    output_tokens         Nullable(UInt32),
-    total_tokens          Nullable(UInt32),
-    cost                  Nullable(Decimal(18, 9)),
-
-    input_state           Enum8('captured' = 1, 'disabled' = 2, 'redacted' = 3, 'truncated' = 4, 'unavailable' = 5),
-    input_payload         String DEFAULT '' CODEC(ZSTD(3)),
-    output_state          Enum8('captured' = 1, 'disabled' = 2, 'redacted' = 3, 'truncated' = 4, 'unavailable' = 5),
-    output_payload        String DEFAULT '' CODEC(ZSTD(3)),
-    error_state           Enum8('captured' = 1, 'disabled' = 2, 'redacted' = 3, 'truncated' = 4, 'unavailable' = 5),
-    error_payload         String DEFAULT '' CODEC(ZSTD(3)),
-
-    attributes            Map(String, String),
-    events                Array(Tuple(name LowCardinality(String), time DateTime64(9, 'UTC'), attributes Map(String, String))),
-    links                 Array(Tuple(trace_id FixedString(32), span_id FixedString(16), relation LowCardinality(String))),
-
-    protocol_version      LowCardinality(String),
-    received_at           DateTime64(3, 'UTC'),
-    persisted_at          DateTime64(3, 'UTC') DEFAULT now64(3),
-    kafka_partition       UInt16,
-    kafka_offset          UInt64
-)
-ENGINE = ReplacingMergeTree(received_at)                 -- option A (§3)
-PRIMARY KEY (project_id, trace_id, span_id)              -- index prefix; keeps the hash out of memory
-ORDER BY (project_id, trace_id, span_id, content_hash);  -- = dedup key; no PARTITION BY (P0, §4)
-```
+The DDL lives in [`backend/src/agent_debugger_api/trace_writer/schema.sql`](../../backend/src/agent_debugger_api/trace_writer/schema.sql) (moved out of this doc 2026-11-16, user request). `trace_writer.schema.ensure_schema(client, database)` runs it: `CREATE DATABASE IF NOT EXISTS` then `CREATE TABLE IF NOT EXISTS <database>.telemetry_spans`. The writer calls it at startup, so it does not rely on `CLICKHOUSE_DB`, which the image only applies on an empty volume. The test harness creates its scratch databases from the same file, so tests and the writer cannot drift apart. The table definition is unchanged from the 2026-11-12 decision: `ReplacingMergeTree(received_at)`, `PRIMARY KEY (project_id, trace_id, span_id)`, `ORDER BY (project_id, trace_id, span_id, content_hash)`, no `PARTITION BY`.
 
 Notes on the DDL:
 - **`PRIMARY KEY` shorter than `ORDER BY`.** Allowed because the primary key is a prefix. The in-memory index holds only the identity, while the full `ORDER BY` still defines what ReplacingMergeTree treats as "the same row".
