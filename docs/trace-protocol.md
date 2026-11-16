@@ -83,6 +83,44 @@ Conceptual shape:
 
 The authenticated project context is added/validated server-side.
 
+### 4.1 Protocol "1" request fields (user decision 2026-11-16)
+
+Field names and defaults for `POST /api/v1/traces` with `protocol_version: "1"`, as implemented in `backend/src/agent_debugger_api/ingest/schemas.py`. Unknown fields are rejected.
+
+**Envelope:** `protocol_version` (the string `"1"`), `spans` (list of spans).
+
+**Span, required:**
+
+| Field | Type |
+|---|---|
+| `trace_id` | 32 lowercase hex characters |
+| `span_id` | 16 lowercase hex characters |
+| `name` | non-empty string |
+| `operation_type` | `run`, `agent`, `model`, `retrieval`, `tool`, `api`, `state` or `custom` |
+| `start_time`, `end_time` | integer nanoseconds since the Unix epoch (not strings) |
+
+**Span, optional (default in brackets):**
+
+| Field | Type |
+|---|---|
+| `parent_span_id` | 16 lowercase hex characters or `null` [`null`] |
+| `status` | `{"code": "UNSET" \| "OK" \| "ERROR", "description": string}` [`{"code": "UNSET", "description": ""}`] |
+| `service_name`, `display_label`, `execution_mode`, `graph_node_id`, `graph_node_parent_id`, `error_type` | string [`""`] |
+| `attempt` | integer 0–65535 [`null`] |
+| `retry_of_span_id` | 16 lowercase hex characters [`null`] |
+| `model`, `provider` | string [`null`] |
+| `input_tokens`, `output_tokens`, `total_tokens` | integer 0–4294967295 [`null`] |
+| `cost` | non-negative decimal string with at most 9 digits before and 9 after the point, e.g. `"0.00125"`; never a number [`null`] |
+| `input_state`, `output_state`, `error_state` | `captured`, `disabled`, `redacted`, `truncated` or `unavailable` [`"unavailable"`] |
+| `input_payload`, `output_payload`, `error_payload` | string [`""`] |
+| `attributes` | object of string keys to a string, number, boolean or list of those [`{}`] |
+| `events` | list of `{"name": string, "time": integer ns, "attributes": object}` [`[]`] |
+| `links` | list of `{"trace_id", "span_id", "relation": string}` [`[]`] |
+
+**Payload-state default:** a payload state the client does not send is `"unavailable"` (no payload was produced or captured). The server never guesses `captured`, `disabled` or any other state. A non-empty payload with a `disabled` or `unavailable` state is rejected.
+
+**Set by the server, rejected from the client:** `project_id`, `received_at`, and a per-span `protocol_version`.
+
 ## 5. Required Span Fields
 
 Each ended span requires:
