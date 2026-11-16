@@ -71,6 +71,8 @@ class TraceSession:
         try:
             self._root_context.__exit__(kind, error, traceback)
             flushed = self.provider.force_flush(timeout_millis=10000)
+            # The durable exporter may still be retrying a 503 on its own thread.
+            flushed = self.exporter.force_flush(timeout_millis=10000) and flushed
             delivered = flushed and not self.exporter.failures
             print(f"Trace {self.trace_id}: {'exported' if delivered else 'delivery failed'} ({self.exporter.exported_spans} acknowledged spans)", file=sys.stderr)
         finally:

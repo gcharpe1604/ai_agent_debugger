@@ -5,16 +5,19 @@ sends payloads: the capture attributes SpanHandle writes (`debugger.input`,
 `debugger.output` and their flags) become `input_*` / `output_*` payload fields
 with a state, and the first exception event becomes the error payload.
 
-Policy is docs/proposals/clickhouse-span-record.md §9. No API key yet (handoff
-action 6); plain http is accepted for loopback hosts only.
+Policy is docs/proposals/clickhouse-span-record.md §9 (user decision
+2026-11-16). No API key yet (handoff action 6); plain http is accepted for
+loopback hosts only.
 """
 
 import http.client
 import json
 import math
+import queue
 import re
 import ssl
 import threading
+import time
 from urllib.parse import urlsplit
 
 from opentelemetry.sdk.trace.export import SpanExporter, SpanExportResult
@@ -31,6 +34,10 @@ EVENT_BUDGET = 32 * 1024
 MAX_EVENTS = 32
 MAX_STRING = 1024
 MAX_LIST_ITEMS = 32
+# Seconds waited before each retry of a 503: three retries, doubling.
+RETRY_DELAYS = (1.0, 2.0, 4.0)
+# Requests that may wait for a retry at once; each body is at most 4 MiB.
+MAX_PENDING_RETRIES = 8
 
 _OPERATIONS = frozenset({"run", "agent", "model", "retrieval", "tool", "api", "state", "custom"})
 _LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
@@ -43,6 +50,7 @@ _CAPTURE_KEYS = frozenset(
     for suffix in ("", ".disabled", ".capture_error", *(f".{flag}" for flag in _FLAGS))
 )
 _SKIP = object()
+_DELIVERED, _RETRY, _REJECTED = "delivered", "retry", "rejected"
 
 
 def _text(value, limit):
@@ -217,6 +225,15 @@ class DurableSpanExporter(SpanExporter):
     `capture` supplies the error-capture switch, the limits for the error
     payload and the secret field names applied to attribute keys. Input and
     output payloads were already bounded and redacted when they were recorded.
+
+    Delivery: `export` makes one attempt on the calling thread. A 503 (the
+    ingest could not buffer the batch) hands the request to this exporter's own
+    daemon thread, which resends it after each of RETRY_DELAYS and then drops
+    it. Every other failure is dropped at once: a 413 or 422 fails the same way
+    again. `export` never waits for a backoff. Counters: `exported_spans`
+    (acknowledged), `retries`, `failures` (requests given up) and
+    `dropped_spans`. `force_flush` waits for pending retries up to its timeout;
+    `shutdown` gives them up.
     """
 
     def __init__(self, endpoint, capture=None):
@@ -232,28 +249,86 @@ class DurableSpanExporter(SpanExporter):
         self.host, self.port, self.path = url.hostname, url.port or (443 if self.secure else 80), url.path
         self.exported_spans = 0
         self.failures = 0
-        self.closed = False
-        self.lock = threading.Lock()
+        self.dropped_spans = 0
+        self.retries = 0
+        self.lock = threading.Lock()  # counters and retry bookkeeping; never held during a request
+        self._settled = threading.Condition(self.lock)
+        self._stop = threading.Event()
+        self._retry_queue = queue.SimpleQueue()
+        self._pending = 0  # requests waiting for, or in, a retry
+        self._worker = None
+
+    @property
+    def closed(self):
+        return self._stop.is_set()
 
     def export(self, spans):
+        if self._stop.is_set():
+            self._drop(len(spans))
+            return SpanExportResult.FAILURE
+        try:
+            bodies = encode_bodies(spans, self.capture)
+        except Exception:
+            # Fail open without logging captured content or exceptions.
+            self._drop(len(spans))
+            return SpanExportResult.FAILURE
+        delivered = True
+        for body, count in bodies:
+            outcome = self._post(body, count)
+            if outcome is _DELIVERED:
+                with self.lock:
+                    self.exported_spans += count
+                continue
+            delivered = False  # dropped, or not delivered yet: see the counters after force_flush
+            if outcome is not _RETRY or not self._schedule(body, count):
+                self._drop(count)
+        return SpanExportResult.SUCCESS if delivered else SpanExportResult.FAILURE
+
+    def _drop(self, count):
         with self.lock:
-            if self.closed:
-                self.failures += 1
-                return SpanExportResult.FAILURE
-            try:
-                bodies = encode_bodies(spans, self.capture)
-            except Exception:
-                # Fail open without logging captured content or exceptions.
-                self.failures += 1
-                return SpanExportResult.FAILURE
-            delivered = True
-            for body, count in bodies:
-                if self._post(body, count):
+            self.failures += 1
+            self.dropped_spans += count
+
+    def _schedule(self, body, count):
+        """Queue a request for the retry thread. False when shut down or the queue is full."""
+        with self.lock:
+            if self._stop.is_set() or self._pending >= MAX_PENDING_RETRIES:
+                return False
+            self._pending += 1
+            if self._worker is None:
+                self._worker = threading.Thread(
+                    target=self._retry_loop, name="AgentDebuggerExportRetry", daemon=True
+                )
+                self._worker.start()
+            # Inside the lock, so nothing is queued behind shutdown's stop marker.
+            self._retry_queue.put((body, count, time.monotonic()))
+        return True
+
+    def _retry_loop(self):
+        while True:
+            item = self._retry_queue.get()
+            if item is None:
+                return
+            body, count, failed_at = item
+            outcome = _RETRY
+            for delay in RETRY_DELAYS:
+                # Counted from the failed attempt, so queued requests do not add up each other's waits.
+                if self._stop.wait(max(0.0, failed_at + delay - time.monotonic())):
+                    break  # shut down: give up
+                with self.lock:
+                    self.retries += 1
+                outcome = self._post(body, count)
+                if outcome is not _RETRY:
+                    break
+                failed_at = time.monotonic()
+            with self._settled:
+                if outcome is _DELIVERED:
                     self.exported_spans += count
                 else:
                     self.failures += 1
-                    delivered = False
-            return SpanExportResult.SUCCESS if delivered else SpanExportResult.FAILURE
+                    self.dropped_spans += count
+                self._pending -= 1
+                self._settled.notify_all()
 
     def _post(self, body, count):
         connection = None
@@ -267,18 +342,29 @@ class DurableSpanExporter(SpanExporter):
                 connection = http.client.HTTPConnection(self.host, self.port, timeout=5)
             connection.request("POST", self.path, body=body, headers={"Content-Type": "application/json"})
             response = connection.getresponse()
-            receipt = json.loads(response.read(65537))
+            answer = response.read(65537)
+            if response.status == 503:
+                return _RETRY
             # 202 = every span is in the ingestion buffer, not yet stored.
-            return response.status == 202 and receipt.get("spans") == count
+            if response.status == 202 and json.loads(answer).get("spans") == count:
+                return _DELIVERED
+            return _REJECTED
         except Exception:
-            return False
+            return _REJECTED
         finally:
             if connection:
                 connection.close()
 
     def shutdown(self):
         with self.lock:
-            self.closed = True
+            if self._stop.is_set():
+                return
+            self._stop.set()  # wakes a retry that is waiting; it is dropped and counted
+            self._retry_queue.put(None)
+        # Lets the counters settle. A request already on the wire gets at most 1 s.
+        self.force_flush(timeout_millis=1000)
 
     def force_flush(self, timeout_millis=30000):
-        return True  # No internal queue: the host's BatchSpanProcessor owns flushing.
+        """True when no retry is pending. `export` itself has no queue."""
+        with self._settled:
+            return self._settled.wait_for(lambda: self._pending == 0, timeout_millis / 1000)

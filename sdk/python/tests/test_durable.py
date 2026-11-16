@@ -5,6 +5,7 @@ Spans come from a real provider. HTTP goes to a stub server on loopback only.
 
 import json
 import threading
+import time
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -278,9 +279,11 @@ class _Collector(BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers["Content-Length"]))
         self.server.requests.append((self.path, dict(self.headers), body))
+        self.server.times.append(time.monotonic())
         spans = len(json.loads(body)["spans"])
         answer = json.dumps({"status": "accepted", "protocol_version": "1", "spans": spans}).encode()
-        self.send_response(self.server.status)
+        # Scripted statuses first, then the default.
+        self.send_response(self.server.script.pop(0) if self.server.script else self.server.status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(answer)))
         self.end_headers()
@@ -293,7 +296,7 @@ class _Collector(BaseHTTPRequestHandler):
 @pytest.fixture
 def collector():
     server = ThreadingHTTPServer(("127.0.0.1", 0), _Collector)
-    server.requests, server.status = [], 202
+    server.requests, server.status, server.script, server.times = [], 202, [], []
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
     yield server
@@ -329,16 +332,119 @@ def test_export_posts_a_protocol_1_envelope_and_counts_acknowledged_spans(collec
     assert "project_id" not in child and "received_at" not in child
 
 
-def test_rejected_batch_is_a_failure_and_never_raises(collector):
-    collector.status = 503
-    exporter = DurableSpanExporter(f"http://127.0.0.1:{collector.server_port}/api/v1/traces")
-    assert exporter.export(finished_spans(2)) is SpanExportResult.FAILURE
-    assert (exporter.exported_spans, exporter.failures) == (0, 1)
-
-
 def test_unreachable_collector_is_a_failure_and_never_raises():
     exporter = DurableSpanExporter("http://127.0.0.1:9/api/v1/traces")
     assert exporter.export(finished_spans(1)) is SpanExportResult.FAILURE
+    assert (exporter.failures, exporter.dropped_spans, exporter.retries) == (1, 1, 0)
+
+
+# --- retry on 503 ---------------------------------------------------------
+
+
+@pytest.fixture
+def fast_retries(monkeypatch):
+    monkeypatch.setattr(durable, "RETRY_DELAYS", (0.05, 0.1, 0.2))
+
+
+def endpoint(collector):
+    return f"http://127.0.0.1:{collector.server_port}/api/v1/traces"
+
+
+def test_retry_schedule_is_three_retries_with_exponential_backoff():
+    assert durable.RETRY_DELAYS == (1.0, 2.0, 4.0)
+
+
+def test_503_is_retried_on_the_background_thread_until_accepted(collector, fast_retries):
+    collector.script = [503, 503]
+    exporter = DurableSpanExporter(endpoint(collector))
+    # Not delivered yet when export returns: the retry is pending.
+    assert exporter.export(finished_spans(2)) is SpanExportResult.FAILURE
+    assert exporter.force_flush(timeout_millis=5000) is True
+    assert (exporter.exported_spans, exporter.failures, exporter.dropped_spans) == (2, 0, 0)
+    assert exporter.retries == 2
+    bodies = [body for _, _, body in collector.requests]
+    assert len(bodies) == 3 and len(set(bodies)) == 1  # the same batch, resent whole
+
+
+def test_503_is_dropped_and_counted_after_three_retries(collector, fast_retries):
+    collector.status = 503
+    exporter = DurableSpanExporter(endpoint(collector))
+    assert exporter.export(finished_spans(2)) is SpanExportResult.FAILURE
+    assert exporter.force_flush(timeout_millis=5000) is True
+    assert len(collector.requests) == 4  # first attempt + 3 retries, then no more
+    assert (exporter.exported_spans, exporter.failures, exporter.dropped_spans) == (0, 1, 2)
+    assert exporter.retries == 3
+    time.sleep(0.3)
+    assert len(collector.requests) == 4
+
+
+def test_backoff_grows_between_retries(collector, fast_retries):
+    collector.status = 503
+    exporter = DurableSpanExporter(endpoint(collector))
+    exporter.export(finished_spans(1))
+    assert exporter.force_flush(timeout_millis=5000) is True
+    gaps = [later - earlier for earlier, later in zip(collector.times, collector.times[1:])]
+    assert len(gaps) == 3
+    for gap, delay in zip(gaps, durable.RETRY_DELAYS):
+        assert gap >= delay - 0.01
+    assert gaps[2] > gaps[0]
+
+
+@pytest.mark.parametrize("status", [413, 422, 400, 500, 502], ids=str)
+def test_other_rejections_are_dropped_at_once_and_never_retried(collector, fast_retries, status):
+    collector.status = status
+    exporter = DurableSpanExporter(endpoint(collector))
+    assert exporter.export(finished_spans(2)) is SpanExportResult.FAILURE
+    assert exporter.force_flush(timeout_millis=1000) is True
+    time.sleep(0.3)
+    assert len(collector.requests) == 1
+    assert (exporter.failures, exporter.dropped_spans, exporter.retries) == (1, 2, 0)
+
+
+def test_export_returns_without_waiting_for_the_backoff(collector, monkeypatch):
+    monkeypatch.setattr(durable, "RETRY_DELAYS", (30.0, 30.0, 30.0))
+    collector.status = 503
+    exporter = DurableSpanExporter(endpoint(collector))
+    started = time.monotonic()
+    assert exporter.export(finished_spans(3)) is SpanExportResult.FAILURE
+    assert time.monotonic() - started < 2
+    assert exporter.force_flush(timeout_millis=100) is False  # still pending
+    # Shutdown gives the pending batch up instead of waiting 30 s for it.
+    exporter.shutdown()
+    assert time.monotonic() - started < 4
+    assert (exporter.exported_spans, exporter.failures, exporter.dropped_spans) == (0, 1, 3)
+    assert len(collector.requests) == 1
+    assert exporter.export(finished_spans(1)) is SpanExportResult.FAILURE
+
+
+def test_retries_do_not_run_on_the_thread_that_called_export(collector, fast_retries, monkeypatch):
+    seen = []
+    original = DurableSpanExporter._post
+
+    def recording_post(self, body, count):
+        seen.append(threading.current_thread())
+        return original(self, body, count)
+
+    monkeypatch.setattr(DurableSpanExporter, "_post", recording_post)
+    collector.script = [503]
+    exporter = DurableSpanExporter(endpoint(collector))
+    exporter.export(finished_spans(1))
+    assert exporter.force_flush(timeout_millis=5000) is True
+    assert len(seen) == 2
+    assert seen[0] is threading.current_thread() and seen[1] is not threading.current_thread()
+    assert seen[1].daemon is True
+
+
+def test_pending_retries_are_bounded(collector, monkeypatch):
+    monkeypatch.setattr(durable, "RETRY_DELAYS", (30.0, 30.0, 30.0))
+    monkeypatch.setattr(durable, "MAX_PENDING_RETRIES", 1)
+    collector.status = 503
+    exporter = DurableSpanExporter(endpoint(collector))
+    exporter.export(finished_spans(2))  # waits for its retry
+    exporter.export(finished_spans(3))  # no room: dropped now
+    assert (exporter.failures, exporter.dropped_spans) == (1, 3)
+    exporter.shutdown()
+    assert (exporter.failures, exporter.dropped_spans) == (2, 5)
 
 
 def test_batch_is_split_so_no_request_exceeds_the_body_limit(collector, monkeypatch):
@@ -373,6 +479,15 @@ def test_trace_session_picks_the_exporter_from_the_endpoint_path(collector):
     assert json.loads(tool["error_payload"]) == {"type": "ValueError", "message": "ValueError during pay"}
     assert (tool["input_state"], tool["output_state"]) == ("unavailable", "unavailable")
     assert all(SECRET not in body.decode() for _, _, body in collector.requests)
+
+
+def test_trace_session_waits_for_a_pending_retry_when_the_run_ends(collector, fast_retries, capsys):
+    collector.script = [503]
+    with TraceSession("agent", endpoint=endpoint(collector)) as session:
+        session.wrap_callable(lambda: 1, "tool", "lookup")()
+    assert len(collector.requests) == 2
+    assert (session.exporter.exported_spans, session.exporter.failures) == (2, 0)
+    assert "exported (2 acknowledged spans)" in capsys.readouterr().err
 
 
 def test_trace_session_still_uses_the_local_exporter_for_the_local_route():
