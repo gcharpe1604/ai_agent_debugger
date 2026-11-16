@@ -30,7 +30,7 @@ READ_FORMATS = {"DateTime64": "int", "FixedString": "string"}
 NS_PER_MS = 1_000_000
 PERSISTED_AT_MS = 1_700_000_002_000  # supplied explicitly so the read is exact
 
-# Every column in the §2 DDL. The test fails if the table gains or loses one.
+# Every column in schema.sql (proposal §2). The test fails if the table gains or loses one.
 DDL_COLUMNS = {
     "project_id", "trace_id", "span_id", "parent_span_id", "content_hash",
     "service_name", "operation_type", "span_name", "display_label", "execution_mode",

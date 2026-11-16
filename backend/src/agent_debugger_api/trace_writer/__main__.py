@@ -7,6 +7,7 @@ from aiokafka import AIOKafkaConsumer, AIOKafkaProducer
 
 from .clickhouse_store import ClickHouseTraceStore
 from .consumer import run
+from .schema import TABLE, ensure_schema
 from .settings import WriterSettings
 
 
@@ -24,7 +25,8 @@ async def main() -> None:
         host=s.clickhouse_host, port=s.clickhouse_port,
         username=s.clickhouse_user, password=s.clickhouse_password,
     )
-    store = ClickHouseTraceStore(client, table=f"{s.clickhouse_database}.telemetry_spans")
+    ensure_schema(client, s.clickhouse_database)   # CREATE ... IF NOT EXISTS; safe on every start
+    store = ClickHouseTraceStore(client, table=f"{s.clickhouse_database}.{TABLE}")
 
     consumer = AIOKafkaConsumer(
         s.kafka_trace_topic,
