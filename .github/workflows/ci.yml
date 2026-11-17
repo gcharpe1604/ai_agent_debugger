@@ -85,8 +85,10 @@ jobs:
       - run: >
           uv run --project backend --locked
           --with "opentelemetry-api>=1,<2" --with "opentelemetry-sdk>=1,<2"
+          --with "PyYAML>=6,<7"
           python -B -m unittest tests/integration/test_telemetry.py
           tests/integration/test_durable_payloads.py
+          tests/integration/test_agent_payloads.py
       - name: Backend unit tests (ClickHouse and Kafka tests required, not skipped)
         working-directory: backend
         env:

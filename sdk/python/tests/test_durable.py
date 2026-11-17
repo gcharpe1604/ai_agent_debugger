@@ -495,3 +495,120 @@ def test_trace_session_still_uses_the_local_exporter_for_the_local_route():
 
     with TraceSession("agent", endpoint="http://127.0.0.1:9/api/v1/local/traces") as session:
         assert type(session.exporter) is HttpSpanExporter
+
+
+# --- TraceSession explicit payloads ---------------------------------------
+
+
+def session_spans(collector):
+    return {
+        span["name"]: span
+        for _, _, body in collector.requests
+        for span in json.loads(body)["spans"]
+    }
+
+
+def test_trace_session_records_explicit_payloads_on_the_durable_path(collector):
+    class Tools:
+        def invoke(self, tool, arguments, *, step_id, attempt):
+            return {"payment_id": "PAY-100"}
+
+    payloads = {
+        "invoke": (
+            lambda tool, arguments, *, step_id, attempt: {"tool": tool, "arguments": arguments, "api_key": SECRET},
+            lambda result: {"result": result},
+        )
+    }
+    with TraceSession("agent", endpoint=endpoint(collector)) as session:
+        tools = session.instrument(Tools(), {"invoke": ("tool", "Tools.invoke")}, payloads)
+        assert tools.invoke("charge_payment", {"amount_cents": 5000}, step_id="pay", attempt=1) == {"payment_id": "PAY-100"}
+    tool = session_spans(collector)["Tools.invoke \u00b7 pay \u00b7 attempt 1"]
+    assert tool["input_state"] == "redacted"
+    assert json.loads(tool["input_payload"]) == {
+        "tool": "charge_payment",
+        "arguments": {"amount_cents": 5000},
+        "api_key": "[redacted]",
+    }
+    assert tool["output_state"] == "captured"
+    assert json.loads(tool["output_payload"]) == {"result": {"payment_id": "PAY-100"}}
+    # The payload is a payload field, never also an attribute.
+    assert not [key for key in tool["attributes"] if key in ("debugger.input", "debugger.output")]
+    assert all(SECRET not in body.decode() for _, _, body in collector.requests)
+
+
+def test_trace_session_records_the_input_of_a_call_that_fails(collector):
+    def failing(order_id):
+        raise TimeoutError(SECRET)
+
+    with TraceSession("agent", endpoint=endpoint(collector)) as session:
+        wrapped = session.wrap_callable(
+            failing, "tool", "pay", payloads=(lambda order_id: {"order_id": order_id}, lambda result: {"result": result})
+        )
+        with pytest.raises(TimeoutError):
+            wrapped("ORD-100")
+    tool = session_spans(collector)["pay"]
+    assert json.loads(tool["input_payload"]) == {"order_id": "ORD-100"}
+    assert (tool["output_state"], tool["output_payload"]) == ("unavailable", "")
+    assert tool["error_type"] == "TimeoutError"
+
+
+def test_trace_session_payloads_cover_async_calls_and_one_sided_pairs(collector):
+    import asyncio
+
+    async def search(query):
+        return ["KB-01"]
+
+    with TraceSession("agent", endpoint=endpoint(collector)) as session:
+        wrapped = session.wrap_callable(
+            search, "retrieval", "search", payloads=(None, lambda results: {"document_ids": results})
+        )
+        assert asyncio.run(wrapped("restore")) == ["KB-01"]
+    span = session_spans(collector)["search"]
+    assert span["input_state"] == "unavailable"
+    assert json.loads(span["output_payload"]) == {"document_ids": ["KB-01"]}
+
+
+def test_trace_session_ignores_an_extractor_that_raises_or_returns_an_object(collector):
+    def broken(*args, **kwargs):
+        raise RuntimeError(SECRET)
+
+    with TraceSession("agent", endpoint=endpoint(collector)) as session:
+        wrapped = session.wrap_callable(lambda value: value + 1, "tool", "lookup", payloads=(broken, lambda result: Hostile()))
+        assert wrapped(1) == 2
+    span = session_spans(collector)["lookup"]
+    assert span["status"]["code"] == "OK"
+    assert (span["input_state"], span["output_state"]) == ("unavailable", "unavailable")
+    assert all(SECRET not in body.decode() for _, _, body in collector.requests)
+
+
+def test_trace_session_capture_switches_apply_to_explicit_payloads(collector):
+    capture = CaptureConfig(capture_inputs=False)
+    with TraceSession("agent", endpoint=endpoint(collector), capture=capture) as session:
+        wrapped = session.wrap_callable(
+            lambda value: value, "tool", "lookup", payloads=(lambda value: {"value": value}, lambda result: {"result": result})
+        )
+        wrapped(SECRET)
+    span = session_spans(collector)["lookup"]
+    assert (span["input_state"], span["input_payload"]) == ("disabled", "")
+    assert span["output_state"] == "captured"
+
+
+def test_trace_session_never_calls_extractors_on_the_local_route(monkeypatch):
+    from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter as Sink
+
+    class Local(Sink):
+        failures = 0
+        exported_spans = 0
+
+    sink = Local()
+    monkeypatch.setattr("ai_agent_debugger_sdk.session.HttpSpanExporter", lambda endpoint: sink)
+    calls = []
+
+    def extractor(*args, **kwargs):
+        calls.append(args)
+        return {"seen": True}
+
+    with TraceSession("agent", endpoint="http://127.0.0.1:9/api/v1/local/traces") as session:
+        assert session.wrap_callable(lambda value: value, "tool", "lookup", payloads=(extractor, extractor))(3) == 3
+    assert calls == []
+    assert all("debugger.input" not in span.attributes and "debugger.output" not in span.attributes for span in sink.get_finished_spans())
