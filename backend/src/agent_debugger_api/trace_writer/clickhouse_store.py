@@ -90,24 +90,34 @@ class ClickHouseTraceStore:
             conflicted_span_ids=conflicted
         )
 
-    def list_runs(self, project_id, started_from, started_to, limit=50):
+    def list_runs(self, project_id, started_from, started_to, limit=50, before=None):
+        # `before` = (run_started_at, trace_id) of the last run on the previous page.
+        # The order is total (trace_id breaks ties), so a page never repeats or skips a run.
+        parameters = {"p": project_id, "f": started_from, "to": started_to, "n": limit}
+        page = ""
+        if before is not None:
+            page = "AND (run_started_at, trace_id) < ({bs:Int64}, {bt:FixedString(32)}) "
+            parameters["bs"], parameters["bt"] = before
         result = self._client.query(
             "SELECT trace_id, "
             "  toUnixTimestamp64Nano(min(started_at)) AS run_started_at, "
             "  toUnixTimestamp64Nano(max(ended_at))   AS run_ended_at, "
             "  argMinIf(span_name, started_at, parent_span_id IS NULL) AS root_name, "
+            "  argMinIf(toString(status_code), started_at, parent_span_id IS NULL) AS root_status, "
+            "  argMinIf(service_name, started_at, parent_span_id IS NULL) AS root_service, "
             "  countIf(parent_span_id IS NULL) = 0                    AS missing_root, "
             "  anyIf(execution_mode, execution_mode != '')            AS execution_mode, "
             "  uniqExact(span_id)                                     AS span_count, "
             "  uniqExactIf(span_id, status_code = 'ERROR')            AS error_span_count "
             f"FROM (SELECT DISTINCT trace_id, span_id, content_hash, span_name, parent_span_id, "
-            f"        execution_mode, status_code, started_at, ended_at "
+            f"        execution_mode, status_code, service_name, started_at, ended_at "
             f"      FROM {self._table} WHERE project_id = {{p:UUID}}) "
             "GROUP BY trace_id "
             "HAVING run_started_at >= {f:UInt64} AND run_started_at < {to:UInt64} "
-            "ORDER BY run_started_at DESC "
+            f"{page}"
+            "ORDER BY run_started_at DESC, trace_id DESC "
             "LIMIT {n:UInt32}",
-            parameters={"p": project_id, "f": started_from, "to": started_to, "n": limit},
+            parameters=parameters,
             query_formats={"FixedString": "string"}
         )
         return [
@@ -120,5 +130,7 @@ class ClickHouseTraceStore:
                 execution_mode=r["execution_mode"],
                 span_count=r["span_count"],
                 error_span_count=r["error_span_count"],
+                root_status=None if r["missing_root"] else r["root_status"],
+                service_name="" if r["missing_root"] else r["root_service"],
             ) for r in result.named_results()
         ]

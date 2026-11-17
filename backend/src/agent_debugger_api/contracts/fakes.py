@@ -102,7 +102,12 @@ class InMemoryTraceStore:
         ]
 
     def list_runs(
-        self, project_id: UUID, started_from: int, started_to: int, limit: int = 50
+        self,
+        project_id: UUID,
+        started_from: int,
+        started_to: int,
+        limit: int = 50,
+        before: tuple[int, str] | None = None,
     ) -> list[RunSummary]:
         by_trace: dict[str, list[SpanRecord]] = defaultdict(list)
         for (project, trace, _span, _hash), record in self._rows.items():
@@ -111,7 +116,7 @@ class InMemoryTraceStore:
 
         runs = []
         for trace_id, records in by_trace.items():
-            roots = [r for r in records if r.parent_span_id is None]
+            roots = sorted((r for r in records if r.parent_span_id is None), key=lambda r: r.started_at)
             modes = [r.execution_mode for r in records if r.execution_mode]
             run = RunSummary(
                 trace_id=trace_id,
@@ -124,9 +129,12 @@ class InMemoryTraceStore:
                 # a conflicted span counts once, and is an error span if any version is ERROR.
                 span_count=len({r.span_id for r in records}),
                 error_span_count=len({r.span_id for r in records if r.status_code is StatusCode.ERROR}),
+                root_status=roots[0].status_code.value if roots else None,
+                service_name=roots[0].service_name if roots else "",
             )
-            if started_from <= run.run_started_at < started_to:
+            key = (run.run_started_at, run.trace_id)
+            if started_from <= run.run_started_at < started_to and (before is None or key < before):
                 runs.append(run)
 
-        runs.sort(key=lambda run: run.run_started_at, reverse=True)
+        runs.sort(key=lambda run: (run.run_started_at, run.trace_id), reverse=True)
         return runs[:limit]
