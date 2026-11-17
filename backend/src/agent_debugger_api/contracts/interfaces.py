@@ -77,6 +77,9 @@ class RunSummary:
     execution_mode: str  # "" when no span carries it
     span_count: int  # distinct span_ids: a span with conflicting versions counts once
     error_span_count: int  # distinct span_ids with at least one ERROR version
+    # Status and service of the earliest root span. None / "" when no root has arrived.
+    root_status: str | None = None
+    service_name: str = ""
 
 
 @runtime_checkable
@@ -112,7 +115,17 @@ class TraceStore(Protocol):
         ...
 
     def list_runs(
-        self, project_id: UUID, started_from: int, started_to: int, limit: int = 50
+        self,
+        project_id: UUID,
+        started_from: int,
+        started_to: int,
+        limit: int = 50,
+        before: tuple[int, str] | None = None,
     ) -> list[RunSummary]:
-        """Runs whose first span started in [started_from, started_to) ns, newest first."""
+        """Runs whose first span started in [started_from, started_to) ns, newest first.
+
+        Order is (run_started_at, trace_id) descending, so it is total. `before`
+        is the (run_started_at, trace_id) of the last run of the previous page;
+        only runs after it in that order are returned (keyset paging).
+        """
         ...

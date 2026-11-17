@@ -3,6 +3,7 @@ import Icon from '../../components/Icon.jsx'
 import { useSpanRead } from './useTraceRead.js'
 import { durationText, statusText, typeLabel, operationLabel } from './treeModel.js'
 import { exactDuration, wallClock } from '../../app/format.js'
+import { flagLabels } from '../../data/durableRepository.js'
 import Payload, { JsonValue } from './Payload.jsx'
 import { hasCapturedValue } from './capture.js'
 
@@ -41,7 +42,7 @@ function SpanMetadata({ span, data, ui, patch, copy }) {
       {ended && <div><dt>Ended</dt><dd className="mono">{ended}</dd></div>}
       {facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       {idRow('Span ID', span.id)}
-      {idRow('Parent span ID', span.parentId)}
+      {idRow('Parent span ID', span.recordedParentId === undefined ? span.parentId : span.recordedParentId)}
       {idRow('Trace ID', attributes['otel.trace_id'])}
     </dl>
     <details className="raw-attributes" open={ui.rawAttributes || undefined} onToggle={event => { if (event.currentTarget.open !== !!ui.rawAttributes) patch({ rawAttributes: event.currentTarget.open }) }}>
@@ -74,7 +75,19 @@ function SpanContent({ data, span, ui, patch, jump, jumpPayload }) {
   })
   const retries = data.retries || []
 
+  const versions = data.versions?.length > 1 ? data.versions : []
+  const structure = (data.flags || []).filter(flag => flag !== 'conflict' && flagLabels[flag])
+
   return <>
+    {versions.length > 0 && <div className="inspector-structure" role="note" aria-label="Conflicting versions">
+      <Icon name="error"/>
+      <div>
+        <strong>{versions.length} conflicting versions received</strong>
+        <p>The same span ID arrived with different content. Version 1 is shown below; none is treated as the correct one.</p>
+        <ol>{versions.map(version => <li key={version.contentHash}><code title={version.contentHash}>{version.contentHash.slice(0, 12)}</code> · {version.name} · {statusText(version.status)} · received {wallClock(version.receivedAt) ?? 'time not recorded'}</li>)}</ol>
+      </div>
+    </div>}
+    {structure.length > 0 && <div className="inspector-structure" role="note" aria-label="Structure flags"><Icon name="error"/><div><strong>{structure.map(flag => flagLabels[flag]).join(' · ')}</strong><p>{data.flags.includes('missing_parent') ? <>Recorded parent <code>{data.recordedParentId}</code> is not in this trace, so the span is shown at the top level. </> : null}{data.flags.includes('cycle') ? 'This span is part of a parent cycle. The cycle was cut at one span so the trace can be shown.' : null}</p></div></div>}
     {(data.error || data.errorType || data.status === 'ERROR') && <div className="inspector-error"><Icon name="error"/><div><strong>{data.errorType || 'Recorded error'}</strong><p>{data.error || 'Exception message unavailable.'}</p></div></div>}
     {(data.retryOf || retries.length > 0) && <div className="retry-navigation">
       <Icon name="retry"/>
@@ -87,7 +100,7 @@ function SpanContent({ data, span, ui, patch, jump, jumpPayload }) {
     {disabled ? <div className="payload-disabled">
       <strong>Input and output not captured</strong>
       {disabledReasons.map(reason => <p key={reason}>{reason}</p>)}
-      <p>Name, type, status and timing are recorded; see Metadata. Input/output capture with redaction is planned for durable ingestion.</p>
+      <p>Name, type, status and timing are recorded; see Metadata.{data.source === 'durable' ? '' : ' Input/output capture with redaction is planned for durable ingestion.'}</p>
     </div> : <>
       {readable.length > 0 && <div className="payload-controls">
         <div role="group" aria-label="Payload format">{['Readable', 'JSON'].map(format => <button key={format} className="format-button" aria-pressed={ui.format === format} onClick={() => patch({ format })}>{formatLabels[format]}</button>)}</div>
@@ -110,7 +123,7 @@ function SpanDetails({ span, data, copy }) {
       <dl>
         <dt>Operation</dt><dd>{span.name}</dd>
         <dt>Span ID</dt><dd><code>{span.id}</code><button className="trace-icon-button" aria-label="Copy span ID" onClick={() => copy(span.id)}><Icon name="copy"/></button></dd>
-        <dt>Recorded parent</dt><dd><code>{span.parentId ?? 'Root'}</code>{span.parentId && <button className="trace-icon-button" aria-label="Copy parent span ID" onClick={() => copy(span.parentId)}><Icon name="copy"/></button>}</dd>
+        <dt>Recorded parent</dt><dd><code>{(span.recordedParentId === undefined ? span.parentId : span.recordedParentId) ?? 'Root'}</code>{span.parentId && <button className="trace-icon-button" aria-label="Copy parent span ID" onClick={() => copy(span.parentId)}><Icon name="copy"/></button>}</dd>
         <dt>Raw status</dt><dd><code>{span.status ?? 'Not recorded'}</code></dd>
         <dt>Start offset</dt><dd>{exactDuration(span.start)}</dd>
         <dt>End offset</dt><dd>{exactDuration(end)}{inferredEnd && Number.isFinite(end) && <span className="secondary"> · start + captured duration</span>}</dd>
