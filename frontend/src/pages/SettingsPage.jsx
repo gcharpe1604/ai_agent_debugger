@@ -5,6 +5,8 @@ import './settings.css'
 
 // The SDK's built-in local endpoint (sdk/python transport.LOCAL_ENDPOINT).
 const LOCAL_ENDPOINT = 'http://127.0.0.1:8008/api/v1/local/traces'
+// Durable ingest (protocol "1"): FastAPI -> Kafka -> trace-writer -> ClickHouse.
+const DURABLE_ENDPOINT = 'http://127.0.0.1:8008/api/v1/traces'
 
 function CopyBlock({ label, text }) {
   const [notice, setNotice] = useState('')
@@ -25,6 +27,7 @@ const hours = seconds => Number.isFinite(seconds) && seconds > 0 ? `${+(seconds 
 // loopback traffic only. Project API keys arrive with durable ingestion.
 export default function SettingsPage({ project }) {
   const retention = hours(project.retentionSeconds)
+  const durable = project.storage === 'durable'
   return <section className="settings-page" aria-labelledby="settings-heading">
     <header className="view-heading"><h1 id="settings-heading">Settings</h1><span className="secondary">Project details and how agents send traces to it.</span></header>
     <section className="settings-card" aria-labelledby="settings-project">
@@ -32,7 +35,7 @@ export default function SettingsPage({ project }) {
       <dl className="settings-facts">
         <div><dt>Name</dt><dd>{project.name}</dd></div>
         <div><dt>Project ID</dt><dd><code>{project.id}</code></dd></div>
-        <div><dt>Storage</dt><dd>Temporary memory on the local backend. Restarting the backend clears every trace.</dd></div>
+        <div><dt>Storage</dt><dd>{durable ? 'ClickHouse, written by the trace-writer from Kafka. Traces stay after a backend restart.' : 'Temporary memory on the local backend. Restarting the backend clears every trace.'}</dd></div>
         {retention && <div><dt>Retention</dt><dd>Traces are kept for {retention}, then removed.</dd></div>}
       </dl>
     </section>
@@ -41,8 +44,8 @@ export default function SettingsPage({ project }) {
         <h2 id="settings-keys"><Icon name="key"/>API keys</h2>
         <button type="button" className="button" disabled aria-describedby="keys-unavailable">Create API key</button>
       </div>
-      <p id="keys-unavailable" className="settings-note">Local mode does not use API keys. The backend accepts traces only from this computer (loopback) and only while it runs with <code>AGENT_DEBUGGER_LOCAL_MODE=1</code>. Project API keys come with durable ingestion.</p>
-      <CopyBlock label=".env for your agent" text={`# Where the SDK sends traces. TraceSession.local() uses this address by default.\nAGENT_DEBUGGER_ENDPOINT=${LOCAL_ENDPOINT}\n# Set it to an empty value to turn export off.`}/>
+      <p id="keys-unavailable" className="settings-note">{durable ? <>Durable ingestion has no API keys yet: every trace goes to this one project, and the read API is not authenticated. Do not expose the backend beyond this computer.</> : <>Local mode does not use API keys. The backend accepts traces only from this computer (loopback) and only while it runs with <code>AGENT_DEBUGGER_LOCAL_MODE=1</code>. Project API keys come with durable ingestion.</>}</p>
+      <CopyBlock label=".env for your agent" text={durable ? `# Where the SDK sends traces. A path ending in /api/v1/traces selects the durable exporter.\nAGENT_DEBUGGER_ENDPOINT=${DURABLE_ENDPOINT}\n# Set it to an empty value to turn export off.` : `# Where the SDK sends traces. TraceSession.local() uses this address by default.\nAGENT_DEBUGGER_ENDPOINT=${LOCAL_ENDPOINT}\n# Set it to an empty value to turn export off.`}/>
       <p className="settings-note">Next: <a href={homeHref(project.id)}>Home</a> runs an example agent and confirms its trace arrives.</p>
     </section>
   </section>
