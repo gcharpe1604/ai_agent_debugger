@@ -10,6 +10,7 @@ def _ask(request):
 
     from .agent import TaskAgent
     from .live_model import LiveConfig, LiveModelClient, LiveResult
+    from .telemetry import LIVE_MODEL_PAYLOADS, TOOL_PAYLOADS
     from .tools import LocalTools
 
     from ai_agent_debugger_sdk import TraceSession
@@ -17,9 +18,9 @@ def _ask(request):
     config = LiveConfig.from_env()
     with TraceSession.local("tool-task-agent", model=config.model, provider=config.base_url, local_dependencies=True) as tracing, httpx.Client() as client:
         tracing.instrument(client, {"post": ("api", "POST chat/completions")})
-        model = tracing.instrument(LiveModelClient(config, client), {"_request": ("model", "model.request")})
+        model = tracing.instrument(LiveModelClient(config, client), {"_request": ("model", "model.request")}, LIVE_MODEL_PAYLOADS)
         def tools_factory():
-            return tracing.instrument(LocalTools(), {"invoke": ("tool", "LocalTools.invoke")})
+            return tracing.instrument(LocalTools(), {"invoke": ("tool", "LocalTools.invoke")}, TOOL_PAYLOADS)
         with tracing.operation("agent", "TaskAgent.run"):
             result = TaskAgent(model, tools_factory).run(request)
         tracing.record_result(result)
@@ -47,16 +48,17 @@ def main(argv=None) -> int:
             result = _ask(args.request)
         else:
             from .scenarios import build_agent, load_scenario
+            from .telemetry import CONTROLLED_MODEL_PAYLOADS, TOOL_PAYLOADS
 
             scenario = load_scenario(args.scenario_id)
             from ai_agent_debugger_sdk import TraceSession
 
             with TraceSession.local("tool-task-agent", execution_mode="controlled", local_dependencies=True) as tracing:
                 agent = build_agent(scenario)
-                tracing.instrument(agent.model, {name: ("custom", "controlled." + name) for name in ("plan", "respond")})
+                tracing.instrument(agent.model, {name: ("custom", "controlled." + name) for name in ("plan", "respond")}, CONTROLLED_MODEL_PAYLOADS)
                 original_factory = agent.tools_factory
                 def tools_factory():
-                    return tracing.instrument(original_factory(), {"invoke": ("tool", "LocalTools.invoke")})
+                    return tracing.instrument(original_factory(), {"invoke": ("tool", "LocalTools.invoke")}, TOOL_PAYLOADS)
                 agent.tools_factory = tools_factory
                 with tracing.operation("agent", "TaskAgent.run"):
                     result = agent.run(scenario.request)

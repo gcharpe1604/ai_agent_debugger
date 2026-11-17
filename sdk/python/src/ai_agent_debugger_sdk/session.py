@@ -11,18 +11,26 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Status, StatusCode, format_span_id, format_trace_id
 
+from .capture import CaptureConfig
 from .durable import DURABLE_PATH, DurableSpanExporter
+from .span import SpanHandle
 from .transport import HttpSpanExporter, LOCAL_ENDPOINT
 
 
 class TraceSession:
-    """A CLI-owned run; no global provider replacement or argument/payload capture.
+    """A CLI-owned run; no global provider replacement, no automatic payload capture.
 
     No endpoint means no instrumentation. HTTP errors remain telemetry and never
     replace the agent's result. The endpoint path picks the exporter: the local
     capture route (local-1, metadata only) or /api/v1/traces (protocol "1").
-    `capture` applies to the durable exporter only. Wrapped calls still record
-    no arguments or results on either path.
+    `capture` applies to the durable exporter only.
+
+    A wrapped call records no arguments or results unless the caller passes
+    `payloads=(input_fn, output_fn)`: `input_fn(*args, **kwargs)` and
+    `output_fn(result)` each return the plain data (dict, list, str, int,
+    float, bool, None) to record for that call; either may be None. They run
+    on the durable path only. On the local route nothing is recorded. An
+    extractor that raises is ignored; the wrapped call is not affected.
     """
 
     def __init__(self, service_name, *, model=None, provider=None, endpoint=None, local_dependencies=False, execution_mode="live", capture=None):
@@ -34,6 +42,7 @@ class TraceSession:
         self.provider = self.exporter = self.tracer = self.root = None
         self.trace_id = None
         self._previous_attempts = {}
+        self._record_payloads = False
 
     @classmethod
     def local(cls, service_name, **kwargs):
@@ -49,6 +58,7 @@ class TraceSession:
             return self
         if urlsplit(self.endpoint).path == DURABLE_PATH:
             self.exporter = DurableSpanExporter(self.endpoint, self.capture)
+            self._record_payloads = True
         else:
             self.exporter = HttpSpanExporter(self.endpoint)
         self.provider = TracerProvider(resource=Resource.create({"service.name": self.service_name}))
@@ -110,9 +120,20 @@ class TraceSession:
         if getattr(result, "execution_error", None):
             self.root.set_status(Status(StatusCode.ERROR))
 
-    def wrap_callable(self, function, kind, name, *, stage_name=False):
+    def _capture_payload(self, span, method, extractor, args, kwargs):
+        """Record one explicit payload. Never raises and never logs the value."""
+        if span is None or extractor is None or not self._record_payloads:
+            return
+        try:
+            handle = SpanHandle(span, self.capture if self.capture is not None else CaptureConfig())
+            getattr(handle, method)(extractor(*args, **kwargs))
+        except Exception:
+            return
+
+    def wrap_callable(self, function, kind, name, *, stage_name=False, payloads=None):
         if not self.tracer:
             return function
+        input_of, output_of = payloads if payloads is not None else (None, None)
 
         def attributes(kwargs):
             step, attempt = kwargs.get("step_id"), kwargs.get("attempt")
@@ -150,8 +171,10 @@ class TraceSession:
             async def asynchronous(*args, **kwargs):
                 with self.operation(kind, label(args, kwargs), attributes(kwargs)) as span:
                     begin(span, kwargs)
+                    self._capture_payload(span, "set_input", input_of, args, kwargs)
                     result = await function(*args, **kwargs)
                     finish(span, result)
+                    self._capture_payload(span, "set_output", output_of, (result,), {})
                     return result
             return asynchronous
 
@@ -159,14 +182,22 @@ class TraceSession:
         def synchronous(*args, **kwargs):
             with self.operation(kind, label(args, kwargs), attributes(kwargs)) as span:
                 begin(span, kwargs)
+                self._capture_payload(span, "set_input", input_of, args, kwargs)
                 result = function(*args, **kwargs)
                 finish(span, result)
+                self._capture_payload(span, "set_output", output_of, (result,), {})
                 return result
         return synchronous
 
-    def instrument(self, instance, operations):
-        """Wrap explicit methods on a caller-owned instance; never patch classes globally."""
+    def instrument(self, instance, operations, payloads=None):
+        """Wrap explicit methods on a caller-owned instance; never patch classes globally.
+
+        `payloads` maps a method name to its `(input_fn, output_fn)` pair (see the class docstring).
+        """
         if self.tracer:
             for method, (kind, name) in operations.items():
-                setattr(instance, method, self.wrap_callable(getattr(instance, method), kind, name, stage_name=method == "_request"))
+                setattr(instance, method, self.wrap_callable(
+                    getattr(instance, method), kind, name,
+                    stage_name=method == "_request", payloads=(payloads or {}).get(method),
+                ))
         return instance
