@@ -106,3 +106,7 @@ docker compose logs kafka-init     # lists agentdbg.traces.v1 and agentdbg.trace
 - Dev-only credentials: see `compose.yaml` and `.env.example`. Do not reuse them outside this machine.
 - Data persists in named volumes across `docker compose down` / `up`. `docker compose down -v` deletes it.
 - Kafka here is one broker with replication factor 1: restarts keep acknowledged data, losing the volume does not.
+
+## Reading durable traces in the UI (branch `feat/durable-read`)
+
+The UI reads the in-memory local profile by default. To read ClickHouse through the durable read API (`GET /api/v1/projects/local/runs…`), open the UI with `?source=durable` before the `#`, for example `http://127.0.0.1:5175/?source=durable#/projects/local/runs`, or start the dev server with `VITE_DATA_SOURCE=durable`. `?source=local` switches back. The backend does not need `AGENT_DEBUGGER_LOCAL_MODE` for this; it needs ClickHouse running and the schema created by the trace writer. The read API has no authentication yet.

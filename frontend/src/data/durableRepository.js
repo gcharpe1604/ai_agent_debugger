@@ -102,7 +102,7 @@ export function createDurableAdapters(fetcher = fetch) {
     async listRuns({ projectId, query, signal }) {
       scope(projectId)
       const runs = []
-      let cursor = null, partial = false
+      let cursor = null, partial
       do {
         const page = await read(`/local/runs?limit=${PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal)
         if (page.project !== 'local' || !Array.isArray(page.runs)) throw new Error('Unexpected telemetry response')
