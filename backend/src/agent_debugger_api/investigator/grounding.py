@@ -63,6 +63,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from .schema import (
+    PAYLOAD_FIELDS,
     CandidateFinding,
     Category,
     ClaimType,
@@ -134,6 +135,15 @@ class GroundingResult(_Model):
     has_failure_findings: bool
 
 
+_PAYLOAD_ATTR = {"input_payload": "input", "output_payload": "output", "error_payload": "error"}
+_SPAN_ATTR = {
+    "status_description": "status_description",
+    "error_type": "error_type",
+    "span_name": "name",
+    "retry_of_span_id": "retry_of_span_id",
+}
+
+
 def cited_value(span: SnapshotSpan, ref: EvidenceRef) -> str | None:
     """The text `ref` points at on `span`, as the snapshot renders it; None when not recorded.
 
@@ -152,7 +162,33 @@ def cited_value(span: SnapshotSpan, ref: EvidenceRef) -> str | None:
 
     Used by R5 (recorded at all) and R6 (quote is an exact substring).
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    field = ref.field
+    value: object | None
+    if field == "attribute":
+        value = span.attributes.get(ref.key) if ref.key is not None else None
+    elif field == "event":
+        event = next((e for e in span.events if e.index == ref.event_index), None)
+        value = None if event is None else "\n".join([event.name, *event.attributes.values()])
+    elif field in PAYLOAD_FIELDS:
+        value = getattr(span, _PAYLOAD_ATTR[field]).excerpt
+    elif field == "status_code":
+        value = span.status_code.value
+    elif field == "attempt":
+        value = span.attempt
+    else:
+        value = getattr(span, _SPAN_ATTR[field])
+    if value is None or value == "":
+        return None
+    return str(value)
+
+
+def _span_ids(candidate: CandidateFinding) -> set[str]:
+    ids = {ref.span_id for ref in candidate.evidence}
+    for rel in candidate.relations:
+        ids.update((rel.from_span_id, rel.to_span_id))
+    if candidate.suspicious_span_id is not None:
+        ids.add(candidate.suspicious_span_id)
+    return ids
 
 
 def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCode | None:
