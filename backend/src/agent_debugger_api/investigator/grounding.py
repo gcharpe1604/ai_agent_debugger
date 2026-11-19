@@ -58,6 +58,7 @@ Where the data is
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
@@ -191,6 +192,56 @@ def _span_ids(candidate: CandidateFinding) -> set[str]:
     return ids
 
 
+def version_for(snapshot: Snapshot, ref: EvidenceRef) -> SnapshotSpan | None:
+    """The rendered version `ref` cites: the only one, or for a conflicted span the one with its hash.
+
+    None when the span is not rendered, or is conflicted and `ref.content_hash` matches no version.
+    """
+    versions = snapshot.versions(ref.span_id)
+    if len(versions) == 1:
+        return versions[0]
+    return next((v for v in versions if ref.content_hash is not None and v.content_hash == ref.content_hash), None)
+
+
+def _cited(snapshot: Snapshot, candidate: CandidateFinding) -> list[tuple[EvidenceRef, SnapshotSpan | None]]:
+    return [(ref, version_for(snapshot, ref)) for ref in candidate.evidence]
+
+
+# Reject rules. Each returns True when the candidate satisfies the rule; `_RULES` is the order they run in.
+
+
+def _r1_rendered_spans(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(snapshot.versions(span_id) for span_id in _span_ids(candidate))
+
+
+def _r2_one_version(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(version is not None for _, version in _cited(snapshot, candidate))
+
+
+def _r3_event_exists(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(
+        version is not None and any(event.index == ref.event_index for event in version.events)
+        for ref, version in _cited(snapshot, candidate)
+        if ref.field == "event"
+    )
+
+
+def _r4_attribute_exists(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(
+        version is not None and ref.key is not None and ref.key in version.attributes
+        for ref, version in _cited(snapshot, candidate)
+        if ref.field == "attribute"
+    )
+
+
+_RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]], ...] = (
+    ("unknown_span", _r1_rendered_spans),
+    ("ambiguous_version", _r2_one_version),
+    ("unknown_event", _r3_event_exists),
+    ("unknown_field", _r4_attribute_exists),
+)
+
+
 def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCode | None:
     """First failing reject rule for one candidate, or None when it passes all (§6.2).
 
@@ -230,7 +281,10 @@ def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCod
                               relations (two siblings are connected through
                               their parent by two parent_of relations).
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    for code, satisfied in _RULES:
+        if not satisfied(snapshot, candidate):
+            return code
+    return None
 
 
 def adjust(snapshot: Snapshot, candidate_index: int, candidate: CandidateFinding) -> tuple[GroundedFinding, tuple[AdjustmentCode, ...]]:

@@ -144,7 +144,6 @@ def conflicted_snapshot():
 
 
 class RejectRuleTests(unittest.TestCase):
-    @unittest.expectedFailure
     def test_19_r1_every_cited_span_must_be_a_rendered_span_of_this_snapshot(self):
         snapshot = tool_snapshot()
         self.assertIsNone(reject(snapshot))  # control
@@ -166,7 +165,6 @@ class RejectRuleTests(unittest.TestCase):
             self.assertEqual(reject_plain(collapsed, evidence=[evidence(1), evidence(3)]), "unknown_span")
             self.assertIsNone(reject_plain(collapsed, evidence=[evidence(1), evidence(9)]))  # rendered neighbour
 
-    @unittest.expectedFailure
     def test_20_r2_a_conflicted_span_needs_a_hash_that_matches_one_version(self):
         snapshot = conflicted_snapshot()
         hashes = [version.content_hash for version in snapshot.versions(sid(2))]
@@ -185,7 +183,6 @@ class RejectRuleTests(unittest.TestCase):
         with self.subTest("a span that is not conflicted needs no hash"):
             self.assertIsNone(reject_plain(snapshot, evidence=[evidence(1)]))
 
-    @unittest.expectedFailure
     def test_21_r3_event_index_must_exist_on_the_cited_span(self):
         snapshot = tool_snapshot()
         with self.subTest("index past the last event"):
@@ -198,7 +195,6 @@ class RejectRuleTests(unittest.TestCase):
         with self.subTest("existing event"):
             self.assertIsNone(reject(snapshot, evidence=[evidence(RESERVE, "event", event_index=0)]))
 
-    @unittest.expectedFailure
     def test_22_r4_attribute_key_must_be_on_the_span_in_the_snapshot(self):
         records = [
             span(1, operation_type="run"),
