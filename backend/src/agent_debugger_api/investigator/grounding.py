@@ -1,9 +1,9 @@
-"""Deterministic grounding (`docs/proposals/investigator.md` §6). NOT IMPLEMENTED.
+"""Deterministic grounding (`docs/proposals/investigator.md` §6).
 
-The user writes this module (handoff §12: grounding validation is a core
-piece). What is here: the result types the engine stores, the function
-signatures, and the rules each function must apply. No tests exist for it yet.
-The test list is proposal §9, tests 19 to 37, one per rule:
+The result types the engine stores, `cited_value`, `reject_code` (R1 to R11 as
+small functions in the ordered `_RULES`), `adjust` (A1 to A3) and `ground`
+(A4 and the attempt outcome). The tests are `tests/investigator/test_grounding.py`,
+proposal §9 tests 19 to 37, one per rule:
 
   19 R1  fabricated span ID in evidence, as suspicious_span_id, as a relation
          endpoint, a real ID from another trace, the ID of a collapsed span
@@ -483,4 +483,39 @@ def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
     Not this function's job: provider errors, invalid output and unknown traces
     (§6.1) are handled by the engine before grounding is called.
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    findings: list[GroundedFinding] = []
+    report: list[GroundingReportEntry] = []
+    seen: set[tuple[str | None, str]] = set()
+
+    for index, candidate in enumerate(output.findings):
+        code = reject_code(snapshot, candidate)
+        if code is not None:
+            report.append(GroundingReportEntry(candidate_index=index, code=code, kept=False))
+            continue
+        finding, adjustments = adjust(snapshot, index, candidate)
+        report.extend(GroundingReportEntry(candidate_index=index, code=a, kept=True) for a in adjustments)
+        key = (finding.suspicious_span_id, finding.category)  # A4: after A1 to A3, first wins
+        if key in seen:
+            report.append(GroundingReportEntry(candidate_index=index, code="duplicate", kept=False))
+            continue
+        seen.add(key)
+        findings.append(finding)
+
+    limitations = tuple(output.limitations)
+    outcome: Outcome
+    if findings:
+        outcome = "findings"
+    elif output.verdict == "no_issue_found":
+        outcome = "no_issue_found"
+        if not snapshot.completeness.payloads_captured:
+            limitations += (PAYLOAD_LIMITATION,)
+    else:  # the model said so, or it returned findings and every one was rejected
+        outcome = "insufficient_evidence"
+
+    return GroundingResult(
+        findings=tuple(findings),
+        report=tuple(report),
+        outcome=outcome,
+        limitations=limitations,
+        has_failure_findings=any(f.claim_type != "recovered_failure" for f in findings),
+    )

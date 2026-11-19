@@ -1,11 +1,6 @@
 """Deterministic grounding: proposal §9 tests 19 to 37 (G), and `cited_value`.
 
 One test per rule, in the order of the module docstring of `grounding.py`.
-`reject_code`, `adjust` and `ground` are not written yet, so the rule tests are
-marked `@unittest.expectedFailure`. When a function is written, its tests turn
-into "unexpected success"; delete the decorator on them then. The
-`cited_value` tests are not marked: that function exists.
-
 Every test builds its trace and candidate with `tests/investigator/factories.py`
 and calls the functions through the `grounding` module.
 """
@@ -445,7 +440,6 @@ class AdjustRuleTests(unittest.TestCase):
             # The suspect belongs to a recovered group, so A3 still lowers HIGH.
             self.assertEqual((adjusted.priority, codes), ("MEDIUM", ("clamped_priority",)))
 
-    @unittest.expectedFailure
     def test_30_through_ground_a_recovered_retry_is_kept_recorded_and_not_a_failure_finding(self):
         snapshot = snapshot_of(*retry_trace("ERROR", "OK"))
         raw = finding(category="tool_failure", priority="HIGH", suspicious_span_id=sid(PAY_1), evidence=[evidence(PAY_1)])
@@ -498,7 +492,6 @@ class AdjustRuleTests(unittest.TestCase):
             adjusted, codes = grounding.adjust(snapshot, 0, candidate(priority="MEDIUM"))
             self.assertEqual((adjusted.priority, codes), ("MEDIUM", ()))
 
-    @unittest.expectedFailure
     def test_33_a4_the_same_suspect_and_category_twice_gives_one_finding(self):
         snapshot = tool_snapshot()
         with self.subTest("identical candidates"):
@@ -538,7 +531,6 @@ def only_ok_evidence() -> dict:
 
 
 class GroundTests(unittest.TestCase):
-    @unittest.expectedFailure
     def test_34_one_bad_candidate_does_not_affect_a_good_one(self):
         snapshot = tool_snapshot()
         alone = grounding.ground(snapshot, output(finding()))
@@ -560,7 +552,6 @@ class GroundTests(unittest.TestCase):
             result = grounding.ground(snapshot, output(fabricated(), finding()))
             self.assertEqual(result.report, (GroundingReportEntry(candidate_index=0, code="unknown_span", kept=False),))
 
-    @unittest.expectedFailure
     def test_35_all_candidates_rejected_gives_insufficient_evidence_and_records_the_codes(self):
         snapshot = tool_snapshot()
         result = grounding.ground(snapshot, output(fabricated(), only_ok_evidence()))
@@ -582,7 +573,6 @@ class GroundTests(unittest.TestCase):
             result = grounding.ground(snapshot, output(verdict="insufficient_evidence"))
             self.assertEqual((result.outcome, result.findings, result.report), ("insufficient_evidence", (), ()))
 
-    @unittest.expectedFailure
     def test_36_no_issue_found_on_a_metadata_only_snapshot_carries_the_payload_limitation(self):
         metadata_only = tool_snapshot(payloads=False)
         self.assertFalse(metadata_only.completeness.payloads_captured)
@@ -602,7 +592,6 @@ class GroundTests(unittest.TestCase):
             self.assertEqual(result.outcome, "no_issue_found")
             self.assertEqual(result.limitations, ("Checked every step.",))
 
-    @unittest.expectedFailure
     def test_37_grounding_is_pure(self):
         snapshot = tool_snapshot()
         model_output = output(
@@ -629,7 +618,7 @@ class GroundTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# cited_value: written, so not marked expectedFailure
+# cited_value
 # ---------------------------------------------------------------------------
 
 LONG_OUTPUT = "H" * 800 + "M" * 5000 + "T" * 400
