@@ -384,6 +384,15 @@ def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCod
     return None
 
 
+def _is_error(snapshot: Snapshot, span_id: str) -> bool:
+    return any(v.status_code is StatusCode.ERROR for v in snapshot.versions(span_id))
+
+
+def _in_recovered_group(snapshot: Snapshot, span_id: str | None) -> bool:
+    group = None if span_id is None else snapshot.retry_group_of(span_id)
+    return group is not None and group.outcome == "recovered"
+
+
 def adjust(snapshot: Snapshot, candidate_index: int, candidate: CandidateFinding) -> tuple[GroundedFinding, tuple[AdjustmentCode, ...]]:
     """Apply A1 to A3 to a candidate that passed `reject_code` (§6.3).
 
@@ -404,7 +413,47 @@ def adjust(snapshot: Snapshot, candidate_index: int, candidate: CandidateFinding
     Returns the finding and the codes of the adjustments that changed it, in
     rule order. A rule that changes nothing reports no code.
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    claim_type, category, priority = candidate.claim_type, candidate.category, candidate.priority
+    suspect = candidate.suspicious_span_id
+    codes: list[AdjustmentCode] = []
+
+    cited_errors = {ref.span_id for ref in candidate.evidence if _is_error(snapshot, ref.span_id)}
+    touches_recovered = (suspect is not None and _in_recovered_group(snapshot, suspect)) or any(
+        _in_recovered_group(snapshot, span_id) for span_id in cited_errors
+    )
+    cites_unrecovered_error = any(not _in_recovered_group(snapshot, span_id) for span_id in cited_errors)
+    if touches_recovered and not cites_unrecovered_error:  # A1
+        clamped = ("recovered_failure", "recovered_retry", "LOW")
+        if (claim_type, category, priority) != clamped:
+            claim_type, category, priority = clamped
+            codes.append("clamped_recovered_retry")
+
+    if claim_type == "suspected_origin" and priority == "HIGH":  # A2
+        priority = "MEDIUM"
+        codes.append("clamped_suspicion")
+
+    if priority == "HIGH":  # A3
+        is_originating_failure = (
+            claim_type == "observed_failure"
+            and suspect in snapshot.facts.originating_error_span_ids
+            and not _in_recovered_group(snapshot, suspect)
+        )
+        if not (is_originating_failure or claim_type == "inconsistency"):
+            priority = "MEDIUM"
+            codes.append("clamped_priority")
+
+    finding = GroundedFinding(
+        candidate_index=candidate_index,
+        category=category,
+        claim_type=claim_type,
+        suspicious_span_id=suspect,
+        priority=priority,
+        explanation=candidate.explanation,
+        evidence=candidate.evidence,
+        relations=candidate.relations,
+        limitations=candidate.limitations,
+    )
+    return finding, tuple(codes)
 
 
 def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:

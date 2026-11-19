@@ -417,7 +417,6 @@ def retry_candidate(span_number: int, **overrides) -> CandidateFinding:
 
 
 class AdjustRuleTests(unittest.TestCase):
-    @unittest.expectedFailure
     def test_30_a1_a_recovered_retry_is_not_a_failure(self):
         snapshot = snapshot_of(*retry_trace("ERROR", "OK"))
         self.assertEqual(snapshot.retry_group_of(sid(PAY_1)).outcome, "recovered")
@@ -434,15 +433,6 @@ class AdjustRuleTests(unittest.TestCase):
         self.assertEqual(adjusted.evidence, attempt_1.evidence)
         self.assertEqual(adjusted.explanation, attempt_1.explanation)
 
-        with self.subTest("through ground: kept, recorded, and not a failure finding"):
-            raw = finding(category="tool_failure", priority="HIGH", suspicious_span_id=sid(PAY_1), evidence=[evidence(PAY_1)])
-            result = grounding.ground(snapshot, output(raw))
-            self.assertEqual(result.outcome, "findings")
-            self.assertEqual([f.claim_type for f in result.findings], ["recovered_failure"])
-            self.assertEqual(
-                result.report, (GroundingReportEntry(candidate_index=0, code="clamped_recovered_retry", kept=True),)
-            )
-            self.assertFalse(result.has_failure_findings)
         with self.subTest("no suspect: an ERROR span in the evidence is enough"):
             _, codes = grounding.adjust(snapshot, 0, retry_candidate(PAY_1, suspicious_span_id=None))
             self.assertEqual(codes, ("clamped_recovered_retry",))
@@ -456,6 +446,17 @@ class AdjustRuleTests(unittest.TestCase):
             self.assertEqual((adjusted.priority, codes), ("MEDIUM", ("clamped_priority",)))
 
     @unittest.expectedFailure
+    def test_30_through_ground_a_recovered_retry_is_kept_recorded_and_not_a_failure_finding(self):
+        snapshot = snapshot_of(*retry_trace("ERROR", "OK"))
+        raw = finding(category="tool_failure", priority="HIGH", suspicious_span_id=sid(PAY_1), evidence=[evidence(PAY_1)])
+        result = grounding.ground(snapshot, output(raw))
+        self.assertEqual(result.outcome, "findings")
+        self.assertEqual([f.claim_type for f in result.findings], ["recovered_failure"])
+        self.assertEqual(
+            result.report, (GroundingReportEntry(candidate_index=0, code="clamped_recovered_retry", kept=True),)
+        )
+        self.assertFalse(result.has_failure_findings)
+
     def test_31_a1_does_not_fire_for_an_exhausted_group(self):
         snapshot = snapshot_of(*retry_trace("ERROR", "ERROR", "ERROR"))
         self.assertEqual(snapshot.retry_group_of(sid(PAY_1)).outcome, "exhausted")
@@ -468,7 +469,6 @@ class AdjustRuleTests(unittest.TestCase):
                 self.assertEqual(adjusted.category, "tool_failure")
                 self.assertEqual(adjusted.priority, "HIGH")  # each attempt is an originating error outside a recovered group
 
-    @unittest.expectedFailure
     def test_32_a2_and_a3_clamp_priority_to_what_the_claim_supports(self):
         snapshot = tool_snapshot()
         self.assertEqual(snapshot.facts.originating_error_span_ids, (sid(RESERVE),))
