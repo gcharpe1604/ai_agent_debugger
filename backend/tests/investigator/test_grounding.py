@@ -274,7 +274,6 @@ class RejectRuleTests(unittest.TestCase):
             ref = evidence(2, "output_payload", quote="M" * 50)
             self.assertEqual(reject_plain(long_snapshot, evidence=[ref]), "quote_mismatch")
 
-    @unittest.expectedFailure
     def test_25_r7_a_relation_must_exist_in_the_snapshot(self):
         tool = tool_snapshot()
         with self.subTest("retry_of between unrelated spans"):
@@ -312,7 +311,6 @@ class RejectRuleTests(unittest.TestCase):
             result = reject_plain(linked, evidence=[evidence(1)], relations=[relation("link", 3, 1)])
             self.assertEqual(result, "unknown_relationship")
 
-    @unittest.expectedFailure
     def test_26_r8_the_suspect_needs_evidence_on_itself(self):
         snapshot = tool_snapshot()
         self.assertIsNone(reject(snapshot))  # suspect reserve, evidence on reserve

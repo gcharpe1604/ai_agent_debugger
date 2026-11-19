@@ -254,6 +254,25 @@ def _r6_quote_is_substring(snapshot: Snapshot, candidate: CandidateFinding) -> b
     return True
 
 
+def _relation_holds(snapshot: Snapshot, relation: Relation) -> bool:
+    """True if any rendered version of the span that carries the edge satisfies it."""
+    source, target = relation.from_span_id, relation.to_span_id
+    if relation.kind == "parent_of":  # the edge is on the child
+        return any(v.parent_span_id == source for v in snapshot.versions(target))
+    if relation.kind == "retry_of":
+        return any(v.retry_of_span_id == target for v in snapshot.versions(source))
+    return any(link.span_id == target for v in snapshot.versions(source) for link in v.links)
+
+
+def _r7_relations_exist(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(_relation_holds(snapshot, relation) for relation in candidate.relations)
+
+
+def _r8_suspect_has_evidence(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    suspect = candidate.suspicious_span_id
+    return suspect is None or any(ref.span_id == suspect for ref in candidate.evidence)
+
+
 _RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]], ...] = (
     ("unknown_span", _r1_rendered_spans),
     ("ambiguous_version", _r2_one_version),
@@ -261,6 +280,8 @@ _RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]]
     ("unknown_field", _r4_attribute_exists),
     ("field_not_recorded", _r5_field_recorded),
     ("quote_mismatch", _r6_quote_is_substring),
+    ("unknown_relationship", _r7_relations_exist),
+    ("unsupported_suspect", _r8_suspect_has_evidence),
 )
 
 
