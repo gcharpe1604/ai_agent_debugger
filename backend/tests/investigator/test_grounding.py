@@ -269,6 +269,28 @@ class RejectRuleTests(unittest.TestCase):
             ref = evidence(2, "output_payload", quote="M" * 50)
             self.assertEqual(reject_plain(long_snapshot, evidence=[ref]), "quote_mismatch")
 
+    def test_24_r6_a_quote_that_contains_the_omission_marker_fails(self):
+        long_output = "H" * 800 + "M" * 5000 + "T" * 400
+        snapshot = snapshot_of(span(1, operation_type="run"), span(2, 1, start=1, **captured(output=long_output)))
+        marker = "…[5000 chars omitted]…"
+        self.assertIn(marker, snapshot.versions(sid(2))[0].output.excerpt)  # the marker is in the rendered text
+        quotes = {
+            "marker alone": marker,
+            "quote bridging the marker": "H" * 20 + marker + "T" * 20,
+            "marker and tail text": marker + "T" * 20,
+            "head text and marker": "H" * 20 + marker,
+            "a marker with another count": "…[7 chars omitted]…",
+            "omitted-middle text": "M" * 50,
+        }
+        for name, quote in quotes.items():
+            with self.subTest(name):
+                ref = evidence(2, "output_payload", quote=quote)
+                self.assertEqual(reject_plain(snapshot, evidence=[ref]), "quote_mismatch")
+        with self.subTest("text on either side of the omission is still quotable"):
+            for quote in ("H" * 50, "T" * 50):
+                ref = evidence(2, "output_payload", quote=quote)
+                self.assertIsNone(reject_plain(snapshot, evidence=[ref]))
+
     def test_25_r7_a_relation_must_exist_in_the_snapshot(self):
         tool = tool_snapshot()
         with self.subTest("retry_of between unrelated spans"):
@@ -513,6 +535,21 @@ class AdjustRuleTests(unittest.TestCase):
             result = grounding.ground(retries, output(first, second))
             self.assertEqual([(f.candidate_index, f.category) for f in result.findings], [(0, "recovered_retry")])
             self.assertIn(GroundingReportEntry(candidate_index=1, code="duplicate", kept=False), result.report)
+
+    def test_33_a4_only_deduplicates_findings_that_have_a_suspect(self):
+        snapshot = tool_snapshot()
+        with self.subTest("no suspect, same category, different evidence: both kept"):
+            first = finding(suspicious_span_id=None, priority="MEDIUM", evidence=[evidence(RESERVE)])
+            second = finding(suspicious_span_id=None, priority="MEDIUM", evidence=[evidence(ROOT)])
+            result = grounding.ground(snapshot, output(first, second))
+            self.assertEqual([f.candidate_index for f in result.findings], [0, 1])
+            self.assertNotIn("duplicate", [entry.code for entry in result.report])
+        with self.subTest("same suspect and category, different evidence: one kept"):
+            first = finding()
+            second = finding(evidence=[evidence(RESERVE), evidence(RESERVE, "span_name")])
+            result = grounding.ground(snapshot, output(first, second))
+            self.assertEqual([f.candidate_index for f in result.findings], [0])
+            self.assertEqual(result.report, (GroundingReportEntry(candidate_index=1, code="duplicate", kept=False),))
 
 
 # ---------------------------------------------------------------------------

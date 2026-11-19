@@ -58,6 +58,7 @@ Where the data is
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from typing import Literal
 
@@ -98,6 +99,9 @@ AdjustmentCode = Literal[
 Outcome = Literal["findings", "no_issue_found", "insufficient_evidence"]
 
 EXCEPTION_EVENT = "exception"
+
+# What `snapshot._excerpt` puts between the head and the tail of a long payload: "…[5000 chars omitted]…".
+_OMISSION_MARKER = re.compile(r"…\[\d+ chars omitted\]…")
 
 # §6.4: added to the attempt when the model found no issue and no input or
 # output payload was captured.
@@ -251,6 +255,9 @@ def _r6_quote_is_substring(snapshot: Snapshot, candidate: CandidateFinding) -> b
     for ref, version in _cited(snapshot, candidate):
         if ref.quote is None:
             continue
+        # The omission marker is the snapshot's own text, not recorded text: a quote may not contain it.
+        if _OMISSION_MARKER.search(ref.quote):
+            return False
         value = None if version is None else cited_value(version, ref)
         if value is None or ref.quote not in value:  # exact, case-sensitive
             return False
@@ -358,7 +365,9 @@ def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCod
                               redacted payload is readable.
     R6  quote_mismatch        quote, when given, is an exact substring of the
                               cited value. One different character fails. Text
-                              from the omitted middle of a long payload fails.
+                              from the omitted middle of a long payload fails,
+                              and so does a quote that contains the snapshot's
+                              omission marker ("…[N chars omitted]…").
     R7  unknown_relationship  parent_of: `to` has `from` as parent_span_id.
                               retry_of: `from` has retry_of_span_id = `to`.
                               link: `from` has a link to `to`.
@@ -464,7 +473,8 @@ def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
     through `adjust`; each adjustment adds a report entry (kept=True).
     A4: a second finding with the same (suspicious_span_id, category) as an
     earlier grounded one is dropped with code "duplicate" (kept=False). The
-    comparison uses the values after A1 to A3.
+    comparison uses the values after A1 to A3. A finding with no suspect is
+    never a duplicate.
 
     One bad candidate never affects another candidate.
 
@@ -485,7 +495,7 @@ def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
     """
     findings: list[GroundedFinding] = []
     report: list[GroundingReportEntry] = []
-    seen: set[tuple[str | None, str]] = set()
+    seen: set[tuple[str, str]] = set()
 
     for index, candidate in enumerate(output.findings):
         code = reject_code(snapshot, candidate)
@@ -494,11 +504,12 @@ def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
             continue
         finding, adjustments = adjust(snapshot, index, candidate)
         report.extend(GroundingReportEntry(candidate_index=index, code=a, kept=True) for a in adjustments)
-        key = (finding.suspicious_span_id, finding.category)  # A4: after A1 to A3, first wins
-        if key in seen:
-            report.append(GroundingReportEntry(candidate_index=index, code="duplicate", kept=False))
-            continue
-        seen.add(key)
+        if finding.suspicious_span_id is not None:  # A4: only a finding with a suspect can duplicate another
+            key = (finding.suspicious_span_id, finding.category)  # after A1 to A3, first wins
+            if key in seen:
+                report.append(GroundingReportEntry(candidate_index=index, code="duplicate", kept=False))
+                continue
+            seen.add(key)
         findings.append(finding)
 
     limitations = tuple(output.limitations)

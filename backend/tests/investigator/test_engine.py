@@ -1,9 +1,10 @@
 """Attempt lifecycle, provider port and attempt store: proposal §9 tests 38 to 46 (E), and test 7's engine half.
 
-Grounding is not written yet, so these tests inject a stand-in `ground`
-function. What a real grounding step does to a candidate is test_grounding.py.
-Test 44's second half ("output that obeys the injected text changes nothing
-about grounding") needs real grounding and is not covered here.
+Most tests inject a stand-in `ground` so they test the lifecycle alone. What a real
+grounding step does to a candidate is test_grounding.py; `RealGroundingTests` runs the
+engine with the real `grounding.ground`.
+Test 44's second half ("output that obeys the injected text changes nothing about
+grounding") is not covered here.
 """
 
 import json
@@ -37,12 +38,15 @@ from agent_debugger_api.trace_writer.content_hash import content_hash
 from tests.contracts.factories import PROJECT_A, PROJECT_B, T0, TRACE_1, TRACE_2
 from tests.investigator.factories import (
     AGENT,
+    PAY_1,
     RESERVE,
     captured,
     error_span,
+    evidence,
     failed_tool_trace,
     finding,
     output_dict,
+    retry_trace,
     sid,
     span,
 )
@@ -268,6 +272,52 @@ class RequestContentTests(EngineCase):
         self.assertIsInstance(request, InvestigationRequest)
         self.assertIn("verdict", request.output_schema["properties"])
         self.assertEqual((request.timeout_s, request.max_output_tokens), (60.0, 2000))
+
+
+class RealGroundingTests(unittest.TestCase):
+    """The engine with `grounding.ground`, not a stand-in: what a stored attempt holds after real grounding."""
+
+    def investigate(self, records, script):
+        traces = InMemoryTraceStore(content_hash)
+        traces.insert_spans(records)
+        attempts = InMemoryAttemptStore()
+        provider = ScriptedProvider(script)
+        attempt = Investigator(traces, provider, attempts).investigate(PROJECT_A, TRACE_1)  # no `ground=`
+        self.assertEqual(attempts.get(attempt.attempt_id), attempt)
+        self.assertEqual((attempt.status, attempt.failure_code), ("completed", None))
+        return attempt
+
+    def test_a_grounded_finding_is_stored_with_an_empty_report(self):
+        attempt = self.investigate(failed_tool_trace(), [output_dict(finding())])
+        self.assertEqual((attempt.outcome, attempt.candidate_count, attempt.has_failure_findings), ("findings", 1, True))
+        (stored,) = attempt.findings
+        self.assertEqual((stored.suspicious_span_id, stored.claim_type, stored.priority), (sid(RESERVE), "observed_failure", "HIGH"))
+        self.assertEqual(attempt.grounding_report, ())
+
+    def test_a_fabricated_span_id_is_rejected_and_no_finding_is_stored(self):
+        fabricated = finding(suspicious_span_id=sid(99), evidence=[evidence(99)])
+        attempt = self.investigate(failed_tool_trace(), [output_dict(fabricated)])
+        self.assertEqual((attempt.outcome, attempt.findings, attempt.has_failure_findings), ("insufficient_evidence", (), False))
+        self.assertEqual(attempt.candidate_count, 1)
+        self.assertEqual(attempt.grounding_report, (GroundingReportEntry(candidate_index=0, code="unknown_span", kept=False),))
+        self.assertNotIn(sid(99), attempt.model_dump_json().replace(attempt.snapshot_json, ""))  # not kept as evidence
+
+    def test_a_recovered_retry_flagged_high_is_stored_as_a_low_recovered_failure(self):
+        flagged = finding(category="tool_failure", priority="HIGH", suspicious_span_id=sid(PAY_1), evidence=[evidence(PAY_1)])
+        attempt = self.investigate(retry_trace("ERROR", "OK"), [output_dict(flagged)])
+        self.assertEqual(attempt.outcome, "findings")
+        (stored,) = attempt.findings
+        self.assertEqual((stored.claim_type, stored.category, stored.priority), ("recovered_failure", "recovered_retry", "LOW"))
+        self.assertEqual(
+            attempt.grounding_report, (GroundingReportEntry(candidate_index=0, code="clamped_recovered_retry", kept=True),)
+        )
+        self.assertFalse(attempt.has_failure_findings)
+
+    def test_no_issue_found_on_a_metadata_only_trace_carries_the_payload_limitation(self):
+        attempt = self.investigate(failed_tool_trace(payloads=False), [output_dict()])
+        self.assertEqual((attempt.outcome, attempt.findings, attempt.has_failure_findings), ("no_issue_found", (), False))
+        self.assertIn(PAYLOAD_LIMITATION, attempt.limitations)
+        self.assertEqual(attempt.grounding_report, ())
 
 
 class PortTests(unittest.TestCase):
