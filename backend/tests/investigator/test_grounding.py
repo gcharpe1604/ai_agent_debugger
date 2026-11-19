@@ -215,7 +215,6 @@ class RejectRuleTests(unittest.TestCase):
         with self.subTest("key that exists on another span only"):
             self.assertEqual(reject_plain(snapshot, evidence=[evidence(1, "attribute", key="debugger.step")]), "unknown_field")
 
-    @unittest.expectedFailure
     def test_23_r5_the_cited_field_must_be_recorded(self):
         redacted_input = '{"order":42,"api_key":"[redacted]"}'
         snapshot = snapshot_of(
@@ -249,7 +248,6 @@ class RejectRuleTests(unittest.TestCase):
                 ref = evidence(4, "input_payload", quote=quote)
                 self.assertEqual(reject_plain(snapshot, evidence=[ref]), "field_not_recorded")
 
-    @unittest.expectedFailure
     def test_24_r6_a_quote_must_be_an_exact_substring_of_the_cited_value(self):
         snapshot = tool_snapshot()
         self.assertIn('"quantity":0', RESERVE_INPUT)

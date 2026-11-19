@@ -73,7 +73,7 @@ from .schema import (
     Priority,
     Relation,
 )
-from .snapshot import Snapshot, SnapshotSpan
+from .snapshot import REDACTED_MARKER, Snapshot, SnapshotSpan
 
 RejectionCode = Literal[
     "unknown_span",  # R1
@@ -234,11 +234,33 @@ def _r4_attribute_exists(snapshot: Snapshot, candidate: CandidateFinding) -> boo
     )
 
 
+def _r5_field_recorded(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    # A quote that contains the redaction marker cites a value that was not recorded (D7).
+    return all(
+        version is not None
+        and cited_value(version, ref) is not None
+        and not (ref.quote is not None and REDACTED_MARKER in ref.quote)
+        for ref, version in _cited(snapshot, candidate)
+    )
+
+
+def _r6_quote_is_substring(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    for ref, version in _cited(snapshot, candidate):
+        if ref.quote is None:
+            continue
+        value = None if version is None else cited_value(version, ref)
+        if value is None or ref.quote not in value:  # exact, case-sensitive
+            return False
+    return True
+
+
 _RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]], ...] = (
     ("unknown_span", _r1_rendered_spans),
     ("ambiguous_version", _r2_one_version),
     ("unknown_event", _r3_event_exists),
     ("unknown_field", _r4_attribute_exists),
+    ("field_not_recorded", _r5_field_recorded),
+    ("quote_mismatch", _r6_quote_is_substring),
 )
 
 
