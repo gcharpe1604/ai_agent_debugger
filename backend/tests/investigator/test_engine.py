@@ -271,7 +271,7 @@ class RequestContentTests(EngineCase):
         (request,) = self.provider.requests
         self.assertIsInstance(request, InvestigationRequest)
         self.assertIn("verdict", request.output_schema["properties"])
-        self.assertEqual((request.timeout_s, request.max_output_tokens), (60.0, 2000))
+        self.assertEqual((request.timeout_s, request.max_output_tokens), (60.0, 8192))
 
 
 class RealGroundingTests(unittest.TestCase):
