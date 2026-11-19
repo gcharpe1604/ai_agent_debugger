@@ -135,7 +135,7 @@ class Investigator:
         try:
             result = self._ground(snapshot, output)
         except Exception:
-            # Includes NotImplementedError while grounding is unwritten.
+            # Any unexpected exception in grounding. Nothing ungrounded is stored.
             return self._fail(attempt, "internal_error", "grounding_failed", **usage)
 
         return self._save(
