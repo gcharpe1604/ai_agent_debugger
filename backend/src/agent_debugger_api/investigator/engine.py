@@ -8,9 +8,9 @@ The engine owns no HTTP route and no database client. It depends on three
 ports: `TraceStore`, `InvestigatorProvider` and `AttemptStore`. It is
 synchronous like `TraceStore`; an async caller runs it in a thread.
 
-Grounding is `grounding.ground`, which the user writes. Until it exists every
-attempt that reaches it fails with `internal_error`: the engine never stores a
-finding that was not grounded.
+Grounding is `grounding.ground`. The engine never stores a finding that was not
+grounded. `internal_error` is the failure code for an unexpected exception while
+building the snapshot or while grounding; it does not mean grounding is missing.
 """
 
 from __future__ import annotations
