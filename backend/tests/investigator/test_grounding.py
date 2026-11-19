@@ -323,7 +323,6 @@ class RejectRuleTests(unittest.TestCase):
         with self.subTest("no suspect, no check"):
             self.assertIsNone(reject(snapshot, suspicious_span_id=None))
 
-    @unittest.expectedFailure
     def test_27_r9_an_observed_failure_cites_an_error_status_or_an_exception_event(self):
         snapshot = tool_snapshot()
         with self.subTest("only OK spans"):
@@ -347,7 +346,6 @@ class RejectRuleTests(unittest.TestCase):
             result = reject_plain(snapshot, suspicious_span_id=sid(ORDER), evidence=[evidence(ORDER)])
             self.assertIsNone(result)
 
-    @unittest.expectedFailure
     def test_28_r10_an_inconsistency_needs_payload_quotes_on_two_spans(self):
         snapshot = tool_snapshot()
         self.assertIsNone(grounding.reject_code(snapshot, inconsistency_candidate()))  # two quotes, two spans: kept
@@ -382,7 +380,6 @@ class RejectRuleTests(unittest.TestCase):
             single = inconsistency_candidate(suspicious_span_id=None, evidence=[evidence(PLAN, "output_payload", quote='"quantity":0')])
             self.assertEqual(grounding.reject_code(snapshot, single), "insufficient_evidence")
 
-    @unittest.expectedFailure
     def test_29_r11_a_suspected_origin_connects_to_a_failing_span_and_names_a_limitation(self):
         snapshot = tool_snapshot()
         self.assertEqual(snapshot.versions(sid(PLAN))[0].status_code.value, "OK")

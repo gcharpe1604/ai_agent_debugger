@@ -63,6 +63,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from ..contracts import StatusCode
 from .schema import (
     PAYLOAD_FIELDS,
     CandidateFinding,
@@ -95,6 +96,8 @@ AdjustmentCode = Literal[
     "duplicate",  # A4
 ]
 Outcome = Literal["findings", "no_issue_found", "insufficient_evidence"]
+
+EXCEPTION_EVENT = "exception"
 
 # §6.4: added to the attempt when the model found no issue and no input or
 # output payload was captured.
@@ -273,6 +276,54 @@ def _r8_suspect_has_evidence(snapshot: Snapshot, candidate: CandidateFinding) ->
     return suspect is None or any(ref.span_id == suspect for ref in candidate.evidence)
 
 
+def _has_exception_event(span: SnapshotSpan, event_index: int | None = None) -> bool:
+    return any(e.name == EXCEPTION_EVENT and event_index in (None, e.index) for e in span.events)
+
+
+def _r9_failure_evidence(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    if candidate.claim_type != "observed_failure":
+        return True
+    return any(
+        version is not None
+        and (
+            (ref.field == "status_code" and version.status_code is StatusCode.ERROR)
+            or (ref.field == "event" and _has_exception_event(version, ref.event_index))
+        )
+        for ref, version in _cited(snapshot, candidate)
+    )
+
+
+def _r10_two_payload_quotes(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    if candidate.claim_type != "inconsistency":
+        return True
+    quoted = {ref.span_id for ref in candidate.evidence if ref.field in PAYLOAD_FIELDS and ref.quote is not None}
+    return len(quoted) >= 2
+
+
+def _is_failing(snapshot: Snapshot, span_id: str) -> bool:
+    """R9's condition on a span: an ERROR version, or an `exception` event."""
+    return any(v.status_code is StatusCode.ERROR or _has_exception_event(v) for v in snapshot.versions(span_id))
+
+
+def _r11_connected_to_failure(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    if candidate.claim_type != "suspected_origin":
+        return True
+    suspect = candidate.suspicious_span_id
+    if not candidate.limitations or suspect is None:
+        return False
+    neighbours: dict[str, set[str]] = {}
+    for relation in candidate.relations:  # undirected
+        neighbours.setdefault(relation.from_span_id, set()).add(relation.to_span_id)
+        neighbours.setdefault(relation.to_span_id, set()).add(relation.from_span_id)
+    seen, pending = {suspect}, [suspect]
+    while pending:
+        for other in neighbours.get(pending.pop(), ()):
+            if other not in seen:
+                seen.add(other)
+                pending.append(other)
+    return any(_is_failing(snapshot, span_id) for span_id in seen - {suspect})
+
+
 _RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]], ...] = (
     ("unknown_span", _r1_rendered_spans),
     ("ambiguous_version", _r2_one_version),
@@ -282,6 +333,9 @@ _RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]]
     ("quote_mismatch", _r6_quote_is_substring),
     ("unknown_relationship", _r7_relations_exist),
     ("unsupported_suspect", _r8_suspect_has_evidence),
+    ("no_failure_evidence", _r9_failure_evidence),
+    ("insufficient_evidence", _r10_two_payload_quotes),
+    ("unsupported_suspicion", _r11_connected_to_failure),
 )
 
 
