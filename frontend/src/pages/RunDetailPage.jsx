@@ -13,6 +13,8 @@ import '../features/trace/trace.css'
 
 export default function RunDetailPage({ repository, investigationRepository, route, project, projects, cache }) {
   const live = project.dataSource === 'local'
+  // Durable storage has a connected investigator; the in-memory local profile does not.
+  const investigable = !live || project.storage === 'durable'
   const scope = `${project.id}/${route.runId}`
   const [limit, setLimit] = useState(() => {
     const value = Number(new URLSearchParams(route.search).get('loaded'))
@@ -49,8 +51,8 @@ export default function RunDetailPage({ repository, investigationRepository, rou
             {stats && <ul className="trace-type-counts" aria-label="Spans by type">{stats.byType.map(([type, count]) => <li key={type} data-type={type} title={`${count} ${typeLabel(type)} ${count === 1 ? 'span' : 'spans'}`}><Icon name={type}/>{count} {typeLabel(type)}</li>)}</ul>}
             {data.run.service !== data.run.name && <span>{data.run.service}</span>}
             {!live && <span className="trace-investigation-small">Investigation · {data.run.investigation}</span>}
-            {!live && <div className="trace-run-actions">
-              {copyId}
+            {investigable && <div className="trace-run-actions">
+              {!live && copyId}
               {new URLSearchParams(route.search).has('evidenceAttempt') && <a className="button small" href={evidenceHref(project.id, route.runId, route.search)} aria-label="Back to evidence">Back to evidence</a>}
               <InvestigationControl repository={investigationRepository} projectId={project.id} runId={route.runId} search={route.search}/>
             </div>}

@@ -2,6 +2,7 @@
 // tree and structure flags reconstructed by the backend. Read failures are
 // thrown; nothing here substitutes sample or local-profile data.
 import { selectRuns } from './runRepository.js'
+import { createDurableInvestigations } from './durableInvestigations.js'
 
 const BASE = '/api/v1/projects'
 const PAGE = 200
@@ -152,8 +153,14 @@ export function createDurableAdapters(fetcher = fetch) {
       }
     },
   }
+  const investigationRepository = createDurableInvestigations(fetcher, {
+    async readRun(runId, signal) {
+      const body = await readTraceBody(runId, signal)
+      return { run: runView(body.run), spanNames: new Map(body.spans.map(span => [span.span_id, span.name])) }
+    },
+  })
   return {
-    repository, traceRepository,
+    repository, traceRepository, investigationRepository,
     // No authentication yet: the server names one project and grants nothing.
     projectAdapter: { mode: 'durable', async listProjects({ signal } = {}) {
       const body = await read('', signal)

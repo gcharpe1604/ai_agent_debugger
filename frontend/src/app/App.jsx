@@ -40,7 +40,7 @@ export default function App({ repository = disconnectedRuns, traceRepository = d
   if (route.home && project) return protect(<HomePage key={project.id} project={project} projects={projects} route={route} local={false} repository={repository}/>)
   if (route.home && local) return protect(<AppShell projects={projects} project={project} route={route} local><AccessState kind="unavailable"/></AppShell>)
   if (project?.dataSource === 'local' && route.settings) return protect(<AppShell projects={projects} project={project} route={route}><SettingsPage project={project}/></AppShell>)
-  if (project?.dataSource === 'local' && route.evidence) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
+  if (project?.dataSource === 'local' && project.storage !== 'durable' && route.evidence) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
   // Account/access routes unmount project workspaces, dropping rendered trace/evidence caches.
   // Disconnected authentication never fabricates or blocks captured local telemetry.
   if (route.account) return protect(<AccountPage key={route.path} route={route} adapter={accountAdapter}/> )
