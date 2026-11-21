@@ -48,6 +48,8 @@ Evaluation framework the user pasted (saved at `claude/ojt-evaluation-rubric.md`
 
 ### 3.1 Matrix
 
+Investigator lives on feat/investigator until complete.
+
 | Component | Status | Evidence |
 |---|---|---|
 | Python SDK (`sdk/python/src/ai_agent_debugger_sdk`) | **IMPLEMENTED + TESTED**, local-only; on `main` via PR #2 (2026-11-08) | `TraceSession` with `BatchSpanProcessor(256 / 64 / 1000 ms)`; `HttpSpanExporter` hard-locked to loopback. **54 SDK tests passed** |
