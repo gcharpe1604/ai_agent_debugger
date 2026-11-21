@@ -77,6 +77,7 @@ class Investigator:
             trace_id=trace_id,
             provider_name=self._provider.name,
             model_id=self._provider.model_id,
+            provider_region=getattr(self._provider, "region", None),
             prompt_version=PROMPT_VERSION,
             created_at=self._clock(),
         )

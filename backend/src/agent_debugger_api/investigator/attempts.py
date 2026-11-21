@@ -55,6 +55,7 @@ class AnalysisAttempt(BaseModel):
     # Investigator configuration identity (database.md §4.3).
     provider_name: str
     model_id: str
+    provider_region: str | None = None  # e.g. the AWS region; None for a stub. Never a credential.
     prompt_version: str
     provider_calls: int = 0
     input_tokens: int | None = None

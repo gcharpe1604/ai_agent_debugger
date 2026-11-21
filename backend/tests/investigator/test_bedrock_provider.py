@@ -15,6 +15,7 @@ from agent_debugger_api.investigator.bedrock_provider import (
 from agent_debugger_api.investigator.engine import (
     INSTRUCTIONS,
     MAX_OUTPUT_TOKENS,
+    PROMPT_VERSION,
     Investigator,
 )
 from agent_debugger_api.investigator.factory import provider_from_env
@@ -25,6 +26,7 @@ from agent_debugger_api.investigator.provider import (
     ScriptedProvider,
 )
 from agent_debugger_api.investigator.schema import output_json_schema, parse_output
+from agent_debugger_api.investigator.snapshot import SnapshotLimits
 from agent_debugger_api.trace_writer.content_hash import content_hash
 from botocore.exceptions import (
     ClientError,
@@ -205,13 +207,15 @@ class ErrorKindTests(unittest.TestCase):
 class EngineWithBedrockTests(unittest.TestCase):
     """The provider behind the real engine: what a stored attempt holds."""
 
-    def investigate(self, *answers):
+    def investigate(self, *answers, limits=None):
         traces = InMemoryTraceStore(content_hash)
         traces.insert_spans(failed_tool_trace())
         attempts = InMemoryAttemptStore()
+        self.client = FakeClient(*answers)
         with mock.patch.dict(os.environ, {"AWS_BEARER_TOKEN_BEDROCK": SECRET}):
-            provider = BedrockProvider(MODEL, "us-east-1", client=FakeClient(*answers))
-            attempt = Investigator(traces, provider, attempts).investigate(PROJECT_A, TRACE_1)
+            provider = BedrockProvider(MODEL, "us-east-1", client=self.client)
+            engine = Investigator(traces, provider, attempts, **({"limits": limits} if limits else {}))
+            attempt = engine.investigate(PROJECT_A, TRACE_1)
         self.assertEqual(attempts.get(attempt.attempt_id), attempt)
         self.assertNotIn(SECRET, attempt.model_dump_json())
         self.assertNotIn(SECRET, repr(vars(provider)))
@@ -220,12 +224,25 @@ class EngineWithBedrockTests(unittest.TestCase):
     def test_a_valid_response_completes_the_attempt(self):
         attempt = self.investigate(converse_response(json.dumps(output_dict())))
         self.assertEqual((attempt.status, attempt.provider_name, attempt.model_id), ("completed", "bedrock", MODEL))
-        self.assertEqual((attempt.input_tokens, attempt.output_tokens), (1200, 340))
+        self.assertEqual((attempt.input_tokens, attempt.output_tokens, attempt.latency_ms), (1200, 340, 812))
+
+    def test_the_attempt_records_prompt_version_model_and_region(self):
+        attempt = self.investigate(converse_response(json.dumps(output_dict())))
+        self.assertEqual(
+            (attempt.prompt_version, attempt.model_id, attempt.provider_region), (PROMPT_VERSION, MODEL, "us-east-1")
+        )
+
+    def test_a_snapshot_over_the_limit_fails_before_any_provider_call(self):
+        attempt = self.investigate(limits=SnapshotLimits(max_bytes=200))
+        self.assertEqual((attempt.status, attempt.failure_code), ("failed", "input_too_large"))
+        self.assertEqual(self.client.calls, [])
+        self.assertIsNone(attempt.input_tokens)
 
     def test_a_response_cut_at_max_tokens_fails_as_invalid_output(self):
         text = json.dumps(output_dict(finding()))
         attempt = self.investigate(converse_response(text[: len(text) // 2], stop_reason="max_tokens"))
         self.assertEqual((attempt.status, attempt.failure_code, attempt.failure_detail), ("failed", "invalid_output", "not_json"))
+        self.assertEqual((attempt.input_tokens, attempt.output_tokens), (1200, 340))  # tokens are kept on a failed attempt
 
     def test_a_throttled_call_is_retried_once(self):
         attempt = self.investigate(client_error("ThrottlingException"), converse_response(json.dumps(output_dict())))
@@ -240,6 +257,12 @@ class EngineWithBedrockTests(unittest.TestCase):
 
 
 class FactoryTests(unittest.TestCase):
+    def test_a_scripted_attempt_has_no_region(self):
+        traces = InMemoryTraceStore(content_hash)
+        traces.insert_spans(failed_tool_trace())
+        attempt = Investigator(traces, provider_from_env({}), InMemoryAttemptStore()).investigate(PROJECT_A, TRACE_1)
+        self.assertEqual((attempt.provider_name, attempt.provider_region), ("stub-scripted", None))
+
     def test_default_is_scripted_and_abstains_on_every_call(self):
         provider = provider_from_env({})
         self.assertIsInstance(provider, ScriptedProvider)
