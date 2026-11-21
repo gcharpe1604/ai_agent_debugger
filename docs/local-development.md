@@ -68,7 +68,7 @@ Input/output capture is disabled for this metadata-only profile. No prompts, mod
 
 The normal backend contains an **explicit loopback-only local profile**, enabled by `AGENT_DEBUGGER_LOCAL_MODE=1`. It uses bounded process memory: 100 traces, 200 spans per trace, 4,000 spans total, 16 MiB serialized records and four-hour trace expiry. Restarting the backend clears it. Do not restart before inspecting a run you need; rerun the agent after restarting.
 
-This is not durable persistence or a production deployment. The declared authenticated Kafka → ClickHouse ingestion path remains unimplemented. Its acceptance semantics are unchanged: these local receipts do not claim Kafka delivery. PostgreSQL-backed health remains separate and may be unavailable while local capture works. Production authentication, ownership, payload capture and investigation are not implemented by this change.
+This profile is not durable persistence or a production deployment. The durable Kafka → ClickHouse path is a separate route, described under "Durable pipeline" below; it has no authentication yet. Its acceptance semantics are unchanged: these local receipts do not claim Kafka delivery. PostgreSQL-backed health remains separate and may be unavailable while local capture works. Production authentication, ownership, payload capture and investigation are not implemented by this change.
 
 The server reports a local capture workspace; it is not a persisted authenticated project. Local access checks loopback peer/Host/Origin and requires the explicit exporter header. Disabling the local profile returns 503; it never silently enables unauthenticated production ingestion.
 
@@ -86,12 +86,42 @@ Implementation: SDK `transport.py` / `session.py`; backend `api/routes/{ingestio
 
 Historical agent-integration verification artifacts were removed during repository cleanup.
 
-## Durable-pipeline infrastructure (Docker)
+## Durable pipeline (Kafka → ClickHouse)
 
-`compose.yaml` runs the infrastructure for the planned durable path. No backend code uses Kafka or ClickHouse yet; the local profile above still stores in memory.
+The durable path is `POST /api/v1/traces` (protocol "1") → Kafka `agentdbg.traces.v1` → trace writer → ClickHouse `telemetry.telemetry_spans` → `GET /api/v1/projects/local/runs…` → UI with `?source=durable`. It has no authentication yet (handoff action 6). `scripts/demo_durable.ps1` runs steps 1-3 and posts a sample trace for you.
+
+Each PowerShell window keeps its own `$env:` variables, so set them in the window that needs them.
+
+1. Infrastructure (from the repo root):
+
+   ```powershell
+   docker compose up -d --wait        # postgres, kafka, clickhouse healthy; kafka-init creates the topics
+   ```
+
+2. Backend, window 1 (`AGENT_DEBUGGER_LOCAL_MODE` is only needed for the local profile above):
+
+   ```powershell
+   uv run --project backend --locked uvicorn agent_debugger_api.main:app --host 127.0.0.1 --port 8008 --workers 1 --no-proxy-headers
+   ```
+
+3. Trace writer, window 2. On start it creates `telemetry.telemetry_spans` if missing, then consumes the topic:
+
+   ```powershell
+   uv run --project backend --locked python -B -m agent_debugger_api.trace_writer
+   ```
+
+4. Agent, window 3. The endpoint path selects the durable exporter (input/output payloads are exported only on this path):
+
+   ```powershell
+   $env:AGENT_DEBUGGER_ENDPOINT = 'http://127.0.0.1:8008/api/v1/traces'
+   uv run --directory examples/rag_agent --locked python -m rag_agent run RAG-04
+   ```
+
+5. UI, window 4: `cd frontend; npm.cmd run dev`, then open `http://127.0.0.1:5175/?source=durable#/projects/local/runs` (or start the dev server with `$env:VITE_DATA_SOURCE = 'durable'`). `?source=local` switches back. Read failures show as errors; there is no fallback to sample or local data.
+
+### Services
 
 ```powershell
-docker compose up -d
 docker compose ps                  # postgres, kafka, clickhouse: healthy
 docker compose logs kafka-init     # lists agentdbg.traces.v1 and agentdbg.traces.v1.dlq
 ```
@@ -106,7 +136,27 @@ docker compose logs kafka-init     # lists agentdbg.traces.v1 and agentdbg.trace
 - Dev-only credentials: see `compose.yaml` and `.env.example`. Do not reuse them outside this machine.
 - Data persists in named volumes across `docker compose down` / `up`. `docker compose down -v` deletes it.
 - Kafka here is one broker with replication factor 1: restarts keep acknowledged data, losing the volume does not.
+- Running the demo script from a git worktree starts a second compose project; set `$env:COMPOSE_PROJECT_NAME = 'ai-agent-debugger'` first.
 
-## Reading durable traces in the UI (branch `feat/durable-read`)
+## Investigator provider (Amazon Bedrock)
 
-The UI reads the in-memory local profile by default. To read ClickHouse through the durable read API (`GET /api/v1/projects/local/runs…`), open the UI with `?source=durable` before the `#`, for example `http://127.0.0.1:5175/?source=durable#/projects/local/runs`, or start the dev server with `VITE_DATA_SOURCE=durable`. `?source=local` switches back. The backend does not need `AGENT_DEBUGGER_LOCAL_MODE` for this; it needs ClickHouse running and the schema created by the trace writer. The read API has no authentication yet.
+The investigator defaults to `INVESTIGATOR_PROVIDER=scripted`, which never calls a model. To use Bedrock (branch `feat/bedrock-provider`):
+
+1. In the Bedrock console, pick a region where your model supports the Converse API and structured outputs (the model card lists both). That is `AWS_REGION`.
+2. Open the model in the Bedrock model catalog and complete any access step it shows (Anthropic models ask for a one-time use-case form). Without it, calls fail with `AccessDeniedException` (smoke exit 4).
+3. Copy the model ID, or the inference profile ID (`us.` / `eu.` prefix) if the model card says it is called through cross-region inference. That is `BEDROCK_MODEL_ID`.
+4. Bedrock console → API keys → generate a short-term key (valid up to 12 h, only in the region where it was generated) or a long-term key (exploration only; it creates an IAM user). Copy it once; it cannot be shown again.
+5. In one PowerShell window only, never in a committed file:
+
+   ```powershell
+   $env:INVESTIGATOR_PROVIDER = 'bedrock'; $env:AWS_REGION = '<region>'; $env:BEDROCK_MODEL_ID = '<model or profile id>'; $env:AWS_BEARER_TOKEN_BEDROCK = '<key>'
+   ```
+
+6. Check, then record the region and model ID (not the key) in `docs/handoff.md` §6:
+
+   ```powershell
+   uv run --project backend --locked python scripts/bedrock_smoke.py --dry-run
+   uv run --project backend --locked python scripts/bedrock_smoke.py
+   ```
+
+   Exit codes: 0 ok, 2 env not set, 3 credentials, 4 no model access, 5 model/region wrong, 6 throttled, 7 timeout or unavailable. The script never prints the key or the provider's message.
