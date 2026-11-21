@@ -136,5 +136,7 @@ class InMemoryAttemptStore:
     def list_for_trace(self, project_id: UUID, trace_id: str) -> list[AnalysisAttempt]:
         return sorted(
             (a for a in self._attempts.values() if a.project_id == project_id and a.trace_id == trace_id),
-            key=lambda attempt: (attempt.created_at, str(attempt.attempt_id)),
+            # Stable sort: attempts created in the same clock tick keep their creation order
+            # (a random attempt_id is no tie-break for "latest").
+            key=lambda attempt: attempt.created_at,
         )
