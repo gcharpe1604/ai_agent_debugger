@@ -1,6 +1,6 @@
 .investigation-control { display: flex; align-items: center; gap: 8px; font-size: 12px; white-space: nowrap; }
 .investigation-link { color: var(--interactive); font-weight: 600; }
-.investigation-provider { color: var(--text-secondary, inherit); border: 1px solid var(--border, currentColor); border-radius: 4px; padding: 1px 6px; }
+.investigation-provider { color: var(--secondary); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; }
 .investigation-control [role="alert"] { margin: 0; white-space: normal; }
 .investigation-details > summary { color: var(--secondary); }
 .investigation-details .trace-popover { white-space: normal; }
