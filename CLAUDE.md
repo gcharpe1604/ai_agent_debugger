@@ -99,6 +99,7 @@ Leftovers from the older design still exist in `backend/`: `db/` (SQLAlchemy/asy
 - Architecture is fixed: SDK/OTel -> FastAPI -> Kafka -> trace-writer -> ClickHouse, with PostgreSQL for control-plane and analysis data. Kafka and ClickHouse are required. Replay and counterfactual debugging are out of scope. Do not revert to Postgres-only or rule-engine designs.
 - The local profile (`/api/v1/local/*`, protocol `local-1`) and the durable contract (`/api/v1/traces`, protocol `"1"`) are different. Do not reuse local loopback gating or payload rejection in the durable path.
 - Investigator: findings must cite real span/event IDs validated server-side; abstain when evidence is insufficient; suspicion is not a proven root cause; a recovered retry is not a failure; provider errors never become findings; inputs bounded, outputs structured.
+- Investigator work branches from and targets `feat/investigator`, not `main`.
 - Small, testable increments on feature branches. No unrelated refactors. Do not edit the design docs without an explicit decision. No secrets in code, docs or logs.
 - After a change is verified, update the status matrix and next-actions table in `docs/handoff.md` with the date and evidence, and add a changelog line.
 - Prompts for other coding agents: exact scope and files, acceptance criteria, verification steps.
