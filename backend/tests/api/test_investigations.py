@@ -8,11 +8,11 @@ import os
 import unittest
 from unittest import mock
 
-from botocore.exceptions import ClientError
-from fastapi.testclient import TestClient
-
 from agent_debugger_api.api.routes.durable_runs import get_trace_store
-from agent_debugger_api.api.routes.investigations import get_attempt_store, get_investigator_provider
+from agent_debugger_api.api.routes.investigations import (
+    get_attempt_store,
+    get_investigator_provider,
+)
 from agent_debugger_api.contracts.fakes import InMemoryTraceStore
 from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID
 from agent_debugger_api.investigator.attempts import InMemoryAttemptStore
@@ -21,8 +21,18 @@ from agent_debugger_api.investigator.provider import ProviderError, ScriptedProv
 from agent_debugger_api.main import app
 from agent_debugger_api.trace_writer.content_hash import content_hash
 from agent_debugger_api.traces.read_store import TraceStoreUnavailable
+from botocore.exceptions import ClientError
+from fastapi.testclient import TestClient
+
 from tests.contracts.factories import TRACE_1
-from tests.investigator.factories import RESERVE, evidence, failed_tool_trace, finding, output_dict, sid
+from tests.investigator.factories import (
+    RESERVE,
+    evidence,
+    failed_tool_trace,
+    finding,
+    output_dict,
+    sid,
+)
 
 BASE = f"/api/v1/projects/local/runs/{TRACE_1}/investigations"
 QUOTE = '"quantity":0'

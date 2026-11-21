@@ -26,11 +26,19 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.concurrency import run_in_threadpool
 
-from agent_debugger_api.api.routes.durable_runs import _read, get_trace_store, project_id
+from agent_debugger_api.api.routes.durable_runs import (
+    _read,
+    get_trace_store,
+    project_id,
+)
 from agent_debugger_api.contracts import TraceRead, TraceStore
 from agent_debugger_api.contracts.span_record import TraceId
 from agent_debugger_api.investigator import grounding
-from agent_debugger_api.investigator.attempts import AnalysisAttempt, AttemptStore, InMemoryAttemptStore
+from agent_debugger_api.investigator.attempts import (
+    AnalysisAttempt,
+    AttemptStore,
+    InMemoryAttemptStore,
+)
 from agent_debugger_api.investigator.engine import Investigator
 from agent_debugger_api.investigator.factory import provider_from_env
 from agent_debugger_api.investigator.provider import InvestigatorProvider
