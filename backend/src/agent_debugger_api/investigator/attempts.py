@@ -7,6 +7,8 @@ In memory only for now. PostgreSQL (`analysis_attempts`, `findings`,
 
 from __future__ import annotations
 
+import os
+
 from typing import Literal, Protocol, runtime_checkable
 from uuid import UUID
 
@@ -97,7 +99,9 @@ class AttemptStore(Protocol):
 class InMemoryAttemptStore:
     """Enforces the lifecycle so a test fails where a real store would reject the write."""
 
-    def __init__(self) -> None:
+    def __init__(self, max_attempts: int | None = None) -> None:
+        # Bounded: the oldest attempt (by created_at) is evicted on create past the cap.
+        self.max_attempts = max_attempts if max_attempts is not None else int(os.environ.get("INVESTIGATOR_MAX_ATTEMPTS", "200"))
         self._attempts: dict[UUID, AnalysisAttempt] = {}
         self.history: list[tuple[UUID, str]] = []  # (attempt_id, status) per write
 
@@ -106,6 +110,9 @@ class InMemoryAttemptStore:
             raise IllegalTransition("attempt already exists")
         if attempt.status != "pending":
             raise IllegalTransition("a new attempt must be pending")
+        while len(self._attempts) >= max(self.max_attempts, 1):
+            oldest = min(self._attempts.values(), key=lambda stored: stored.created_at)
+            del self._attempts[oldest.attempt_id]
         self._write(attempt)
 
     def update(self, attempt: AnalysisAttempt) -> None:
