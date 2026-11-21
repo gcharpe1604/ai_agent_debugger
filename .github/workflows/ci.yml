@@ -90,6 +90,7 @@ jobs:
           tests/integration/test_durable_payloads.py
           tests/integration/test_agent_payloads.py
           tests/integration/test_investigator_scenarios.py
+          tests/integration/test_bedrock_smoke.py
       - name: Backend unit tests (ClickHouse and Kafka tests required, not skipped)
         working-directory: backend
         env:

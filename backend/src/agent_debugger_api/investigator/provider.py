@@ -69,15 +69,18 @@ class ScriptedProvider:
     name = "stub-scripted"
     model_id = "scripted-1"
 
-    def __init__(self, script: Sequence[ProviderError | ProviderResponse | dict | str]) -> None:
+    def __init__(
+        self, script: Sequence[ProviderError | ProviderResponse | dict | str], *, repeat_last: bool = False
+    ) -> None:
         self._script = list(script)
+        self._repeat_last = repeat_last
         self.requests: list[InvestigationRequest] = []
 
     def investigate(self, request: InvestigationRequest) -> ProviderResponse:
         self.requests.append(request)
-        if len(self.requests) > len(self._script):
+        if len(self.requests) > len(self._script) and not (self._repeat_last and self._script):
             raise AssertionError(f"ScriptedProvider was called {len(self.requests)} times; the script has {len(self._script)} items")
-        item = self._script[len(self.requests) - 1]
+        item = self._script[min(len(self.requests), len(self._script)) - 1]
         if isinstance(item, ProviderError):
             raise item
         if isinstance(item, ProviderResponse):
