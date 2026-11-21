@@ -162,6 +162,15 @@ class ProviderConfigTests(unittest.TestCase):
             body = TestClient(app).post(BASE).json()
         self.assertEqual((body["provider"]["kind"], body["outcome"]), ("scripted", "insufficient_evidence"))
 
+    def test_the_configured_provider_is_named_before_any_attempt(self):
+        with mock.patch.dict(os.environ, {}, clear=True):
+            response = TestClient(app).get("/api/v1/projects/local/investigator")
+        self.assertEqual(response.json(), {"kind": "scripted", "name": "stub-scripted", "model_id": "scripted-1", "region": None})
+        with mock.patch.dict(os.environ, {"INVESTIGATOR_PROVIDER": "bedrock", "BEDROCK_MODEL_ID": "m", "AWS_REGION": "eu-west-1"}, clear=True):
+            app.state._state.pop("investigator_provider", None)
+            body = TestClient(app).get("/api/v1/projects/local/investigator").json()
+        self.assertEqual(body, {"kind": "bedrock", "name": "bedrock", "model_id": "m", "region": "eu-west-1"})
+
     def test_a_bad_setting_is_503_without_echoing_it(self):
         with mock.patch.dict(os.environ, {"INVESTIGATOR_PROVIDER": "secret-provider-name"}, clear=True):
             response = TestClient(app).post(BASE)

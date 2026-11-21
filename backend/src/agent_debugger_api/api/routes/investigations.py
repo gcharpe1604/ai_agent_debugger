@@ -2,6 +2,7 @@
 
     POST /api/v1/projects/{project}/runs/{trace_id}/investigations         run one attempt now
     GET  /api/v1/projects/{project}/runs/{trace_id}/investigations/latest  the newest attempt
+    GET  /api/v1/projects/{project}/investigator                           the configured provider
 
 The attempt runs synchronously in a worker thread (a Bedrock call can take up to
 the provider's read timeout) and the response is the stored attempt. The provider
@@ -87,6 +88,10 @@ def _evidence(snapshot: Snapshot | None, ref) -> dict[str, Any]:
     return item
 
 
+def provider_view(name: str, model_id: str, region: str | None) -> dict[str, Any]:
+    return {"kind": PROVIDER_KINDS.get(name, name), "name": name, "model_id": model_id, "region": region}
+
+
 def attempt_view(attempt: AnalysisAttempt) -> dict[str, Any]:
     snapshot = Snapshot.model_validate_json(attempt.snapshot_json) if attempt.snapshot_json else None
     return {
@@ -97,12 +102,7 @@ def attempt_view(attempt: AnalysisAttempt) -> dict[str, Any]:
         "outcome": attempt.outcome,
         "failure_code": attempt.failure_code,
         "failure_detail": attempt.failure_detail,
-        "provider": {
-            "kind": PROVIDER_KINDS.get(attempt.provider_name, attempt.provider_name),
-            "name": attempt.provider_name,
-            "model_id": attempt.model_id,
-            "region": attempt.provider_region,
-        },
+        "provider": provider_view(attempt.provider_name, attempt.model_id, attempt.provider_region),
         "prompt_version": attempt.prompt_version,
         "snapshot_hash": attempt.snapshot_hash,
         "candidate_count": attempt.candidate_count,
@@ -154,3 +154,9 @@ def latest_investigation(project: str, trace_id: TraceId, attempts: AttemptStore
     if not found:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No investigation for this trace")
     return attempt_view(found[-1])
+
+
+@router.get("/projects/{project}/investigator")
+def investigator(project: str, provider: InvestigatorProvider = Depends(get_investigator_provider)):
+    project_id(project)
+    return provider_view(provider.name, provider.model_id, getattr(provider, "region", None))
