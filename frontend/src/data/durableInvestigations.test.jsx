@@ -53,12 +53,16 @@ const ok = (body, status = 200) => ({ ok: true, status, json: async () => body }
 const fail = status => ({ ok: false, status, json: async () => ({ detail: 'server text that must not be shown sk-secret' }) })
 const INV = `/api/v1/projects/local/runs/${traceId}/investigations`
 
-function fetcher({ latest = fail(404), post = ok(attempt(), 201), provider = ok(scripted) } = {}) {
+function fetcher({ latest = fail(404), post = ok(attempt(), 201), provider = ok(scripted), finishedAnyway = null } = {}) {
   const state = { latest }
   return vi.fn(async (url, init = {}) => {
     if (url === '/api/v1/projects') return ok(projects)
     if (url === '/api/v1/projects/local/investigator') return provider
-    if (url === INV && init.method === 'POST') { if (post.ok) state.latest = ok(await post.json()); return post }
+    if (url === INV && init.method === 'POST') {
+      if (post.ok) state.latest = ok(await post.json())
+      else if (finishedAnyway) state.latest = ok(finishedAnyway)  // the server finished after the proxy gave up
+      return post
+    }
     if (url === INV + '/latest') return state.latest
     if (url.endsWith('/runs/' + traceId)) return ok(traceBody)
     if (url.includes('/local/runs?')) return ok({ project: 'local', runs: [run], next_cursor: null })
@@ -122,6 +126,15 @@ describe('durable investigation adapter', () => {
   })
 })
 
+describe('durable investigation request errors', () => {
+  it('gives a busy server (429) its own message', async () => {
+    const { investigationRepository } = await connected(fetcher({ post: fail(429) }))
+    const request = investigationRepository.requestInvestigation({ projectId: 'local', runId: traceId })
+    await expect(request).rejects.toThrow('Another investigation is already running on the server. Wait for it to finish, then select Investigate again.')
+    await expect(request).rejects.toMatchObject({ status: 429 })
+  })
+})
+
 describe('durable investigation UI', () => {
   it('runs an investigation from a run, labels the provider and opens the grounded finding', async () => {
     const fetch = fetcher()
@@ -141,6 +154,29 @@ describe('durable investigation UI', () => {
     expect((await within(paneB).findAllByText('"quantity":0')).length).toBeGreaterThan(0)
     expect(paneB.querySelector('.evidence-passage mark').textContent).toBe('"quantity":0')
     expect(screen.getAllByText(/Scripted stub · no model called/).length).toBeGreaterThan(0)
+  })
+
+  it('after a proxy timeout still reads the latest attempt, so a finished one is shown', async () => {
+    const fetch = fetcher({ post: fail(504), finishedAnyway: attempt() })
+    window.history.replaceState(null, '', `/?source=durable#/projects/local/runs/${traceId}`)
+    const user = userEvent.setup()
+    render(<App {...createDurableAdapters(fetch)}/>)
+    await user.click(await screen.findByRole('button', { name: 'Investigate' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/could not start/)
+    expect(await screen.findByRole('link', { name: 'View 1 finding' })).toBeTruthy()
+  })
+
+  it('does not re-read after a 429: nothing new can exist', async () => {
+    const fetch = fetcher({ post: fail(429) })
+    window.history.replaceState(null, '', `/?source=durable#/projects/local/runs/${traceId}`)
+    const user = userEvent.setup()
+    render(<App {...createDurableAdapters(fetch)}/>)
+    await user.click(await screen.findByRole('button', { name: 'Investigate' }))
+    expect((await screen.findByRole('alert')).textContent).toMatch(/already running/)
+    const reads = fetch.mock.calls.filter(([url]) => url === INV + '/latest').length
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(fetch.mock.calls.filter(([url]) => url === INV + '/latest').length).toBe(reads)
+    expect(screen.getByRole('button', { name: 'Investigate' })).toBeTruthy()
   })
 
   it('shows a request failure as an alert and stores nothing', async () => {

@@ -94,8 +94,12 @@ export function createDurableInvestigations(fetcher, { readRun }) {
     },
     async requestInvestigation({ runId, signal }) {
       const response = await call(`/runs/${encodeURIComponent(runId)}/investigations`, { method: 'POST' }, signal)
-      if (!response.ok) throw new Error(response.status === 404 ? 'Investigation could not start: this trace is not in durable storage.'
-        : 'Investigation could not start: the trace store or the investigator provider is unavailable or not configured.')
+      if (!response.ok) {
+        const message = response.status === 404 ? 'Investigation could not start: this trace is not in durable storage.'
+          : response.status === 429 ? 'Another investigation is already running on the server. Wait for it to finish, then select Investigate again.'
+            : 'Investigation could not start: the trace store or the investigator provider is unavailable or not configured.'
+        throw Object.assign(new Error(message), { status: response.status })
+      }
       return result(runId, await response.json(), signal)
     },
     async readSource({ runId, attemptId, citationId, signal }) {

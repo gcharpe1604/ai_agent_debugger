@@ -23,7 +23,12 @@ export default function InvestigationControl({ repository, projectId, runId, sea
   async function investigate() {
     setRunning(true); setRequestError(null)
     try { await repository.requestInvestigation({ projectId, runId }); retry() }
-    catch (failure) { setRequestError(failure?.message || 'Investigation could not start.') }
+    catch (failure) {
+      setRequestError(failure?.message || 'Investigation could not start.')
+      // A proxy timeout can hide an attempt that finished on the server: read the latest one.
+      // 404 (no trace) and 429 (refused, nothing created) cannot have produced an attempt.
+      if (![404, 429].includes(failure?.status)) retry()
+    }
     finally { setRunning(false) }
   }
   return <div className="investigation-control">
