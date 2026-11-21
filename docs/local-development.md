@@ -137,3 +137,26 @@ docker compose logs kafka-init     # lists agentdbg.traces.v1 and agentdbg.trace
 - Data persists in named volumes across `docker compose down` / `up`. `docker compose down -v` deletes it.
 - Kafka here is one broker with replication factor 1: restarts keep acknowledged data, losing the volume does not.
 - Running the demo script from a git worktree starts a second compose project; set `$env:COMPOSE_PROJECT_NAME = 'ai-agent-debugger'` first.
+
+## Investigator provider (Amazon Bedrock)
+
+The investigator defaults to `INVESTIGATOR_PROVIDER=scripted`, which never calls a model. To use Bedrock (branch `feat/bedrock-provider`):
+
+1. In the Bedrock console, pick a region where your model supports the Converse API and structured outputs (the model card lists both). That is `AWS_REGION`.
+2. Open the model in the Bedrock model catalog and complete any access step it shows (Anthropic models ask for a one-time use-case form). Without it, calls fail with `AccessDeniedException` (smoke exit 4).
+3. Copy the model ID, or the inference profile ID (`us.` / `eu.` prefix) if the model card says it is called through cross-region inference. That is `BEDROCK_MODEL_ID`.
+4. Bedrock console → API keys → generate a short-term key (valid up to 12 h, only in the region where it was generated) or a long-term key (exploration only; it creates an IAM user). Copy it once; it cannot be shown again.
+5. In one PowerShell window only, never in a committed file:
+
+   ```powershell
+   $env:INVESTIGATOR_PROVIDER = 'bedrock'; $env:AWS_REGION = '<region>'; $env:BEDROCK_MODEL_ID = '<model or profile id>'; $env:AWS_BEARER_TOKEN_BEDROCK = '<key>'
+   ```
+
+6. Check, then record the region and model ID (not the key) in `docs/handoff.md` §6:
+
+   ```powershell
+   uv run --project backend --locked python scripts/bedrock_smoke.py --dry-run
+   uv run --project backend --locked python scripts/bedrock_smoke.py
+   ```
+
+   Exit codes: 0 ok, 2 env not set, 3 credentials, 4 no model access, 5 model/region wrong, 6 throttled, 7 timeout or unavailable. The script never prints the key or the provider's message.
