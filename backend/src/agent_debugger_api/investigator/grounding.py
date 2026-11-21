@@ -1,9 +1,9 @@
-"""Deterministic grounding (`docs/proposals/investigator.md` §6). NOT IMPLEMENTED.
+"""Deterministic grounding (`docs/proposals/investigator.md` §6).
 
-The user writes this module (handoff §12: grounding validation is a core
-piece). What is here: the result types the engine stores, the function
-signatures, and the rules each function must apply. No tests exist for it yet.
-The test list is proposal §9, tests 19 to 37, one per rule:
+The result types the engine stores, `cited_value`, `reject_code` (R1 to R11 as
+small functions in the ordered `_RULES`), `adjust` (A1 to A3) and `ground`
+(A4 and the attempt outcome). The tests are `tests/investigator/test_grounding.py`,
+proposal §9 tests 19 to 37, one per rule:
 
   19 R1  fabricated span ID in evidence, as suspicious_span_id, as a relation
          endpoint, a real ID from another trace, the ID of a collapsed span
@@ -58,11 +58,15 @@ Where the data is
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from ..contracts import StatusCode
 from .schema import (
+    PAYLOAD_FIELDS,
     CandidateFinding,
     Category,
     ClaimType,
@@ -71,7 +75,7 @@ from .schema import (
     Priority,
     Relation,
 )
-from .snapshot import Snapshot, SnapshotSpan
+from .snapshot import REDACTED_MARKER, Snapshot, SnapshotSpan
 
 RejectionCode = Literal[
     "unknown_span",  # R1
@@ -93,6 +97,11 @@ AdjustmentCode = Literal[
     "duplicate",  # A4
 ]
 Outcome = Literal["findings", "no_issue_found", "insufficient_evidence"]
+
+EXCEPTION_EVENT = "exception"
+
+# What `snapshot._excerpt` puts between the head and the tail of a long payload: "…[5000 chars omitted]…".
+_OMISSION_MARKER = re.compile(r"…\[\d+ chars omitted\]…")
 
 # §6.4: added to the attempt when the model found no issue and no input or
 # output payload was captured.
@@ -134,6 +143,15 @@ class GroundingResult(_Model):
     has_failure_findings: bool
 
 
+_PAYLOAD_ATTR = {"input_payload": "input", "output_payload": "output", "error_payload": "error"}
+_SPAN_ATTR = {
+    "status_description": "status_description",
+    "error_type": "error_type",
+    "span_name": "name",
+    "retry_of_span_id": "retry_of_span_id",
+}
+
+
 def cited_value(span: SnapshotSpan, ref: EvidenceRef) -> str | None:
     """The text `ref` points at on `span`, as the snapshot renders it; None when not recorded.
 
@@ -152,7 +170,180 @@ def cited_value(span: SnapshotSpan, ref: EvidenceRef) -> str | None:
 
     Used by R5 (recorded at all) and R6 (quote is an exact substring).
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    field = ref.field
+    value: object | None
+    if field == "attribute":
+        value = span.attributes.get(ref.key) if ref.key is not None else None
+    elif field == "event":
+        event = next((e for e in span.events if e.index == ref.event_index), None)
+        value = None if event is None else "\n".join([event.name, *event.attributes.values()])
+    elif field in PAYLOAD_FIELDS:
+        value = getattr(span, _PAYLOAD_ATTR[field]).excerpt
+    elif field == "status_code":
+        value = span.status_code.value
+    elif field == "attempt":
+        value = span.attempt
+    else:
+        value = getattr(span, _SPAN_ATTR[field])
+    if value is None or value == "":
+        return None
+    return str(value)
+
+
+def _span_ids(candidate: CandidateFinding) -> set[str]:
+    ids = {ref.span_id for ref in candidate.evidence}
+    for rel in candidate.relations:
+        ids.update((rel.from_span_id, rel.to_span_id))
+    if candidate.suspicious_span_id is not None:
+        ids.add(candidate.suspicious_span_id)
+    return ids
+
+
+def version_for(snapshot: Snapshot, ref: EvidenceRef) -> SnapshotSpan | None:
+    """The rendered version `ref` cites: the only one, or for a conflicted span the one with its hash.
+
+    None when the span is not rendered, or is conflicted and `ref.content_hash` matches no version.
+    """
+    versions = snapshot.versions(ref.span_id)
+    if len(versions) == 1:
+        return versions[0]
+    return next((v for v in versions if ref.content_hash is not None and v.content_hash == ref.content_hash), None)
+
+
+def _cited(snapshot: Snapshot, candidate: CandidateFinding) -> list[tuple[EvidenceRef, SnapshotSpan | None]]:
+    return [(ref, version_for(snapshot, ref)) for ref in candidate.evidence]
+
+
+# Reject rules. Each returns True when the candidate satisfies the rule; `_RULES` is the order they run in.
+
+
+def _r1_rendered_spans(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(snapshot.versions(span_id) for span_id in _span_ids(candidate))
+
+
+def _r2_one_version(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(version is not None for _, version in _cited(snapshot, candidate))
+
+
+def _r3_event_exists(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(
+        version is not None and any(event.index == ref.event_index for event in version.events)
+        for ref, version in _cited(snapshot, candidate)
+        if ref.field == "event"
+    )
+
+
+def _r4_attribute_exists(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(
+        version is not None and ref.key is not None and ref.key in version.attributes
+        for ref, version in _cited(snapshot, candidate)
+        if ref.field == "attribute"
+    )
+
+
+def _r5_field_recorded(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    # A quote that contains the redaction marker cites a value that was not recorded (D7).
+    return all(
+        version is not None
+        and cited_value(version, ref) is not None
+        and not (ref.quote is not None and REDACTED_MARKER in ref.quote)
+        for ref, version in _cited(snapshot, candidate)
+    )
+
+
+def _r6_quote_is_substring(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    for ref, version in _cited(snapshot, candidate):
+        if ref.quote is None:
+            continue
+        # The omission marker is the snapshot's own text, not recorded text: a quote may not contain it.
+        if _OMISSION_MARKER.search(ref.quote):
+            return False
+        value = None if version is None else cited_value(version, ref)
+        if value is None or ref.quote not in value:  # exact, case-sensitive
+            return False
+    return True
+
+
+def _relation_holds(snapshot: Snapshot, relation: Relation) -> bool:
+    """True if any rendered version of the span that carries the edge satisfies it."""
+    source, target = relation.from_span_id, relation.to_span_id
+    if relation.kind == "parent_of":  # the edge is on the child
+        return any(v.parent_span_id == source for v in snapshot.versions(target))
+    if relation.kind == "retry_of":
+        return any(v.retry_of_span_id == target for v in snapshot.versions(source))
+    return any(link.span_id == target for v in snapshot.versions(source) for link in v.links)
+
+
+def _r7_relations_exist(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    return all(_relation_holds(snapshot, relation) for relation in candidate.relations)
+
+
+def _r8_suspect_has_evidence(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    suspect = candidate.suspicious_span_id
+    return suspect is None or any(ref.span_id == suspect for ref in candidate.evidence)
+
+
+def _has_exception_event(span: SnapshotSpan, event_index: int | None = None) -> bool:
+    return any(e.name == EXCEPTION_EVENT and event_index in (None, e.index) for e in span.events)
+
+
+def _r9_failure_evidence(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    if candidate.claim_type != "observed_failure":
+        return True
+    return any(
+        version is not None
+        and (
+            (ref.field == "status_code" and version.status_code is StatusCode.ERROR)
+            or (ref.field == "event" and _has_exception_event(version, ref.event_index))
+        )
+        for ref, version in _cited(snapshot, candidate)
+    )
+
+
+def _r10_two_payload_quotes(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    if candidate.claim_type != "inconsistency":
+        return True
+    quoted = {ref.span_id for ref in candidate.evidence if ref.field in PAYLOAD_FIELDS and ref.quote is not None}
+    return len(quoted) >= 2
+
+
+def _is_failing(snapshot: Snapshot, span_id: str) -> bool:
+    """R9's condition on a span: an ERROR version, or an `exception` event."""
+    return any(v.status_code is StatusCode.ERROR or _has_exception_event(v) for v in snapshot.versions(span_id))
+
+
+def _r11_connected_to_failure(snapshot: Snapshot, candidate: CandidateFinding) -> bool:
+    if candidate.claim_type != "suspected_origin":
+        return True
+    suspect = candidate.suspicious_span_id
+    if not candidate.limitations or suspect is None:
+        return False
+    neighbours: dict[str, set[str]] = {}
+    for relation in candidate.relations:  # undirected
+        neighbours.setdefault(relation.from_span_id, set()).add(relation.to_span_id)
+        neighbours.setdefault(relation.to_span_id, set()).add(relation.from_span_id)
+    seen, pending = {suspect}, [suspect]
+    while pending:
+        for other in neighbours.get(pending.pop(), ()):
+            if other not in seen:
+                seen.add(other)
+                pending.append(other)
+    return any(_is_failing(snapshot, span_id) for span_id in seen - {suspect})
+
+
+_RULES: tuple[tuple[RejectionCode, Callable[[Snapshot, CandidateFinding], bool]], ...] = (
+    ("unknown_span", _r1_rendered_spans),
+    ("ambiguous_version", _r2_one_version),
+    ("unknown_event", _r3_event_exists),
+    ("unknown_field", _r4_attribute_exists),
+    ("field_not_recorded", _r5_field_recorded),
+    ("quote_mismatch", _r6_quote_is_substring),
+    ("unknown_relationship", _r7_relations_exist),
+    ("unsupported_suspect", _r8_suspect_has_evidence),
+    ("no_failure_evidence", _r9_failure_evidence),
+    ("insufficient_evidence", _r10_two_payload_quotes),
+    ("unsupported_suspicion", _r11_connected_to_failure),
+)
 
 
 def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCode | None:
@@ -174,7 +365,9 @@ def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCod
                               redacted payload is readable.
     R6  quote_mismatch        quote, when given, is an exact substring of the
                               cited value. One different character fails. Text
-                              from the omitted middle of a long payload fails.
+                              from the omitted middle of a long payload fails,
+                              and so does a quote that contains the snapshot's
+                              omission marker ("…[N chars omitted]…").
     R7  unknown_relationship  parent_of: `to` has `from` as parent_span_id.
                               retry_of: `from` has retry_of_span_id = `to`.
                               link: `from` has a link to `to`.
@@ -194,7 +387,19 @@ def reject_code(snapshot: Snapshot, candidate: CandidateFinding) -> RejectionCod
                               relations (two siblings are connected through
                               their parent by two parent_of relations).
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    for code, satisfied in _RULES:
+        if not satisfied(snapshot, candidate):
+            return code
+    return None
+
+
+def _is_error(snapshot: Snapshot, span_id: str) -> bool:
+    return any(v.status_code is StatusCode.ERROR for v in snapshot.versions(span_id))
+
+
+def _in_recovered_group(snapshot: Snapshot, span_id: str | None) -> bool:
+    group = None if span_id is None else snapshot.retry_group_of(span_id)
+    return group is not None and group.outcome == "recovered"
 
 
 def adjust(snapshot: Snapshot, candidate_index: int, candidate: CandidateFinding) -> tuple[GroundedFinding, tuple[AdjustmentCode, ...]]:
@@ -217,7 +422,47 @@ def adjust(snapshot: Snapshot, candidate_index: int, candidate: CandidateFinding
     Returns the finding and the codes of the adjustments that changed it, in
     rule order. A rule that changes nothing reports no code.
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    claim_type, category, priority = candidate.claim_type, candidate.category, candidate.priority
+    suspect = candidate.suspicious_span_id
+    codes: list[AdjustmentCode] = []
+
+    cited_errors = {ref.span_id for ref in candidate.evidence if _is_error(snapshot, ref.span_id)}
+    touches_recovered = (suspect is not None and _in_recovered_group(snapshot, suspect)) or any(
+        _in_recovered_group(snapshot, span_id) for span_id in cited_errors
+    )
+    cites_unrecovered_error = any(not _in_recovered_group(snapshot, span_id) for span_id in cited_errors)
+    if touches_recovered and not cites_unrecovered_error:  # A1
+        clamped = ("recovered_failure", "recovered_retry", "LOW")
+        if (claim_type, category, priority) != clamped:
+            claim_type, category, priority = clamped
+            codes.append("clamped_recovered_retry")
+
+    if claim_type == "suspected_origin" and priority == "HIGH":  # A2
+        priority = "MEDIUM"
+        codes.append("clamped_suspicion")
+
+    if priority == "HIGH":  # A3
+        is_originating_failure = (
+            claim_type == "observed_failure"
+            and suspect in snapshot.facts.originating_error_span_ids
+            and not _in_recovered_group(snapshot, suspect)
+        )
+        if not (is_originating_failure or claim_type == "inconsistency"):
+            priority = "MEDIUM"
+            codes.append("clamped_priority")
+
+    finding = GroundedFinding(
+        candidate_index=candidate_index,
+        category=category,
+        claim_type=claim_type,
+        suspicious_span_id=suspect,
+        priority=priority,
+        explanation=candidate.explanation,
+        evidence=candidate.evidence,
+        relations=candidate.relations,
+        limitations=candidate.limitations,
+    )
+    return finding, tuple(codes)
 
 
 def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
@@ -228,7 +473,8 @@ def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
     through `adjust`; each adjustment adds a report entry (kept=True).
     A4: a second finding with the same (suspicious_span_id, category) as an
     earlier grounded one is dropped with code "duplicate" (kept=False). The
-    comparison uses the values after A1 to A3.
+    comparison uses the values after A1 to A3. A finding with no suspect is
+    never a duplicate.
 
     One bad candidate never affects another candidate.
 
@@ -247,4 +493,40 @@ def ground(snapshot: Snapshot, output: InvestigatorOutput) -> GroundingResult:
     Not this function's job: provider errors, invalid output and unknown traces
     (§6.1) are handled by the engine before grounding is called.
     """
-    raise NotImplementedError("grounding is written by the user: see the module docstring")
+    findings: list[GroundedFinding] = []
+    report: list[GroundingReportEntry] = []
+    seen: set[tuple[str, str]] = set()
+
+    for index, candidate in enumerate(output.findings):
+        code = reject_code(snapshot, candidate)
+        if code is not None:
+            report.append(GroundingReportEntry(candidate_index=index, code=code, kept=False))
+            continue
+        finding, adjustments = adjust(snapshot, index, candidate)
+        report.extend(GroundingReportEntry(candidate_index=index, code=a, kept=True) for a in adjustments)
+        if finding.suspicious_span_id is not None:  # A4: only a finding with a suspect can duplicate another
+            key = (finding.suspicious_span_id, finding.category)  # after A1 to A3, first wins
+            if key in seen:
+                report.append(GroundingReportEntry(candidate_index=index, code="duplicate", kept=False))
+                continue
+            seen.add(key)
+        findings.append(finding)
+
+    limitations = tuple(output.limitations)
+    outcome: Outcome
+    if findings:
+        outcome = "findings"
+    elif output.verdict == "no_issue_found":
+        outcome = "no_issue_found"
+        if not snapshot.completeness.payloads_captured:
+            limitations += (PAYLOAD_LIMITATION,)
+    else:  # the model said so, or it returned findings and every one was rejected
+        outcome = "insufficient_evidence"
+
+    return GroundingResult(
+        findings=tuple(findings),
+        report=tuple(report),
+        outcome=outcome,
+        limitations=limitations,
+        has_failure_findings=any(f.claim_type != "recovered_failure" for f in findings),
+    )

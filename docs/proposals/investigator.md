@@ -1,6 +1,6 @@
 # Investigator (OJT MVP): PROPOSAL
 
-**Status:** PROPOSAL, 2026-11-16. Nothing here is a decision until the user accepts it (§12). Decided so far: D1 and D7 (user decisions 2026-11-16). No code exists; `backend/src/agent_debugger_api/analysis/*` is still 0-byte scaffold.
+**Status:** PROPOSAL, 2026-11-16. Nothing here is a decision until the user accepts it (§12). Decided so far: D1 and D7 (user decisions 2026-11-16). **Code (2026-11-21):** snapshot, output schema, provider port and attempt lifecycle are on `main` (PR #20, merged 2026-11-17). **Grounding (§6): IMPLEMENTED + TESTED** in `backend/src/agent_debugger_api/investigator/grounding.py` on branch `feat/grounding` (PR #22, not merged); rule-to-test map in §6.6. Not written: `FactsEchoProvider`, scenario fixtures and the scorer (tests 47-52, 56). `backend/src/agent_debugger_api/analysis/*` is still 0-byte scaffold.
 **Scope:** handoff action 8, smallest reliable version: one provider call per analysis, direct mode only, trace evidence only.
 **Sources read:** `analysis-engine.md`, `PRD.md`, `LLD.md` §9–10, `database.md` §4.3–4.5, `handoff.md`, `contracts/{span_record,interfaces}.py`, `ingest/schemas.py` (on `feat/durable-ingest`), SDK `session.py`/`transport.py`, the four agents' `cli.py`, all 39 `ground_truth/*` files.
 **Not run:** no scenario was executed for this doc. Every statement about what a scenario's trace contains is derived from reading code and is marked as an assumption (§10).
@@ -219,6 +219,29 @@ Rejected candidates are not shown as findings. The attempt keeps their count and
 ### 6.5 What grounding does not prove
 
 That the explanation is right, or that the cited step caused the outcome (`analysis-engine.md` §10). The UI wording must say "suspicious step", never "root cause".
+
+### 6.6 Rules and the tests that prove them (implemented 2026-11-19, branch `feat/grounding`)
+
+Unit tests are in `backend/tests/investigator/test_grounding.py` (class in brackets). End-to-end tests on real agent runs are in `tests/integration/test_investigator_scenarios.py`.
+
+| Rule | In one sentence | Test |
+|---|---|---|
+| R1 | Every span the finding cites must be a span shown in this snapshot. | [RejectRuleTests] `test_19_r1_...`; scenario `test_a_fabricated_span_id_is_rejected_as_unknown_span` (RAG-04) |
+| R2 | A span with two stored versions must be cited with the hash of one of them. | `test_20_r2_...` |
+| R3 | A cited event must exist at that index on that span. | `test_21_r3_...` |
+| R4 | A cited attribute key must exist on that span. | `test_22_r4_...` |
+| R5 | The cited field must have been recorded (no unavailable/disabled payload, no `[redacted]` value). | `test_23_r5_...`; scenario `test_the_same_inconsistency_is_rejected_as_not_recorded` (metadata-only RAG-04) |
+| R6 | A quote must be copied exactly from the cited value and must not span the omission marker. | `test_24_r6_...` (two tests); scenarios `test_an_altered_quote_is_rejected_as_quote_mismatch` (RAG-04), `test_an_altered_quote_is_rejected` (TOOL-03) |
+| R7 | A claimed parent, retry or link relation must exist in the snapshot. | `test_25_r7_...` |
+| R8 | The suspect span must have at least one piece of evidence on itself. | `test_26_r8_...` |
+| R9 | An observed failure must cite an ERROR status or an exception event. | `test_27_r9_...`; scenario `test_a_failure_claimed_on_the_ok_plan_span_is_rejected` (TOOL-03) |
+| R10 | An inconsistency needs payload quotes from two different spans. | `test_28_r10_...`; scenario `test_a_correct_inconsistency_is_grounded_and_kept` (RAG-04) |
+| R11 | A suspected origin must be linked to a failing span and must state a limitation. | `test_29_r11_...` |
+| A1 | A failure inside a retry group that later succeeded becomes a LOW recovered_failure. | [AdjustRuleTests] `test_30_a1_...`, `test_30_through_ground_...`, `test_31_a1_...`; scenario `test_a_high_failure_on_attempt_1_is_stored_as_a_low_recovered_failure` (TOOL-07) |
+| A2 | A suspected origin is at most MEDIUM. | `test_32_a2_and_a3_...` |
+| A3 | HIGH stays only on an originating observed failure or a grounded inconsistency; otherwise MEDIUM. | `test_32_a2_and_a3_...`; scenario `test_a_correct_observed_failure_is_grounded_and_kept_high` (TOOL-03) |
+| A4 | The same (suspect, category) twice keeps only the first; a finding with no suspect is never a duplicate. | `test_33_a4_...` (two tests) |
+| Outcome | One bad candidate never affects another; all rejected gives insufficient_evidence; no_issue_found on a metadata-only trace carries the payload limitation; grounding is pure. | [GroundTests] `test_34`-`test_37`; scenario `test_no_issue_found_carries_the_payload_limitation`; fuzz `test_grounding_fuzz.py` (600 random schema-valid outputs: never raises, inputs unchanged, every candidate kept or rejected with one code) |
 
 ## 7. Provider interface and stubs
 
