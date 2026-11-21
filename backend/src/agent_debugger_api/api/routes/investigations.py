@@ -21,6 +21,8 @@ No authentication yet (handoff action 6); same `local` project rule as the read 
 
 from __future__ import annotations
 
+import os
+import threading
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -47,6 +49,10 @@ from agent_debugger_api.investigator.snapshot import Snapshot
 router = APIRouter(tags=["investigations"])
 
 PROVIDER_KINDS = {"stub-scripted": "scripted", "bedrock": "bedrock"}
+
+# Investigations running at once in this process (INVESTIGATOR_MAX_CONCURRENT, default 1).
+# A request that finds no free slot gets 429 and creates no attempt.
+RUNNING = threading.BoundedSemaphore(max(int(os.environ.get("INVESTIGATOR_MAX_CONCURRENT", "1")), 1))
 
 
 def get_attempt_store(request: Request) -> AttemptStore:
@@ -151,8 +157,13 @@ async def create_investigation(
     trace = await _read(store.get_trace, pid, trace_id)
     if trace is None or not trace.spans:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Trace not found")
-    engine = Investigator(_OneTrace(trace), provider, attempts)
-    attempt = await run_in_threadpool(engine.investigate, pid, trace_id)
+    if not RUNNING.acquire(blocking=False):
+        raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "An investigation is already running; retry shortly.")
+    try:
+        engine = Investigator(_OneTrace(trace), provider, attempts)
+        attempt = await run_in_threadpool(engine.investigate, pid, trace_id)
+    finally:
+        RUNNING.release()
     return attempt_view(attempt)
 
 

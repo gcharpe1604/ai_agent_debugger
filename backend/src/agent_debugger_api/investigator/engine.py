@@ -120,6 +120,9 @@ class Investigator:
                     continue
                 # Only the kind is kept. The provider's text is not evidence.
                 return self._fail(attempt, "provider_error", error.kind, provider_calls=calls)
+            except Exception:
+                # A provider bug, not a provider answer. Its text is never stored.
+                return self._fail(attempt, "internal_error", "provider_crashed", provider_calls=calls)
         usage = {
             "provider_calls": calls,
             "input_tokens": response.input_tokens,

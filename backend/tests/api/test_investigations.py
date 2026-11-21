@@ -126,6 +126,47 @@ class PostTests(InvestigationRouteCase):
         self.assertEqual((body["status"], body["failure_detail"], body["provider_calls"]), ("failed", "rate_limited", 2))
 
 
+class CrashingProvider:
+    name = "stub-scripted"
+    model_id = "scripted-1"
+
+    def investigate(self, request):
+        raise RuntimeError(f"boom {SECRET}")
+
+
+class RobustnessTests(InvestigationRouteCase):
+    def test_a_provider_that_crashes_is_a_failed_attempt_without_its_text(self):
+        self.provider = CrashingProvider()
+        response = self.post()
+        self.assertEqual(response.status_code, 201)
+        body = response.json()
+        self.assertEqual((body["status"], body["failure_code"], body["failure_detail"]), ("failed", "internal_error", "provider_crashed"))
+        self.assertEqual(body["provider_calls"], 1)
+        self.assertNotIn("boom", response.text)
+
+    def test_a_running_investigation_makes_a_second_one_429_and_creates_no_attempt(self):
+        from agent_debugger_api.api.routes import investigations
+
+        self.assertTrue(investigations.RUNNING.acquire(blocking=False))
+        try:
+            response = self.post()
+        finally:
+            investigations.RUNNING.release()
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.json()["detail"], "An investigation is already running; retry shortly.")
+        self.assertEqual(self.attempts.list_for_trace(DEFAULT_PROJECT_ID, TRACE_1), [])
+        self.assertEqual(self.provider.requests, [])
+        self.assertEqual(self.post().status_code, 201)  # released afterwards
+
+    def test_the_slot_is_released_when_the_engine_raises(self):
+        from agent_debugger_api.api.routes import investigations
+
+        with mock.patch.object(investigations.Investigator, "investigate", side_effect=RuntimeError("engine bug")):
+            with self.assertRaises(RuntimeError):
+                self.post()
+        self.assertEqual(self.post().status_code, 201)
+
+
 class LatestTests(InvestigationRouteCase):
     def test_latest_is_404_before_any_attempt(self):
         response = self.client.get(BASE + "/latest")
