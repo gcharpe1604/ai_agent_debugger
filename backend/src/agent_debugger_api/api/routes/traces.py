@@ -6,9 +6,10 @@ was not acked; the client should retry the whole batch. 413 means the body,
 or one span as a Kafka record, is too large; nothing was published and a
 retry of the same batch cannot succeed.
 
-No authentication yet (handoff action 6): `project_id` comes from
-resolve_project_id(). The local profile's loopback/origin/header gating and
-payload rejection are deliberately not used here.
+Authentication: `Authorization: Bearer <API key>` (auth/deps.py ingest_user),
+checked before the body is read; `project_id` is the key owner's. The local
+profile's loopback/origin/header gating and payload rejection are deliberately
+not used here.
 """
 
 from __future__ import annotations
@@ -19,9 +20,10 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
+from agent_debugger_api.auth.deps import ingest_user
 from agent_debugger_api.contracts import PublishError, SpanPublisher, SpanTooLargeError
+from agent_debugger_api.db.models import User
 from agent_debugger_api.ingest.schemas import TraceBatch, to_span_record
-from agent_debugger_api.ingest.settings import resolve_project_id
 
 router = APIRouter(tags=["durable telemetry"])
 
@@ -39,7 +41,12 @@ def _invalid(exc: ValidationError) -> JSONResponse:
 
 
 @router.post("/traces", status_code=status.HTTP_202_ACCEPTED)
-async def ingest_traces(request: Request, publisher: SpanPublisher = Depends(get_span_publisher)):
+async def ingest_traces(
+    request: Request,
+    # A dependency: FastAPI runs it before this body, so a bad key is 401 before any byte is read.
+    user: User = Depends(ingest_user),
+    publisher: SpanPublisher = Depends(get_span_publisher),
+):
     # Media types are case-insensitive (RFC 9110 §8.3.1).
     if request.headers.get("content-type", "").split(";")[0].strip().lower() != "application/json":
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "JSON required")
@@ -54,7 +61,7 @@ async def ingest_traces(request: Request, publisher: SpanPublisher = Depends(get
     except ValidationError as exc:
         return _invalid(exc)
 
-    project_id = resolve_project_id()
+    project_id = user.project_id
     received_at = time.time_ns()  # once per envelope (§8.2)
     try:
         records = [to_span_record(span, project_id, received_at) for span in batch.spans]

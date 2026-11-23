@@ -4,16 +4,20 @@ import json
 import os
 import time
 import unittest
+import uuid
 from unittest import mock
 
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from agent_debugger_api.api.routes.traces import get_span_publisher
+from agent_debugger_api.auth.deps import ingest_user
 from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
 from agent_debugger_api.ingest.kafka_publisher import KafkaSpanPublisher
 from agent_debugger_api.ingest.schemas import MAX_PAYLOAD_BYTES
-from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID, resolve_project_id
+from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID
 from agent_debugger_api.main import app
+from tests.auth.factories import make_user
 
 T0 = 1_763_000_000_000_000_000
 TRACE_1 = "1" * 32
@@ -21,6 +25,7 @@ TRACE_2 = "2" * 32
 ROOT = "a" * 16
 CHILD = "b" * 16
 CLIENT_PROJECT = "00000000-0000-4000-8000-0000000000ff"
+USER_PROJECT = uuid.UUID("00000000-0000-4000-8000-0000000000aa")
 
 
 def wire_span(**overrides) -> dict:
@@ -46,6 +51,9 @@ class DurableIngestTests(unittest.TestCase):
     def setUp(self):
         self.publisher = InMemorySpanPublisher()
         app.dependency_overrides[get_span_publisher] = lambda: self.publisher
+        # The key's owner; the real ingest_user is tested in tests/auth/test_authorization.py.
+        self.user = make_user(project_id=USER_PROJECT)
+        app.dependency_overrides[ingest_user] = lambda: self.user
         self.addCleanup(app.dependency_overrides.clear)
         # A non-loopback client: the local-1 gating must not apply here.
         self.client = TestClient(app, client=("203.0.113.7", 50000))
@@ -109,19 +117,26 @@ class DurableIngestTests(unittest.TestCase):
         self.assertEqual(record.events[0].attributes, {"attempt": "2", "final": "false"})
 
     # project_id
-    def test_project_id_comes_from_resolve_project_id(self):
-        self.post(batch())
-        [record] = self.published()
-        self.assertEqual(record.project_id, resolve_project_id())
+    def test_project_id_is_the_authenticated_users(self):
+        self.post(batch(wire_span(), wire_span(trace_id=TRACE_2)))
+        self.assertEqual({record.project_id for record in self.published()}, {USER_PROJECT})
 
-    def test_project_id_env_override_is_used(self):
-        override = "00000000-0000-4000-8000-0000000000aa"
-        with mock.patch.dict(os.environ, {"DEFAULT_PROJECT_ID": override}):
-            from agent_debugger_api.ingest import settings
-            settings.get_ingest_settings.cache_clear()
-            self.addCleanup(settings.get_ingest_settings.cache_clear)
-            self.post(batch())
-        self.assertEqual(str(self.published()[0].project_id), override)
+    # authentication
+    def test_authentication_runs_before_the_body_is_read(self):
+        def reject():
+            raise HTTPException(401, "Invalid API key")
+
+        app.dependency_overrides[ingest_user] = reject
+        cases = {
+            "valid batch": dict(json=batch()),
+            "over 4 MiB": dict(json=batch(wire_span(input_state="captured", input_payload="x" * (4 * 1024 * 1024)))),
+            "not JSON": dict(content=b"<xml/>", headers={"content-type": "application/xml"}),
+            "malformed JSON": dict(content=b"{", headers={"content-type": "application/json"}),
+        }
+        for label, kwargs in cases.items():
+            response = self.client.post("/api/v1/traces", **kwargs)
+            self.assertEqual((response.status_code, response.json()), (401, {"detail": "Invalid API key"}), label)
+        self.assertEqual(self.published(), [])
 
     def test_client_project_id_is_rejected_in_span_and_envelope(self):
         in_span = self.post(batch(wire_span(project_id=CLIENT_PROJECT)))

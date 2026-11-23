@@ -1,9 +1,13 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
+from starlette.middleware.sessions import SessionMiddleware
 from agent_debugger_api.traces.repository import LocalMemoryRepository
 
 from agent_debugger_api.api.router import api_router
+from agent_debugger_api.api.routes.auth import validation_error
+from agent_debugger_api.auth.settings import SESSION_COOKIE, SESSION_MAX_AGE_S, get_auth_settings
 from agent_debugger_api.ingest.kafka_publisher import KafkaSpanPublisher
 from agent_debugger_api.ingest.settings import get_ingest_settings
 from agent_debugger_api.traces.read_store import LazyReadStore
@@ -23,6 +27,19 @@ app = FastAPI(
 )
 
 app.include_router(api_router, prefix="/api/v1")
+# UI sessions: a signed cookie holding only user_id. SESSION_SECRET is required;
+# without it get_auth_settings() raises and the app does not start.
+_auth = get_auth_settings()
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_auth.session_secret.get_secret_value(),
+    session_cookie=SESSION_COOKIE,
+    max_age=SESSION_MAX_AGE_S,
+    same_site="lax",
+    https_only=_auth.session_cookie_secure,
+)
+# /auth 422s leave out submitted values (passwords); other routes keep FastAPI's default.
+app.add_exception_handler(RequestValidationError, validation_error)
 # Local memory is an explicit runtime profile, not a substitute for Kafka/ClickHouse.
 app.state.trace_repository = LocalMemoryRepository()
 # Durable path (protocol "1"): POST /api/v1/traces -> Kafka.

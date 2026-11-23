@@ -12,6 +12,7 @@ from unittest import mock
 from fastapi.testclient import TestClient
 
 from agent_debugger_api.api.routes.durable_runs import get_trace_store
+from agent_debugger_api.auth.deps import current_user
 from agent_debugger_api.contracts.fakes import InMemoryTraceStore
 from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID
 from agent_debugger_api.main import app
@@ -19,12 +20,13 @@ from agent_debugger_api.trace_writer.clickhouse_store import ClickHouseTraceStor
 from agent_debugger_api.trace_writer.content_hash import content_hash
 from agent_debugger_api.trace_writer.settings import WriterSettings
 from agent_debugger_api.traces.read_store import LazyReadStore, read_client
+from tests.auth.factories import make_user
 from tests.clickhouse.harness import ClickHouseTestCase
 from tests.contracts.factories import PROJECT_B, T0, make_span
 
 ROOT, CHILD, GRANDCHILD, RETRY, OTHER = ("a" * 16, "b" * 16, "c" * 16, "d" * 16, "e" * 16)
 ABSENT = "f" * 16
-RUNS = "/api/v1/projects/local/runs"
+RUNS = "/api/v1/projects/default/runs"
 HOUR = 3_600_000_000_000  # ns; each list test gets its own hour so tests do not see each other's runs
 
 
@@ -43,6 +45,10 @@ class _ApiCase(unittest.TestCase):
 
     def setUp(self):
         app.dependency_overrides[get_trace_store] = lambda: self.store
+        # A logged-in user whose project is DEFAULT_PROJECT_ID; the real current_user is
+        # tested in tests/auth/test_authorization.py.
+        self.user = make_user(project_id=DEFAULT_PROJECT_ID)
+        app.dependency_overrides[current_user] = lambda: self.user
         self.addCleanup(app.dependency_overrides.clear)
         # Not a loopback client, and local mode is off: the local-1 gate must not apply.
         env = mock.patch.dict(os.environ)
@@ -80,7 +86,7 @@ class DurableReadClickHouseTests(ClickHouseTestCase, _ApiCase):
         response = self.get(RUNS, started_from=base, started_to=base + HOUR)
         self.assertEqual(response.status_code, 200)
         body = response.json()
-        self.assertEqual(body["project"], "local")
+        self.assertEqual(body["project"], "default")
         self.assertIsNone(body["next_cursor"])
         self.assertEqual([r["trace_id"] for r in body["runs"]], [new, rootless, old])
         self.assertEqual(
@@ -386,25 +392,27 @@ class DurableReadValidationTests(_ApiCase):
         self.store = mock.Mock(spec=InMemoryTraceStore)
         super().setUp()
 
-    def test_only_the_local_project_exists(self):
+    def test_only_the_default_project_exists(self):
         for path in ("/api/v1/projects/other/runs", f"/api/v1/projects/other/runs/{trace(1)}",
                      f"/api/v1/projects/other/runs/{trace(1)}/spans/{ROOT}",
-                     f"/api/v1/projects/{DEFAULT_PROJECT_ID}/runs"):
+                     "/api/v1/projects/local/runs", f"/api/v1/projects/{DEFAULT_PROJECT_ID}/runs"):
             response = self.get(path)
             self.assertEqual((response.status_code, response.json()), (404, {"detail": "Project not found"}), path)
         self.assertEqual(self.store.mock_calls, [])
 
-    def test_local_project_is_read_with_the_resolved_uuid_never_the_string(self):
+    def test_default_project_is_read_with_the_users_project_id_never_the_string(self):
+        self.user = make_user(project_id=PROJECT_B)
         self.store.list_runs.return_value = []
         self.store.get_trace.return_value = None
         self.get(RUNS)
         self.get(f"{RUNS}/{trace(1)}")
-        self.assertEqual(self.store.list_runs.call_args.args[0], DEFAULT_PROJECT_ID)
-        self.assertEqual(self.store.get_trace.call_args.args, (DEFAULT_PROJECT_ID, trace(1)))
+        self.get(f"{RUNS}/{trace(1)}/spans/{ROOT}")
+        self.assertEqual(self.store.list_runs.call_args.args[0], PROJECT_B)
+        self.assertEqual(self.store.get_trace.call_args_list, [mock.call(PROJECT_B, trace(1))] * 2)
 
     def test_default_list_window_is_all_time_first_page_of_fifty(self):
         self.store.list_runs.return_value = []
-        self.assertEqual(self.get(RUNS).json(), {"project": "local", "runs": [], "next_cursor": None})
+        self.assertEqual(self.get(RUNS).json(), {"project": "default", "runs": [], "next_cursor": None})
         # limit + 1: the extra row only says whether another page exists.
         self.assertEqual(self.store.list_runs.call_args.args, (DEFAULT_PROJECT_ID, 0, 2**63 - 1, 51, None))
 
@@ -426,13 +434,10 @@ class DurableReadValidationTests(_ApiCase):
         self.get(RUNS, cursor=f"{T0}:{trace(7)}", limit=10)
         self.assertEqual(self.store.list_runs.call_args.args, (DEFAULT_PROJECT_ID, 0, 2**63 - 1, 11, (T0, trace(7))))
 
-    def test_project_listing_needs_no_store_and_no_local_mode(self):
+    def test_project_listing_is_the_users_one_project_and_needs_no_store_or_local_mode(self):
         response = self.get("/api/v1/projects")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {"projects": [{"id": "local", "name": "Durable traces", "storage": "clickhouse", "authentication": "none"}]},
-        )
+        self.assertEqual(response.json(), [{"id": "default", "name": "Ada"}])
         self.assertEqual(response.headers["cache-control"], "no-store")
         self.assertEqual(self.store.mock_calls, [])
         # The local profile is still gated on its own switch.

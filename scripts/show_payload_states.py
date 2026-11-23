@@ -1,9 +1,10 @@
 """Run a controlled example-agent scenario through the real POST /api/v1/traces route.
 
 The agent CLI exports with the SDK's durable exporter over HTTP to the app
-served by uvicorn on a loopback port. Only the publisher is replaced (in
-memory), so no broker or database is needed and what comes back is the
-`SpanRecord`s the trace-writer would receive.
+served by uvicorn on a loopback port. Only the publisher (in memory) and the
+API-key lookup (every request is the DEFAULT_PROJECT_ID user) are replaced, so
+no broker or database is needed and what comes back is the `SpanRecord`s the
+trace-writer would receive.
 
 Prints one line per span with its payload states; --payloads also prints the payload text:
 
@@ -29,11 +30,20 @@ for directory in [
     if str(ROOT / directory) not in sys.path:
         sys.path.insert(0, str(ROOT / directory))
 
+# Importing the app requires SESSION_SECRET; this in-process app serves no sessions.
+os.environ.setdefault("SESSION_SECRET", "show-payload-states-only")
+
 import uvicorn
 
 from agent_debugger_api.api.routes.traces import get_span_publisher
+from agent_debugger_api.auth.deps import ingest_user
 from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
+from agent_debugger_api.db.models import User
+from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID
 from agent_debugger_api.main import app
+
+LOCAL_USER = User(id=DEFAULT_PROJECT_ID, email="local@example.com", name="local", password_hash="unused",
+                  project_id=DEFAULT_PROJECT_ID, key_prefix="adbg_sk_none", key_hash="unused")
 
 
 class DurableApp:
@@ -42,6 +52,7 @@ class DurableApp:
     def __enter__(self):
         self.publisher = InMemorySpanPublisher()
         app.dependency_overrides[get_span_publisher] = lambda: self.publisher
+        app.dependency_overrides[ingest_user] = lambda: LOCAL_USER
         self._listener = socket.socket()
         self._listener.bind(("127.0.0.1", 0))
         self.endpoint = f"http://127.0.0.1:{self._listener.getsockname()[1]}/api/v1/traces"
@@ -62,6 +73,7 @@ class DurableApp:
         self._thread.join(timeout=10)
         self._listener.close()
         app.dependency_overrides.pop(get_span_publisher, None)
+        app.dependency_overrides.pop(ingest_user, None)
         return False
 
     def run_scenario(self, scenario_id):

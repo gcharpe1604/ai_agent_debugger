@@ -71,7 +71,7 @@ class SpanLink(_Strict):
 
 
 class SpanRecord(_Strict):
-    # Identity. project_id is set server-side (resolve_project_id), never from the client.
+    # Identity. project_id is set server-side (the API key owner's), never from the client.
     project_id: UUID
     trace_id: TraceId
     span_id: SpanId
