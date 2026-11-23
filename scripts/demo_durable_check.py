@@ -5,21 +5,27 @@
 Commands:
     wait-schema [timeout_s]          wait until telemetry.telemetry_spans exists (writer startup)
     wait-caught-up [timeout_s]       wait until the writer group has committed every message on the trace topic
-    report <trace_id>                physical rows vs ClickHouseTraceStore.get_trace, get_conflicts, list_runs
+    report <trace_id>                physical rows vs ClickHouseTraceStore.get_trace, get_conflicts, list_runs,
+                                     in the project of the key in AGENT_DEBUGGER_API_KEY (looked up in PostgreSQL)
 
-Settings come from WriterSettings (same .env and defaults as the writer).
-Exit code 1 when a wait times out.
+Settings come from WriterSettings (same .env and defaults as the writer) and
+DATABASE_URL. Exit code 1 when a wait times out or the report is unexpected,
+2 on a usage error or an unknown key.
 """
 
 import asyncio
+import os
 import sys
 import time
 
 import clickhouse_connect
 from aiokafka import AIOKafkaConsumer, TopicPartition
 from aiokafka.admin import AIOKafkaAdminClient
+from sqlalchemy import select
 
-from agent_debugger_api.ingest.settings import resolve_project_id
+from agent_debugger_api.auth.security import hash_key
+from agent_debugger_api.db.models import User
+from agent_debugger_api.db.session import get_engine, get_session_factory
 from agent_debugger_api.trace_writer.clickhouse_store import ClickHouseTraceStore
 from agent_debugger_api.trace_writer.schema import TABLE
 from agent_debugger_api.trace_writer.settings import WriterSettings
@@ -84,10 +90,24 @@ def wait_caught_up(timeout_s: float) -> int:
         time.sleep(0.5)
 
 
+async def project_of_key(key: str):
+    """The project_id of the user who owns `key`, or None."""
+    engine = get_engine()
+    try:
+        async with get_session_factory()() as db:
+            return await db.scalar(select(User.project_id).where(User.key_hash == hash_key(key)))
+    finally:
+        await engine.dispose()
+
+
 def report(trace_id: str) -> int:
+    key = os.environ.get("AGENT_DEBUGGER_API_KEY", "").strip()
+    project = asyncio.run(project_of_key(key)) if key else None
+    if project is None:
+        print("AGENT_DEBUGGER_API_KEY is not set or is not a current key")
+        return 2
     client = clickhouse()
     store = ClickHouseTraceStore(client, table=FULL_TABLE)
-    project = resolve_project_id()
     params = {"p": str(project), "t": trace_id}
     where = "project_id = %(p)s AND trace_id = %(t)s"
 
