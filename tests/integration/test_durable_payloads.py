@@ -1,11 +1,13 @@
 """SDK protocol "1" export against the real POST /api/v1/traces route.
 
 The SDK builds the request body; the route validates it and hands SpanRecords
-to an in-memory publisher. No broker or database; one test serves the app on a
-loopback port and posts to it with the SDK exporter.
+to an in-memory publisher. No broker or database: the API-key lookup
+(ingest_user) is replaced too. One test serves the app on a loopback port and
+posts to it with the SDK exporter.
 """
 
 import json
+import os
 from pathlib import Path
 import socket
 import sys
@@ -16,7 +18,10 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 for directory in ["backend/src", "sdk/python/src"]:
     sys.path.insert(0, str(ROOT / directory))
+# Importing the app requires SESSION_SECRET; this test-only value signs nothing real.
+os.environ.setdefault("SESSION_SECRET", "test-only-session-secret")
 
+from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient
 import uvicorn
 from opentelemetry.sdk.resources import Resource
@@ -25,16 +30,29 @@ from opentelemetry.sdk.trace.export import SimpleSpanProcessor, SpanExportResult
 from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanExporter
 
 from agent_debugger_api.api.routes.traces import get_span_publisher
+from agent_debugger_api.auth.deps import ingest_user
 from agent_debugger_api.contracts import PayloadState
 from agent_debugger_api.contracts.fakes import InMemorySpanPublisher
+from agent_debugger_api.db.models import User
 from agent_debugger_api.ingest.kafka_publisher import DEFAULT_MAX_REQUEST_SIZE, KafkaSpanPublisher
 from agent_debugger_api.ingest.schemas import MAX_PAYLOAD_BYTES as INGEST_MAX_PAYLOAD_BYTES
+from agent_debugger_api.ingest.settings import DEFAULT_PROJECT_ID
 from agent_debugger_api.main import app
 from ai_agent_debugger_sdk import CaptureConfig, Debugger, DurableSpanExporter
 from ai_agent_debugger_sdk.capture import MAX_PAYLOAD_BYTES
 from ai_agent_debugger_sdk.durable import encode_bodies
 
 SECRET = "sk-synthetic-secret-value"
+API_KEY = "adbg_sk_integration-test-key"
+USER = User(id=DEFAULT_PROJECT_ID, email="ada@example.com", name="Ada", password_hash="unused",
+            project_id=DEFAULT_PROJECT_ID, key_prefix=API_KEY[:12], key_hash="unused")
+
+
+def key_owner(request: Request) -> User:
+    """Stands in for ingest_user (no database): API_KEY as a bearer token is USER, anything else 401."""
+    if request.headers.get("authorization") != f"Bearer {API_KEY}":
+        raise HTTPException(401, "Invalid API key")
+    return USER
 
 
 class Unserializable:
@@ -48,8 +66,9 @@ class DurablePayloadTests(unittest.TestCase):
     def setUp(self):
         self.publisher = InMemorySpanPublisher()
         app.dependency_overrides[get_span_publisher] = lambda: self.publisher
+        app.dependency_overrides[ingest_user] = key_owner
         self.addCleanup(app.dependency_overrides.clear)
-        self.client = TestClient(app, client=("203.0.113.7", 50000))
+        self.client = TestClient(app, client=("203.0.113.7", 50000), headers={"Authorization": f"Bearer {API_KEY}"})
 
     @staticmethod
     def spans_from(work, capture):
@@ -165,7 +184,7 @@ class DurablePayloadTests(unittest.TestCase):
         self.assertLess(len(value), DEFAULT_MAX_REQUEST_SIZE - 64 * 1024)
 
     def test_exporter_delivers_over_http_to_the_running_app(self):
-        # The app served by uvicorn on a loopback port; only the publisher is replaced.
+        # The app served by uvicorn on a loopback port; only the publisher and the key lookup are replaced.
         listener = socket.socket()
         listener.bind(("127.0.0.1", 0))
         server = uvicorn.Server(uvicorn.Config(app, log_level="error"))
@@ -190,9 +209,14 @@ class DurablePayloadTests(unittest.TestCase):
                     span.set_output({"status": "shipped"})
 
         capture = CaptureConfig()
-        exporter = DurableSpanExporter(
-            f"http://127.0.0.1:{listener.getsockname()[1]}/api/v1/traces", capture
-        )
+        endpoint = f"http://127.0.0.1:{listener.getsockname()[1]}/api/v1/traces"
+        # Without the key: 401, dropped, not retried.
+        keyless = DurableSpanExporter(endpoint, capture, api_key="")
+        self.assertIs(keyless.export(self.spans_from(work, capture)), SpanExportResult.FAILURE)
+        self.assertEqual((keyless.failures, keyless.dropped_spans, keyless.retries), (1, 2, 0))
+        self.assertEqual(self.publisher.acked, [])
+
+        exporter = DurableSpanExporter(endpoint, capture, api_key=API_KEY)
         result = exporter.export(self.spans_from(work, capture))
 
         self.assertIs(result, SpanExportResult.SUCCESS)

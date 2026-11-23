@@ -6,13 +6,16 @@ sends payloads: the capture attributes SpanHandle writes (`debugger.input`,
 with a state, and the first exception event becomes the error payload.
 
 Policy is docs/proposals/clickhouse-span-record.md §9 (user decision
-2026-11-16). No API key yet (handoff action 6); plain http is accepted for
-loopback hosts only.
+2026-11-16). The API key (`api_key=` or AGENT_DEBUGGER_API_KEY) is sent as
+`Authorization: Bearer <key>` and never logged. Plain http is accepted for
+loopback hosts only, so a key leaves the machine only over https.
 """
 
 import http.client
 import json
+import logging
 import math
+import os
 import queue
 import re
 import ssl
@@ -50,6 +53,7 @@ _CAPTURE_KEYS = frozenset(
     for suffix in ("", ".disabled", ".capture_error", *(f".{flag}" for flag in _FLAGS))
 )
 _SKIP = object()
+_logger = logging.getLogger(__name__)
 _DELIVERED, _RETRY, _REJECTED = "delivered", "retry", "rejected"
 
 
@@ -230,13 +234,15 @@ class DurableSpanExporter(SpanExporter):
     ingest could not buffer the batch) hands the request to this exporter's own
     daemon thread, which resends it after each of RETRY_DELAYS and then drops
     it. Every other failure is dropped at once: a 413 or 422 fails the same way
-    again. `export` never waits for a backoff. Counters: `exported_spans`
+    again. A 401 (no key, or a key the server does not know) logs one warning
+    per exporter and drops the batch; it is never retried. `export` never waits
+    for a backoff. Counters: `exported_spans`
     (acknowledged), `retries`, `failures` (requests given up) and
     `dropped_spans`. `force_flush` waits for pending retries up to its timeout;
     `shutdown` gives them up.
     """
 
-    def __init__(self, endpoint, capture=None):
+    def __init__(self, endpoint, capture=None, api_key=None):
         url = urlsplit(endpoint)
         if (url.scheme not in ("http", "https") or not url.hostname or url.path != DURABLE_PATH
                 or url.query or url.fragment or url.username or url.password
@@ -247,6 +253,11 @@ class DurableSpanExporter(SpanExporter):
             raise TypeError("capture must be a CaptureConfig")
         self.secure = url.scheme == "https"
         self.host, self.port, self.path = url.hostname, url.port or (443 if self.secure else 80), url.path
+        key = (api_key if api_key is not None else os.environ.get("AGENT_DEBUGGER_API_KEY", "")).strip()
+        self._headers = {"Content-Type": "application/json"}
+        if key:
+            self._headers["Authorization"] = f"Bearer {key}"
+        self._warned_unauthorized = False
         self.exported_spans = 0
         self.failures = 0
         self.dropped_spans = 0
@@ -340,11 +351,14 @@ class DurableSpanExporter(SpanExporter):
                 )
             else:
                 connection = http.client.HTTPConnection(self.host, self.port, timeout=5)
-            connection.request("POST", self.path, body=body, headers={"Content-Type": "application/json"})
+            connection.request("POST", self.path, body=body, headers=self._headers)
             response = connection.getresponse()
             answer = response.read(65537)
             if response.status == 503:
                 return _RETRY
+            if response.status == 401:
+                self._warn_unauthorized()
+                return _REJECTED
             # 202 = every span is in the ingestion buffer, not yet stored.
             if response.status == 202 and json.loads(answer).get("spans") == count:
                 return _DELIVERED
@@ -354,6 +368,17 @@ class DurableSpanExporter(SpanExporter):
         finally:
             if connection:
                 connection.close()
+
+    def _warn_unauthorized(self):
+        with self.lock:
+            if self._warned_unauthorized:
+                return
+            self._warned_unauthorized = True
+        # Never the key itself, nor any part of it.
+        _logger.warning(
+            "Agent Debugger rejected the API key (HTTP 401): spans are dropped. "
+            "Set AGENT_DEBUGGER_API_KEY to a current key (scripts/create_user.py or POST /api/v1/auth/key/rotate)."
+        )
 
     def shutdown(self):
         with self.lock:
