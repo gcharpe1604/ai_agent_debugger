@@ -2,51 +2,45 @@ import { useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { runsHref, evidenceHref } from '../../app/routes.jsx'
 import { exactDuration, formatDuration } from '../../app/format.js'
-import { ERROR_SPANS_TOOLTIP, executionModeLabel, firstErrorText, firstErrorTitle, formatCost, ioPreview, runColumns } from './runColumns.js'
+import Timestamp from '../../components/Timestamp.jsx'
+import { ERROR_SPANS_TOOLTIP, errorTone, fitRunColumns, formatCost, numericColumns, runColumns, unsortableColumns } from './runColumns.js'
 
-const columnClass = { name: 'col-run', startedAt: 'col-start', outcome: 'col-status', durationMs: 'col-duration', model: 'col-model', totalTokens: 'col-tokens', costUsd: 'col-cost', completeness: 'col-capture', recordedErrorCount: 'col-errors', investigation: 'col-investigation' }
-const clock = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
-const calendar = new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: '2-digit', month: 'short', year: 'numeric' })
-function Started({ value }) {
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? <span>Unknown</span> : <><time className="tabular" dateTime={value}>{clock.format(date)}</time><div className="row-secondary">{calendar.format(date)} · UTC</div></>
-}
-// density: 'small' shows the name line only, 'medium' adds the first recorded
-// error, 'large' adds the I/O preview and the trace ID. hidden: optional columns
-// the user turned off. onPeek: open the trace preview (row click or the eye button).
-export default function RunTable({ items, projectId, search, query, onSort, busy, children, live = false, hidden = [], density = 'large', peek = null, onPeek }) {
+const columnClass = { startedAt: 'col-start', name: 'col-run', traceId: 'col-trace-id', outcome: 'col-status', durationMs: 'col-duration', spanCount: 'col-count', recordedErrorCount: 'col-count', model: 'col-model', totalTokens: 'col-tokens', costUsd: 'col-cost', completeness: 'col-capture', investigation: 'col-investigation' }
+const count = value => Number.isFinite(value) ? value.toLocaleString('en') : '—'
+
+// One line per trace (Langfuse-style). hidden: optional columns the user turned
+// off. onPeek: open the trace preview (row click or the eye button).
+export default function RunTable({ items, projectId, search, query, onSort, busy, children, live = false, hidden = [], peek = null, onPeek, width }) {
   const [copyNotice, setCopyNotice] = useState('')
-  const columns = runColumns(items).filter(([field]) => field === 'name' || !hidden.includes(field))
+  // Columns the user hid are gone; then the ones that do not fit the table's width.
+  const chosen = runColumns(items).filter(([field]) => field === 'name' || !hidden.includes(field))
+  const fitting = fitRunColumns(chosen.map(([field]) => field), width)
+  const columns = chosen.filter(([field]) => fitting.includes(field))
   async function copy(run) {
     try { await navigator.clipboard.writeText(run.traceId); setCopyNotice(`Trace ID copied for ${run.id}`) }
     catch { setCopyNotice(`Copy unavailable. Trace ID: ${run.traceId}`) }
   }
   const cells = {
-    name: run => {
-      const mode = executionModeLabel(run.executionMode), firstError = run.outcome === 'Failed' ? firstErrorText(run.firstError) : null
-      const errorSearch = firstError ? new URLSearchParams(search) : null
-      errorSearch?.set('span', run.firstError.spanId)
-      return <td key="name"><div className="run-identity"><div className="run-identity-content">
-        <div className="run-name-line"><a className="run-link" href={runsHref(projectId, search, run.id)} aria-label={`${run.name} ${run.id}`} title={`${run.name} · ${run.service}`}><span>{run.name}</span></a>{mode && <span className="badge mode-badge" title={`Execution mode recorded on the root span: ${run.executionMode}`}>{mode}</span>}{onPeek && <button type="button" className="row-peek" data-peek-id={run.id} aria-label={`Preview ${run.name} ${run.id}`} aria-pressed={peek === run.id} title="Preview trace" onClick={() => onPeek(run.id)}><Icon name="eye"/></button>}</div>
-        {density === 'large' && ioPreview(run) && <div className="row-secondary io-preview mono" title={ioPreview(run, 2000)}>{ioPreview(run)}</div>}
-        {density !== 'small' && firstError && <a className="row-secondary first-error" href={runsHref(projectId, errorSearch.toString(), run.id)} title={firstErrorTitle(run.firstError)}><Icon name="error"/><span className="first-error-label">First recorded error</span><span className="first-error-text">{firstError}</span></a>}
-        {density === 'large' && <div className="row-secondary">{!live && <span>{run.id}</span>}<button className="identity-copy mono" onClick={() => copy(run)} aria-label={`Copy trace ID for ${run.id}`} title={run.traceId}>{run.traceId.slice(0, 8)}…{run.traceId.slice(-4)}<Icon name="copy"/></button></div>}
-      </div></div></td>
-    },
-    startedAt: run => <td key="startedAt"><Started value={run.startedAt}/></td>,
-    outcome: run => <td key="outcome"><span className="badge" data-state={run.outcome}>{run.outcome}</span></td>,
-    durationMs: run => <td key="durationMs" className="numeric mono" title={run.durationMs == null ? undefined : exactDuration(run.durationMs)}>{run.durationMs == null ? 'Unknown' : formatDuration(run.durationMs)}</td>,
-    model: run => <td key="model" className="mono">{run.model ?? '—'}</td>,
-    totalTokens: run => <td key="totalTokens" className="numeric mono">{Number.isFinite(run.totalTokens) ? run.totalTokens.toLocaleString('en') : '—'}</td>,
-    costUsd: run => <td key="costUsd" className="numeric mono">{formatCost(run.costUsd)}</td>,
-    completeness: run => <td key="completeness"><span className="badge" data-state={run.completeness}>{run.completeness}</span></td>,
-    recordedErrorCount: run => <td key="recordedErrorCount" className="numeric"><span className={run.recordedErrorCount ? 'error-text mono' : 'mono muted'}>{run.recordedErrorCount ?? 'Unknown'}</span>{run.recovered && <div className="row-secondary align-right">Recovered</div>}</td>,
-    investigation: run => <td key="investigation">{run.investigation === 'Completed' ? <>{run.findingCount > 0 ? <a href={evidenceHref(projectId, run.id, search)} aria-label={`View ${run.findingCount} finding${run.findingCount === 1 ? '' : 's'} for ${run.name}`}>{run.findingCount} finding{run.findingCount === 1 ? '' : 's'}</a> : <span>{run.findingCount == null ? 'Count unavailable' : '0 findings'}</span>}<div className="row-secondary">Completed</div></> : <span className={run.investigation === 'Failed' ? 'analysis-error' : ''}>{run.investigation === 'Failed' && <Icon name="error"/>}{run.investigation}</span>}</td>,
+    startedAt: run => <td key="startedAt" className="tabular"><Timestamp value={run.startedAt}/></td>,
+    name: run => <td key="name"><div className="run-name-line">
+      <a className="run-link" href={runsHref(projectId, search, run.id)} aria-label={`${run.name} ${run.id}`} title={`${run.name} · ${run.service}`}><span>{run.name}</span></a>
+      {onPeek && <button type="button" className="row-peek row-hover-action" data-peek-id={run.id} aria-label={`Preview ${run.name} ${run.id}`} aria-pressed={peek === run.id} title="Preview trace" onClick={() => onPeek(run.id)}><Icon name="eye"/></button>}
+    </div></td>,
+    traceId: run => <td key="traceId"><div className="trace-id-cell"><span className="mono" title={run.traceId}>{run.traceId.slice(0, 8)}</span><button type="button" className="identity-copy row-hover-action" onClick={() => copy(run)} aria-label={`Copy trace ID for ${run.id}`} title="Copy trace ID"><Icon name="copy"/></button></div></td>,
+    outcome: run => <td key="outcome"><span className="run-status" data-state={run.outcome}><span className="status-dot" aria-hidden="true"/>{run.outcome}</span></td>,
+    durationMs: run => <td key="durationMs" className="numeric" title={run.durationMs == null ? undefined : exactDuration(run.durationMs)}>{run.durationMs == null ? 'Unknown' : formatDuration(run.durationMs)}</td>,
+    spanCount: run => <td key="spanCount" className="numeric">{count(run.spanCount)}</td>,
+    recordedErrorCount: run => <td key="recordedErrorCount" className="numeric" title={run.recovered ? 'Recovered after a retry' : undefined}><span className="error-count" data-tone={errorTone(run)}>{count(run.recordedErrorCount)}</span>{run.recovered && <span className="sr-only"> Recovered</span>}</td>,
+    model: run => <td key="model" className="cell-clip">{run.model ?? '—'}</td>,
+    totalTokens: run => <td key="totalTokens" className="numeric">{count(run.totalTokens)}</td>,
+    costUsd: run => <td key="costUsd" className="numeric">{formatCost(run.costUsd)}</td>,
+    completeness: run => <td key="completeness"><span className="run-status" data-state={run.completeness}><span className="status-dot" aria-hidden="true"/>{run.completeness}</span></td>,
+    investigation: run => <td key="investigation" className="cell-clip">{run.investigation === 'Completed' ? run.findingCount > 0 ? <a href={evidenceHref(projectId, run.id, search)} aria-label={`View ${run.findingCount} finding${run.findingCount === 1 ? '' : 's'} for ${run.name}`}>{run.findingCount} finding{run.findingCount === 1 ? '' : 's'}</a> : <span>{run.findingCount == null ? 'Count unavailable' : '0 findings'}</span> : <span className={run.investigation === 'Failed' ? 'analysis-error' : ''}>{run.investigation === 'Failed' && <Icon name="error"/>}{run.investigation}</span>}</td>,
   }
   const headerTitle = (field, label) => field === 'recordedErrorCount' ? live ? ERROR_SPANS_TOOLTIP : 'Supplied error-operation groups, not individual ERROR spans' : `Sort by ${label.toLowerCase()}`
-  return <>{live && items.length > 0 && <p className="table-scroll-hint">Scroll the table for timing and error counts <Icon name="arrow"/></p>}<div className="table-region" role="region" aria-label="Recorded traces" tabIndex="0" aria-busy={busy}>
-    <table className="runs-table" data-density={density}><caption className="sr-only">{live ? "Locally captured SDK traces. Error spans count every ERROR span, including parents that carry a child's error; capture completeness remains unknown." : "Recorded traces. Outcomes, capture completeness, recorded error counts and investigation states are independent."}</caption><colgroup>{columns.map(([field]) => <col key={field} className={columnClass[field]}/>)}</colgroup>
-      <thead><tr>{columns.map(([field, label]) => <th key={field} scope="col" className={['durationMs', 'totalTokens', 'costUsd', 'recordedErrorCount'].includes(field) ? 'numeric' : ''} aria-sort={query.sort === field ? query.direction === 'asc' ? 'ascending' : 'descending' : 'none'}><button className="sort-button" aria-label={`Sort by ${label.toLowerCase()}`} title={headerTitle(field, label)} onClick={() => onSort(field)}>{label}{query.sort === field && <span aria-hidden="true">{query.direction === 'asc' ? '↑' : '↓'}</span>}</button></th>)}</tr></thead>
+  return <><div className="table-region" role="region" aria-label="Recorded traces" tabIndex="0" aria-busy={busy}>
+    <table className="runs-table"><caption className="sr-only">{live ? "Captured SDK traces. Errors count every ERROR span, including parents that carry a child's error." : "Recorded traces. Outcomes, capture completeness, recorded error counts and investigation states are independent."}</caption><colgroup>{columns.map(([field]) => <col key={field} className={columnClass[field]}/>)}</colgroup>
+      <thead><tr>{columns.map(([field, label]) => <th key={field} scope="col" className={numericColumns.includes(field) ? 'numeric' : ''} aria-sort={unsortableColumns.includes(field) ? undefined : query.sort === field ? query.direction === 'asc' ? 'ascending' : 'descending' : 'none'}>{unsortableColumns.includes(field) ? label : <button className="sort-button" aria-label={`Sort by ${label.toLowerCase()}`} title={headerTitle(field, label)} onClick={() => onSort(field)}>{label}{query.sort === field && <span aria-hidden="true">{query.direction === 'asc' ? '↑' : '↓'}</span>}</button>}</th>)}</tr></thead>
       {/* A click on the row's empty space previews it; links and buttons keep their own action. */}
       <tbody>{items.map(run => <tr key={run.id} data-peekable={onPeek ? 'true' : undefined} data-peeked={peek === run.id || undefined} onClick={onPeek ? event => { if (!event.target.closest('a, button, input, select, summary, label')) onPeek(run.id) } : undefined}>{columns.map(([field]) => cells[field](run))}</tr>)}</tbody>
     </table>{children}

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import StatusLabel from '../components/StatusLabel.jsx'
 import { runsHref, evidenceHref } from '../app/routes.jsx'
 import InvestigationControl from '../features/evidence/InvestigationControl.jsx'
 import { useTraceRead } from '../features/trace/useTraceRead.js'
 import { returnQuery } from '../features/trace/traceState.js'
-import { durationText, typeLabel } from '../features/trace/treeModel.js'
+import TraceFacts from '../features/trace/TraceFacts.jsx'
 import { traceStats } from '../features/trace/traceStats.js'
 import TraceWorkspace from '../features/trace/TraceWorkspace.jsx'
 import { downloadTrace } from '../features/trace/download.js'
@@ -37,24 +38,15 @@ export default function RunDetailPage({ repository, investigationRepository, rou
         <header className="trace-heading">
           <div className="trace-title">
             <span className="trace-title-icon" aria-hidden="true"><Icon name="branch"/></span>
-            <h1>{data.run.name || route.runId}</h1>
-            {outcome && <span className="badge" data-state={outcome}>{outcome}</span>}
-          </div>
-          <div className="trace-metadata">
-            <span className="trace-fact"><Icon name="clock"/><span>Duration</span><strong className="mono">{durationText(data.run.durationMs)}</strong></span>
-            <span className="trace-fact"><span>Started</span><strong>{data.run.startedAt.replace('T', ' ').replace('Z', ' UTC')}</strong></span>
-            {live ? <span className="trace-loaded">{data.spans.length.toLocaleString('en')} {data.spans.length === 1 ? 'span' : 'spans'} received · completeness unknown</span>
-              : <span className="badge" data-state={data.run.completeness}>Capture {data.run.completeness}</span>}
-            {stats && <span className={stats.errors ? 'error-text' : undefined}>{stats.errors} error {stats.errors === 1 ? 'span' : 'spans'} · depth {stats.depth}</span>}
-            {stats && <ul className="trace-type-counts" aria-label="Spans by type">{stats.byType.map(([type, count]) => <li key={type} data-type={type} title={`${count} ${typeLabel(type)} ${count === 1 ? 'span' : 'spans'}`}><Icon name={type}/>{count} {typeLabel(type)}</li>)}</ul>}
-            {data.run.service !== data.run.name && <span>{data.run.service}</span>}
-            {!live && <span className="trace-investigation-small">Investigation · {data.run.investigation}</span>}
+            <h1 title={data.run.service && data.run.service !== data.run.name ? `${data.run.name} · ${data.run.service}` : undefined}>{data.run.name || route.runId}</h1>
+            {outcome && <StatusLabel state={outcome}/>}
             {!live && <div className="trace-run-actions">
               {copyId}
               {new URLSearchParams(route.search).has('evidenceAttempt') && <a className="button small" href={evidenceHref(project.id, route.runId, route.search)} aria-label="Back to evidence">Back to evidence</a>}
               <InvestigationControl repository={investigationRepository} projectId={project.id} runId={route.runId} search={route.search}/>
             </div>}
           </div>
+          {stats && <TraceFacts run={data.run} stats={stats} spansNote={live ? `${data.spans.length.toLocaleString('en')} ${data.spans.length === 1 ? 'span' : 'spans'} received · completeness unknown` : `Capture ${data.run.completeness}${data.run.investigation ? ` · Investigation ${data.run.investigation}` : ''}`}/>}
         </header>
         {data.quality && <div className="trace-quality"><Icon name="error"/>{data.quality}</div>}
         <TraceWorkspace data={data} route={route} repository={repository} cache={cache} busy={busy} error={error} retryRead={retry} loadMore={setLimit} receivedOnly={live}/>

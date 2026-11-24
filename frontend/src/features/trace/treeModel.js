@@ -1,6 +1,9 @@
 import { formatSpanDuration } from '../../app/format.js'
 
-export const ROW_HEIGHT = 36
+export const ROW_HEIGHT = 40
+// Horizontal step per depth level, in px. Guide column c runs through the
+// status dot of the ancestor at depth c.
+export const TREE_INDENT = 28
 export const types = ['run', 'agent', 'model', 'tool', 'retrieval', 'api', 'state', 'custom']
 export const typeLabel = type => ({ run: 'Run', agent: 'Agent', model: 'Model', tool: 'Tool', retrieval: 'Retrieval', api: 'API', state: 'State', custom: 'Custom' }[type] || `Custom · ${type || 'unknown'}`)
 export const statusText = status => ['OK', 'ERROR', 'UNSET'].includes(status) ? status : status === null || status === undefined || status === '' ? 'Unknown' : `Unknown · ${status}`
@@ -80,34 +83,22 @@ export function visibleTree(index, expanded, query) {
   return { rows, matches, filtered }
 }
 
-// The run's top-level steps in recorded start order: the children of the first
-// operation that has more than one child, following single-child wrappers
-// (run -> agent -> steps). Routing spans (route.*) mark decisions between steps.
-// `repeat` flags a step name seen earlier, i.e. a loop or retry. Derived
-// structure only: start order is not causal order.
-export const PATH_PREFIXES = ['node.']
-export function executionPath(index, limit = 40) {
-  let parent = index.roots.length === 1 ? index.roots[0] : null
-  const seen = new Set([parent?.id])
-  while (parent && (index.children.get(parent.id)?.length || 0) === 1) {
-    const only = index.children.get(parent.id)[0]
-    if (seen.has(only.id)) break
-    seen.add(only.id); parent = only
-  }
-  const children = parent ? [...(index.children.get(parent.id) || [])] : []
-  if (children.length < 2) return { steps: [], hidden: 0 }
-  // Stable sort: steps that share a start time (coarse clocks tick in ~1 ms
-  // steps) keep the order they were received in, which is their end order.
-  children.sort((a, b) => (Number.isFinite(a.start) ? a.start : Infinity) - (Number.isFinite(b.start) ? b.start : Infinity))
-  const names = new Set()
-  const steps = children.map(span => {
-    const decision = span.name.startsWith('route.')
-    const label = decision ? span.name.slice('route.'.length) : PATH_PREFIXES.reduce((name, prefix) => name.startsWith(prefix) ? name.slice(prefix.length) : name, operationLabel(span))
-    const repeat = !decision && names.has(label)
-    if (!decision) names.add(label)
-    return { id: span.id, label, decision, repeat, error: span.status === 'ERROR', type: span.type }
-  })
-  return { steps: steps.slice(0, limit), hidden: Math.max(0, steps.length - limit) }
+// Connector guides for one visible row, from visibleTree's guides/last flags.
+// lines: guide columns that carry a vertical line through this row, one per
+// ancestor (below the root) that still has a later visible sibling; column c
+// runs through the status dot of the ancestor at depth c. elbow: this row's
+// own connector from its parent's column into its status dot, "tee" (├) when
+// a later sibling follows and "end" (└) for the last child, so no line runs
+// below the last child. stub: the row shows children, so a line leaves its own
+// dot downwards to meet them. Collapsed subtrees are not rows and draw nothing;
+// roots have no elbow.
+export function treeGuides(row) {
+  if (!row || row.group) return { lines: [], elbow: null, stub: false }
+  const stub = !!row.expanded
+  if (!(row.depth > 0)) return { lines: [], elbow: null, stub }
+  const lines = []
+  for (let level = 1; level < row.depth; level++) if (row.guides?.[level]) lines.push(level - 1)
+  return { lines, elbow: { column: row.depth - 1, kind: row.last ? 'end' : 'tee' }, stub }
 }
 export function windowRows(rows, scrollTop, height, activeId) {
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5)

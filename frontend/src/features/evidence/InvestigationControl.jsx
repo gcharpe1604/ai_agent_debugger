@@ -1,4 +1,5 @@
 import { evidenceHref } from '../../app/routes.jsx'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/Popover.jsx'
 import { useInvestigationRead } from './useInvestigationRead.js'
 import { evidenceQuery } from './evidenceState.js'
 import './evidence.css'
@@ -17,7 +18,7 @@ export default function InvestigationControl({ repository, projectId, runId, sea
   const attempt = data?.attempts[0], count = attempt?.findings.length || 0
   return <div className="investigation-control">
     {count > 0 && <a className="investigation-link" href={evidenceHref(projectId, runId, search)} aria-label={`View ${count} finding${count === 1 ? '' : 's'}`}>{count} finding{count === 1 ? '' : 's'}</a>}
-    <details className="trace-menu investigation-details"><summary aria-label="Investigation details">{count > 0 ? 'Details' : `Investigation · ${busy ? 'Loading…' : data?.state || 'Unavailable'}`}</summary><div className="trace-popover">
+    <Popover><PopoverTrigger><button type="button" className="button investigation-details" aria-label="Investigation details">{count > 0 ? 'Details' : `Investigation · ${busy ? 'Loading…' : data?.state || 'Unavailable'}`}</button></PopoverTrigger><PopoverContent className="trace-popover">
       {busy ? <p role="status">Loading supplied investigation…</p> : error ? <><p role="alert">{error}</p><button className="button small" onClick={retry}>Retry investigation read</button></> : <>
         <strong>Investigation · {data.state}</strong>
         {attempt && <><p>{attempt.label} · <span className="mono">{attempt.id}</span></p><p>Analyzed <span className="mono">{attempt.snapshotId}</span></p><p>{attempt.referenceState}</p><p>{attempt.limitations}</p></>}
@@ -26,6 +27,6 @@ export default function InvestigationControl({ repository, projectId, runId, sea
         <p className="secondary">Request/retry is disconnected. This preview cannot create or advance an attempt.</p>
         <button className="button small" disabled>{data.state === 'Failed' ? 'Retry investigation' : 'Request investigation'}</button>
       </>}
-    </div></details>
+    </PopoverContent></Popover>
   </div>
 }

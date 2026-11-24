@@ -1,68 +1,82 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
-import { accountHref, homeHref, runsHref, settingsHref } from '../app/routes.jsx'
+import Select from './ui/Select.jsx'
+import Tooltip, { TooltipProvider } from './ui/Tooltip.jsx'
+import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './ui/Menu.jsx'
+import { accountHref, homeHref, profileHref, runsHref, settingsHref } from '../app/routes.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
 import { usePreference, useTheme } from '../app/preferences.js'
 import { hasModifier, isTyping } from '../app/keyboard.js'
 import { useAccount } from '../features/access/session.js'
 
 const DOCS_URL = 'https://github.com/gcharpe1604/ai_agent_debugger/tree/main/docs'
+const themes = [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]
 
-// Local mode serves exactly one in-memory project, so its switcher is a menu
-// that names it rather than a choice. Other modes use a real project select.
-function ProjectSwitcher({ projects, project, local, projectName }) {
-  const durable = project?.storage === 'durable'
-  if (local) return <details className="project-menu">
-    <summary title={`${projectName} · ${durable ? 'ClickHouse storage' : 'temporary storage'}`}>
-      <span className="project-avatar" aria-hidden="true">{project?.initial || 'L'}</span>
-      <span className="project-name">{projectName}</span>
-      <span className="env-tag">{durable ? 'Durable' : 'Local'}</span>
-      <Icon name="chevron-down"/>
-    </summary>
-    <div className="menu-popover">
-      <p className="menu-label">Project</p>
-      <span className="menu-item" aria-current="true">{projectName}<Icon name="check"/></span>
-      <p className="menu-note">{durable ? 'Each account has one project. Its traces are stored in ClickHouse.' : 'Local mode has one project, held in backend memory. Projects arrive with durable ingestion.'}</p>
-    </div>
-  </details>
-  return <div className="project-select">
-    <span className="project-avatar" aria-hidden="true">{project?.initial || '?'}</span>
-    <label className="sr-only" htmlFor="project">Project</label>
-    <select id="project" value={project?.id || ''} disabled={!projects.length} onChange={event => { window.location.hash = runsHref(event.target.value).slice(1) }}>
-      {!project && <option value="" disabled>{projects.length ? 'Choose a project' : 'No projects available'}</option>}
-      {projects.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}
-    </select>
-    {project?.environment && <span className="env-tag">{project.environment}</span>}
-  </div>
+// Fixture/preview mode only: several projects to choose from. The local and
+// durable sources each have exactly one project, named in the breadcrumb.
+function ProjectSelect({ projects, project }) {
+  const options = projects.map(item => ({ value: item.id, label: item.name }))
+  return <Select className="project-select" aria-label="Project" value={project?.id || ''} disabled={!projects.length} placeholder={projects.length ? 'Choose a project' : 'No projects available'} options={options} onValueChange={id => { window.location.hash = runsHref(id).slice(1) }}/>
+}
+
+// Sidebar footer: who is signed in, Profile, theme and Sign out, in one menu.
+function UserMenu({ account, local, collapsed, profile }) {
+  const theme = useTheme()
+  const [state, setState] = useState('idle')
+  const user = account?.user
+  const name = user ? user.name : local ? 'Local developer' : 'Not signed in'
+  const detail = user ? user.email : local ? 'No sign-in' : null
+  async function signOut() {
+    setState('busy')
+    try { await account.signOut() } catch { setState('failed') }
+  }
+  return <>
+    <Menu>
+      <Tooltip content={name} side="right" disabled={!collapsed}>
+        <MenuTrigger>
+          <button type="button" className="user-button" aria-label={`Account menu: ${name}`}>
+            <span className="user-avatar" aria-hidden="true">{(user?.name || name).trim().charAt(0).toUpperCase()}</span>
+            <span className="nav-text user-text"><strong>{name}</strong>{detail && <span>{detail}</span>}</span>
+            <span className="nav-text user-chevron" aria-hidden="true"><Icon name="chevrons-up-down"/></span>
+          </button>
+        </MenuTrigger>
+      </Tooltip>
+      <MenuContent className="user-menu" side="top" align="start">
+        <MenuLabel className="user-menu-identity"><strong>{name}</strong>{detail && <span>{detail}</span>}</MenuLabel>
+        {user && profile && <MenuItem onSelect={() => { window.location.hash = profile.slice(1) }}><Icon name="user"/>Profile</MenuItem>}
+        <MenuSeparator/>
+        <MenuLabel>Appearance</MenuLabel>
+        {/* One segmented control: Light | Dark | System. Arrow keys still move between them. */}
+        <MenuRadioGroup aria-label="Appearance" value={theme.preference} onValueChange={theme.setPreference} className="segmented theme-segmented">
+          {themes.map(([value, label]) => <MenuRadioItem key={value} value={value} indicator={false} className="theme-segment" onSelect={event => event.preventDefault()}>{label}</MenuRadioItem>)}
+        </MenuRadioGroup>
+        {user && <><MenuSeparator/><MenuItem disabled={state === 'busy'} onSelect={signOut}><Icon name="sign-out"/>{state === 'busy' ? 'Signing out…' : 'Sign out'}</MenuItem></>}
+      </MenuContent>
+    </Menu>
+    {state === 'failed' && <p className="user-menu-error" role="alert">Sign-out failed. Retry.</p>}
+  </>
 }
 
 // crumbs: the page trail after the project, e.g. [<a>Tracing</a>, 'abc…'].
 // actions: the page's own controls (Refresh, Download JSON).
 // header: an extra page header rendered under the top bar (evidence pages).
-// Signed-in user (durable source): name and Sign out in the top bar.
-function AccountControl({ account }) {
-  const [state, setState] = useState('idle')
-  async function signOut() {
-    setState('busy')
-    try { await account.signOut() } catch { setState('failed') }
-  }
-  return <div className="topbar-account">
-    <span className="topbar-user" title={account.user.email}>{account.user.name}</span>
-    <button type="button" className="button small" disabled={state === 'busy'} onClick={signOut}>{state === 'busy' ? 'Signing out…' : 'Sign out'}</button>
-    {state === 'failed' && <span className="topbar-error" role="alert">Sign-out failed. Retry.</span>}
-  </div>
+export default function AppShell(props) {
+  return <TooltipProvider><Shell {...props}/></TooltipProvider>
 }
 
-export default function AppShell({ projects, project, route, children, header, crumbs, actions, local = project?.dataSource === 'local' }) {
+function Shell({ projects, project, route, children, header, crumbs, actions, local = project?.dataSource === 'local' }) {
   const account = useAccount()
   const [sidebar, setSidebar] = usePreference('sidebar', ['expanded', 'collapsed'], 'expanded')
-  const theme = useTheme()
+  const collapsed = sidebar === 'collapsed'
+  // The durable source (signed-in account) and the local profile each serve one project.
+  const durable = !!account || project?.storage === 'durable'
+  const singleProject = durable || local
   const projectName = project?.name || (local ? 'Local captures' : null)
   const projectId = project?.id || projects[0]?.id || (local ? 'local' : null)
   const runsLink = projectId ? runsHref(projectId, returnQuery(route.search)) : undefined
-  const tracingActive = !!projectId && route.projectId === projectId && !route.settings && !route.home
+  const tracingActive = !!projectId && route.projectId === projectId && !route.settings && !route.profile && !route.home
   const settingsProjectId = project?.id || (local ? 'local' : null)
-  const pageName = route.home ? 'Home' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
+  const pageName = route.home ? 'Dashboard' : route.settings ? 'Settings' : route.profile ? 'Profile' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
   const trail = crumbs ?? [pageName]
   const main = useRef(null)
   const previousPath = useRef(null)
@@ -71,17 +85,6 @@ export default function AppShell({ projects, project, route, children, header, c
     if (previousPath.current !== route.path) main.current?.focus()
     previousPath.current = route.path
   }, [route.path, pageName, projectName])
-  useEffect(() => {
-    function dismiss(event) {
-      const open = document.querySelector('details[open]:not([data-inline])')
-      if (!open) return
-      // preventDefault marks the Escape as used, so a preview panel behind the menu stays open.
-      if (event.type === 'keydown' && event.key === 'Escape') { open.open = false; open.querySelector('summary')?.focus(); event.preventDefault(); event.stopPropagation() }
-      if (event.type === 'pointerdown' && !open.contains(event.target)) open.open = false
-    }
-    document.addEventListener('keydown', dismiss); document.addEventListener('pointerdown', dismiss)
-    return () => { document.removeEventListener('keydown', dismiss); document.removeEventListener('pointerdown', dismiss) }
-  }, [])
   useEffect(() => {
     // "/" jumps to the page's search box, unless the user is already typing.
     function shortcut(event) {
@@ -92,39 +95,40 @@ export default function AppShell({ projects, project, route, children, header, c
     document.addEventListener('keydown', shortcut)
     return () => document.removeEventListener('keydown', shortcut)
   }, [])
-  const navItem = (label, href, icon, active, extra = {}) => <a className={`nav-item ${active ? 'active' : ''}`} href={href} aria-disabled={!href || undefined} aria-label={extra.ariaLabel || label} aria-current={active ? extra.current || 'page' : undefined} title={extra.title || label} {...extra.link}><Icon name={icon}/><span className="nav-text">{label}</span>{extra.after}</a>
+  const navItem = (label, href, icon, active, extra = {}) => <Tooltip key={label} content={extra.tooltip || label} side="right" disabled={!collapsed}>
+    <a className={`nav-item${active ? ' active' : ''}`} href={href} aria-disabled={!href || undefined} aria-label={extra.ariaLabel || label} aria-current={active ? extra.current || 'page' : undefined} {...extra.link}><Icon name={icon}/><span className="nav-text">{label}</span>{extra.after}</a>
+  </Tooltip>
+  const projectCrumb = singleProject && projectName && (projectId ? <a href={homeHref(projectId)}>{projectName}</a> : projectName)
   return <div className="app-shell" data-sidebar={sidebar}>
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); main.current?.focus() }}>Skip to content</a>
     <aside className="sidebar" aria-label="Project navigation">
       <div className="brand">
-        <span className="brand-mark" title="Agent Debugger"><Icon name="branch"/></span>
+        <span className="brand-mark" aria-hidden="true"><Icon name="branch"/></span>
         <strong className="nav-text">Agent Debugger</strong>
       </div>
-      <nav aria-label="Project workspaces">
-        {navItem('Home', projectId ? homeHref(projectId) : undefined, 'home', !!route.home)}
-        <span className="section-label nav-text" aria-hidden="true">Observability</span>
+      <nav className="sidebar-nav" aria-label="Project workspaces">
+        {navItem('Dashboard', projectId ? homeHref(projectId) : undefined, 'dashboard', !!route.home)}
         {navItem('Tracing', runsLink, 'runs', tracingActive, { current: route.runId ? 'location' : 'page' })}
-        {!local && navItem('Projects', '#/projects', 'branch', !!route.projectsPage)}
+        {!singleProject && navItem('Projects', '#/projects', 'branch', !!route.projectsPage)}
+        {settingsProjectId && navItem('Settings', settingsHref(settingsProjectId), 'settings', !!route.settings, { ariaLabel: 'Project settings', tooltip: 'Project settings' })}
       </nav>
       <div className="sidebar-bottom">
-        {settingsProjectId && navItem('Settings', settingsHref(settingsProjectId), 'settings', !!route.settings, { ariaLabel: 'Project settings', title: 'Project settings' })}
-        {navItem('Docs', DOCS_URL, 'docs', false, { ariaLabel: 'Docs (opens in a new tab)', title: 'Documentation (opens in a new tab)', link: { target: '_blank', rel: 'noreferrer' }, after: <span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span> })}
-        {!local && navItem('Sign in', accountHref('login', route.path + (route.search ? '?' + route.search : '')), 'arrow', false, { ariaLabel: 'Sign in — authentication not connected', title: 'Sign in — authentication not connected' })}
-        <div className="sidebar-divider"/>
-        {account?.user ? <div className="profile-row" title={account.user.email}><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>{account.user.name}</strong><span>{account.user.email}</span></span></div>
-          : local && <div className="profile-row" title="Local mode has no accounts or sign-in"><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>Local developer</strong><span>Local mode · no sign-in</span></span></div>}
-        <div className="appearance-control" title={`Appearance: ${theme.preference}`}><Icon name="theme"/><label className="sr-only" htmlFor="appearance">Appearance</label><select id="appearance" value={theme.preference} onChange={event => theme.setPreference(event.target.value)}><option value="light">Light appearance</option><option value="dark">Dark appearance</option><option value="system">System appearance</option></select></div>
+        {navItem('Docs', DOCS_URL, 'docs', false, { ariaLabel: 'Docs (opens in a new tab)', tooltip: 'Docs', link: { target: '_blank', rel: 'noreferrer' }, after: <span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span> })}
+        {!singleProject && navItem('Sign in', accountHref('login', route.path + (route.search ? '?' + route.search : '')), 'arrow', false, { ariaLabel: 'Sign in — authentication not connected', tooltip: 'Sign in' })}
+      </div>
+      <div className="sidebar-footer">
+        <UserMenu account={account} local={local && !durable} collapsed={collapsed} profile={projectId ? profileHref(projectId) : null}/>
       </div>
     </aside>
     <div className="workspace">
       <header className="topbar">
-        <button className="sidebar-toggle" aria-label={sidebar === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'} aria-expanded={sidebar === 'expanded'} title={sidebar === 'expanded' ? 'Collapse sidebar' : 'Expand sidebar'} onClick={() => setSidebar(sidebar === 'expanded' ? 'collapsed' : 'expanded')}><Icon name="panel-left"/></button>
-        <ProjectSwitcher projects={projects} project={project} local={local} projectName={projectName}/>
-        {!header && trail.length > 0 && <nav aria-label="Breadcrumb" className="breadcrumbs">
-          {trail.map((crumb, index) => <span key={index} className="crumb" aria-current={index === trail.length - 1 && typeof crumb === 'string' ? 'page' : undefined}><span className="crumb-separator" aria-hidden="true">/</span>{crumb}</span>)}
+        <button type="button" className="button ghost icon-only sidebar-toggle" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={() => setSidebar(collapsed ? 'expanded' : 'collapsed')}><Icon name="panel-left"/></button>
+        {!singleProject && <ProjectSelect projects={projects} project={project}/>}
+        {!header && (projectCrumb || trail.length > 0) && <nav aria-label="Breadcrumb" className="breadcrumbs">
+          {projectCrumb && <span className="crumb crumb-project">{projectCrumb}</span>}
+          {trail.map((crumb, index) => <span key={index} className="crumb" aria-current={index === trail.length - 1 && typeof crumb === 'string' ? 'page' : undefined}>{(projectCrumb || index > 0 || !singleProject) && <span className="crumb-separator" aria-hidden="true">/</span>}{crumb}</span>)}
         </nav>}
         {actions && <div className="topbar-actions">{actions}</div>}
-        {account?.user && <AccountControl account={account}/>}
       </header>
       {header}
       <main className="page" id="main-content" tabIndex="-1" ref={main}>{children}</main>

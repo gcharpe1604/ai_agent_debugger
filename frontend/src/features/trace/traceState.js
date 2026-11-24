@@ -4,12 +4,12 @@ export function returnQuery(search) {
   traceKeys.forEach(key => params.delete(key))
   return params.toString()
 }
-export function initialTraceState(search, cached, mode) {
+export function initialTraceState(search, cached) {
   const p = new URLSearchParams(search)
   const from = p.has('from') ? Number(p.get('from')) : NaN, to = p.has('to') ? Number(p.get('to')) : NaN
   return {
     collapsed: [], search: '', type: '', status: '', selected: null, active: null, open: false,
-    mode, tab: 'Content', format: 'Readable', wrap: true, attributeSearch: '', scrollTop: 0, anchor: null,
+    tab: 'Content', formats: { input: 'Readable', output: 'Readable' }, attributeSearch: '', scrollTop: 0, anchor: null,
     reading: {}, reveal: null, pending: null, notice: '', view: 'tree', timeWindow: null, ...cached,
     ...(p.has('view') ? { view: p.get('view') === 'timeline' ? 'timeline' : 'tree' } : {}),
     ...(p.has('from') || p.has('to') ? { timeWindow: Number.isFinite(from) && Number.isFinite(to) && to > from ? { start: from, end: to } : null } : {}),
@@ -17,7 +17,6 @@ export function initialTraceState(search, cached, mode) {
     ...(p.has('spanSearch') ? { search: p.get('spanSearch') } : {}),
     ...(p.has('spanType') ? { type: p.get('spanType') } : {}),
     ...(p.has('spanStatus') ? { status: p.get('spanStatus') } : {}),
-    ...(['overlay', 'pinned'].includes(p.get('panel')) ? { mode: p.get('panel') } : {}),
   }
 }
 // A failed run opened without span= starts on its first error (earliest ERROR span

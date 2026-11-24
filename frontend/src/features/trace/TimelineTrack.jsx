@@ -15,7 +15,7 @@ export default function TimelineTrack({ timing, window, status, type = 'custom',
     {labels[drawing.kind] ? <span className="timeline-unavailable">{labels[drawing.kind]}</span> : <>
       {[0, .25, .5, .75, 1].map(part => <span className="timeline-gridline" key={part} style={{ left: `${part * 100}%` }}/>)}
       <span className={`timeline-${drawing.kind}${drawing.clippedStart ? ' clipped-start' : ''}${drawing.clippedEnd ? ' clipped-end' : ''}`} data-left={drawing.left} data-width={drawing.width} style={{ left: `${drawing.left}%`, width: drawing.kind === 'point' ? '3px' : `max(3px, ${drawing.width}%)` }}/>
-      {label && <span className="timeline-label mono" aria-hidden="true" style={labelStyle}>{label}</span>}
+      {label && <span className="timeline-label tabular" aria-hidden="true" style={labelStyle}>{label}</span>}
       {timing.mismatch && <span className="timeline-mismatch">!</span>}
     </>}
   </div>

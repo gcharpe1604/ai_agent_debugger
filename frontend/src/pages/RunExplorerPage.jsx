@@ -1,33 +1,38 @@
-import { useCallback, useEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import Select from '../components/ui/Select.jsx'
 import UpdatedAgo from '../components/UpdatedAgo.jsx'
 import RunTable from '../features/runs/RunTable.jsx'
 import RunToolbar from '../features/runs/RunToolbar.jsx'
 import FacetSidebar from '../features/runs/FacetSidebar.jsx'
 import TracePeek from '../features/runs/TracePeek.jsx'
-import { ColumnMenu, DensityMenu } from '../features/runs/TableControls.jsx'
+import { ColumnMenu } from '../features/runs/TableControls.jsx'
 import { useRuns } from '../features/runs/useRuns.js'
 import { changeQuery, parseQuery, queryString } from '../features/runs/query.js'
-import { densityValues, isHiddenColumnList, runColumns } from '../features/runs/runColumns.js'
+import { isHiddenColumnList, runColumns } from '../features/runs/runColumns.js'
 import { useElementSize } from '../features/trace/useElementSize.js'
 import { downloadTraceList } from '../features/trace/download.js'
 import { homeHref, replaceQuery } from '../app/routes.jsx'
 import { usePreference } from '../app/preferences.js'
+import { useSessionValue } from '../app/sessionMemory.js'
+import SplitDivider from '../components/ui/SplitDivider.jsx'
 import { hasModifier, isTyping } from '../app/keyboard.js'
 
 const narrowScreen = () => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches
 const PEEK_ID = /^(?:[0-9a-f]{32}|R-\d+)$/
-const PEEK_MIN = 480
-const isPeekWidth = value => value === 'auto' || (/^\d{3,4}$/.test(value) && Number(value) >= PEEK_MIN && Number(value) <= 2400)
+// Layout widths in px. The table keeps at least LEDGER_MIN beside the preview;
+// the filter panel sits inline only when the table still gets INLINE_TABLE_MIN,
+// otherwise it becomes a drawer over the table.
+const PEEK_MIN = 360, LEDGER_MIN = 400, DIVIDER = 1, FILTERS_WIDTH = 248, INLINE_TABLE_MIN = 720
 
 export default function RunExplorerPage({ project, projects, route, repository, traceRepository }) {
   const live = project.dataSource === 'local'
   // Open by default on wide screens; on phones the table comes first. A saved choice wins.
   const [filters, setFilters] = usePreference('traces.filters', ['open', 'closed'], narrowScreen() ? 'closed' : 'open')
-  const [density, setDensity] = usePreference('traces.density', densityValues, 'medium')
   const [hiddenPreference, setHiddenPreference] = usePreference('traces.columns.hidden', isHiddenColumnList, '')
-  const [peekWidthPreference, setPeekWidth] = usePreference('peek.width', isPeekWidth, 'auto')
+  const [peekWidthPreference, setPeekWidth] = useSessionValue('peek.width', null)
+  const [drawerOpen, setDrawerOpen] = useState(false)
   const hidden = useMemo(() => hiddenPreference ? hiddenPreference.split(',') : [], [hiddenPreference])
   // The previewed trace lives in the URL (peek=) but not in the list query, so
   // opening or stepping through previews never re-reads the list.
@@ -42,16 +47,31 @@ export default function RunExplorerPage({ project, projects, route, repository, 
   const totalPages = result ? Math.max(1, Math.ceil(result.total / result.pageSize)) : 1
   const canPrevious = !busy && result && result.page > 1
   const canNext = !busy && result && result.page < totalPages
-  const showFilters = live && filters === 'open'
-  // The toggle that was used disappears (Show lives in the toolbar, Hide in the
-  // panel), so keyboard focus moves to its counterpart.
+  const layout = useRef(null)
+  const layoutSize = useElementSize(layout)
+  const peekOpen = !!(peek && traceRepository)
+  const peekMax = Math.max(PEEK_MIN, Math.floor(layoutSize.width - LEDGER_MIN - DIVIDER))
+  const peekWidth = Math.min(peekMax, Math.max(PEEK_MIN, peekWidthPreference ?? Math.round(Math.min(640, layoutSize.width * 0.45))))
+  const peekSpace = peekOpen ? peekWidth + DIVIDER : 0
+  const drawer = live && layoutSize.width - peekSpace < FILTERS_WIDTH + INLINE_TABLE_MIN
+  const showFilters = live && (drawer ? drawerOpen : filters === 'open')
+  const ledgerWidth = layoutSize.width - peekSpace - (showFilters && !drawer ? FILTERS_WIDTH : 0)
+  // The toggle that was used disappears or is covered (Show lives in the
+  // toolbar, Hide in the panel), so keyboard focus moves to its counterpart.
   const toggled = useRef(false)
   useEffect(() => {
     if (!toggled.current) return
     toggled.current = false
     document.getElementById(showFilters ? 'hide-filters' : 'show-filters')?.focus()
   }, [showFilters])
-  function toggleFilters() { toggled.current = true; setFilters(showFilters ? 'closed' : 'open') }
+  function toggleFilters() { toggled.current = true; if (drawer) setDrawerOpen(!drawerOpen); else setFilters(showFilters ? 'closed' : 'open') }
+  // The drawer closes on Escape before anything else on the page sees the key.
+  useEffect(() => {
+    if (!drawer || !drawerOpen) return
+    function escape(event) { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); toggled.current = true; setDrawerOpen(false) } }
+    document.addEventListener('keydown', escape, true)
+    return () => document.removeEventListener('keydown', escape, true)
+  }, [drawer, drawerOpen])
 
   // Trace preview: J/K step through the rows on this page, Esc closes and
   // returns focus to that row's preview button.
@@ -76,10 +96,6 @@ export default function RunExplorerPage({ project, projects, route, repository, 
     document.addEventListener('keydown', keys)
     return () => document.removeEventListener('keydown', keys)
   }, [peek, next, previous, closePeek])
-  const layout = useRef(null)
-  const layoutSize = useElementSize(layout)
-  const peekMax = Math.max(PEEK_MIN, Math.floor(layoutSize.width - 120))
-  const peekWidth = Math.min(peekMax, Math.max(PEEK_MIN, peekWidthPreference === 'auto' ? Math.min(760, layoutSize.width * 0.55) : Number(peekWidthPreference)))
 
   const actions = <>
     {!busy && <UpdatedAgo at={loadedAt}/>}
@@ -90,19 +106,18 @@ export default function RunExplorerPage({ project, projects, route, repository, 
     <section className="explorer" data-source={live ? 'local' : undefined} aria-labelledby="runs-heading">
       <div className="view-heading">
         <h1 id="runs-heading">Tracing</h1>
-        <span className="heading-info" title="Each trace is one agent run. Click a row to preview it; open it for the full span view."><Icon name="info"/><span className="sr-only">Each trace is one agent run. Click a row to preview it; open it for the full span view.</span></span>
       </div>
-      <RunToolbar live={live} query={query} onChange={change} onReset={() => replaceQuery(project.id, '')} filtersOpen={showFilters} toggleFilters={toggleFilters}>
+      <RunToolbar live={live} query={query} onChange={change} filtersOpen={showFilters} filtersDrawer={drawer} toggleFilters={toggleFilters}>
         <ColumnMenu columns={runColumns(items)} hidden={hidden} onChange={list => setHiddenPreference(list.join(','))}/>
-        <DensityMenu density={density} onChange={setDensity}/>
       </RunToolbar>
-      <div className={`traces-layout${showFilters ? ' with-filters' : ''}`} ref={layout}>
-        {showFilters && <div id="trace-filters"><FacetSidebar query={query} facets={result?.facets} onChange={change} onClose={toggleFilters}/></div>}
+      <div className={`traces-layout${showFilters ? ' with-filters' : ''}`} data-drawer={drawer || undefined} ref={layout} style={{ '--peek-width': `${peekWidth}px` }}>
+        {showFilters && drawer && <div className="filters-backdrop" aria-hidden="true" onClick={toggleFilters}/>}
+        {showFilters && <div id="trace-filters" className={drawer ? 'filters-drawer' : undefined}><FacetSidebar query={query} facets={result?.facets} onChange={change} onClose={toggleFilters} closeLabel={drawer ? 'Close filters' : 'Hide filters'}/></div>}
         <div className="runs-ledger">
           {error && <div className="read-error" role="alert"><Icon name="error"/><div><strong>Could not load traces</strong><p>{error}{result ? ' Previously loaded data is shown.' : ''}</p></div><button className="button small" onClick={refresh}>Retry</button></div>}
           {result?.partialAt && <div className="read-error" role="status"><Icon name="info"/><div><strong>Showing the newest {result.partialAt.toLocaleString('en')} traces</strong><p>Older traces exist in storage and were not read. Counts, filters and sorting cover the traces shown.</p></div></div>}
           <div className="sr-only" role="status" aria-live="polite">{busy ? result ? 'Refreshing traces' : 'Loading traces' : error ? 'Trace read failed' : `${result?.total || 0} captured traces. Page ${result?.page || 1} of ${totalPages}.`}</div>
-          <RunTable live={live} items={items} projectId={project.id} search={key} query={query} onSort={sort => change({ sort, direction: query.sort === sort && query.direction === 'asc' ? 'desc' : 'asc' })} busy={busy} hidden={hidden} density={density} peek={peek} onPeek={traceRepository ? openPeek : undefined}>
+          <RunTable live={live} items={items} projectId={project.id} search={key} query={query} onSort={sort => change({ sort, direction: query.sort === sort && query.direction === 'asc' ? 'desc' : 'asc' })} busy={busy} hidden={hidden} peek={peek} onPeek={traceRepository ? openPeek : undefined} width={ledgerWidth}>
             {!result ? <div className="state-region">{busy ? <><span className="secondary">Loading traces…</span><div className="loading-rows" aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <div key={i}/>)}</div></> : <p className="secondary">Trace data is unavailable. Retry the read above.</p>}</div>
               : !result.items.length && <div className="empty-state">
                 <span className="empty-symbol"><Icon name={result.projectTotal === 0 ? 'runs' : 'search'}/></span>
@@ -112,9 +127,10 @@ export default function RunExplorerPage({ project, projects, route, repository, 
                 {result.projectTotal > 0 && <button className="button" onClick={() => replaceQuery(project.id, '')}>Reset query</button>}
               </div>}
           </RunTable>
-          <footer className="table-footer"><span>{result ? `${result.total} trace${result.total === 1 ? '' : 's'}${busy ? ' · Refreshing data' : ''}` : live ? 'Backend telemetry repository' : 'Trace data source'}</span><div className="pagination"><label htmlFor="page-size">Rows per page</label><select id="page-size" aria-label="Rows per page" value={query.pageSize} onChange={event => change({ pageSize: Number(event.target.value) })}>{[5, 10, 25, 50].map(size => <option key={size}>{size}</option>)}</select><span>{result ? `Page ${result.page} of ${totalPages}` : 'Page —'}</span><button className="button small" aria-label="Previous page" aria-disabled={!canPrevious} onClick={() => { if (canPrevious) change({ page: result.page - 1 }) }}>Previous</button><button className="button small" aria-label="Next page" aria-disabled={!canNext} onClick={() => { if (canNext) change({ page: result.page + 1 }) }}>Next</button></div></footer>
+          <footer className="table-footer"><span>{result ? `${result.total} trace${result.total === 1 ? '' : 's'}${busy ? ' · Refreshing data' : ''}` : live ? 'Backend telemetry repository' : 'Trace data source'}</span><div className="pagination"><span id="page-size-label">Rows per page</span><Select aria-labelledby="page-size-label" value={String(query.pageSize)} onValueChange={size => change({ pageSize: Number(size) })} options={[5, 10, 25, 50].map(size => ({ value: String(size), label: String(size) }))} align="end"/><span>{result ? `Page ${result.page} of ${totalPages}` : 'Page —'}</span><button className="button small" aria-label="Previous page" aria-disabled={!canPrevious} onClick={() => { if (canPrevious) change({ page: result.page - 1 }) }}>Previous</button><button className="button small" aria-label="Next page" aria-disabled={!canNext} onClick={() => { if (canNext) change({ page: result.page + 1 }) }}>Next</button></div></footer>
         </div>
-        {peek && traceRepository && <TracePeek repository={traceRepository} projectId={project.id} runId={peek} listSearch={key} position={{ index: peekIndex, total: items.length }} previous={previous} next={next} close={closePeek} width={peekWidth} minWidth={PEEK_MIN} maxWidth={peekMax} resize={value => setPeekWidth(String(Math.max(PEEK_MIN, Math.min(peekMax, Math.round(value)))))} resetWidth={() => setPeekWidth('auto')}/>}
+        {peekOpen && <SplitDivider value={peekWidth} min={PEEK_MIN} max={peekMax} onChange={setPeekWidth} onReset={() => setPeekWidth(null)} label="Resize trace preview" controls="trace-peek"/>}
+        {peekOpen && <TracePeek repository={traceRepository} projectId={project.id} runId={peek} listSearch={key} position={{ index: peekIndex, total: items.length }} previous={previous} next={next} close={closePeek}/>}
       </div>
     </section>
   </AppShell>

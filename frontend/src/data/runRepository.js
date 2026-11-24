@@ -4,7 +4,8 @@
  * count says how many traces that choice would add or keep.
  * All outcome, capture, count and investigation values remain independently supplied.
  */
-const RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '4h': 4 * 60 * 60 * 1000 }
+// 24h, 7d and 30d are the Dashboard's ranges; the Tracing picker offers the short ones.
+const RANGE_MS = { '15m': 15 * 60 * 1000, '1h': 60 * 60 * 1000, '4h': 4 * 60 * 60 * 1000, '24h': 24 * 60 * 60 * 1000, '7d': 7 * 24 * 60 * 60 * 1000, '30d': 30 * 24 * 60 * 60 * 1000 }
 
 function predicates(query, timeWindow, now) {
   const needle = query.search.trim().toLocaleLowerCase('en')

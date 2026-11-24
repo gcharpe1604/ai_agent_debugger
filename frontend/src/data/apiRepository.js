@@ -19,7 +19,7 @@ function runView(run) {
     name: run.name, startedAt: run.started_at, service: run.service,
     durationMs: run.end_time_unix_nano ? elapsed(run.end_time_unix_nano, run.start_time_unix_nano) : null,
     outcome: run.status === 'OK' ? 'Completed' : run.status === 'ERROR' ? 'Failed' : 'Unknown',
-    completeness: 'Unknown', recordedErrorCount: run.recorded_error_spans, executionMode: run.execution_mode, localDependencies: run.local_dependencies,
+    completeness: 'Unknown', recordedErrorCount: run.recorded_error_spans, spanCount: run.captured_span_count ?? null, executionMode: run.execution_mode, localDependencies: run.local_dependencies,
     recovered: run.recorded_recovered_retry === true, investigation: 'Unavailable', findingCount: null,
     firstError: firstErrorView(run.first_error),
   }

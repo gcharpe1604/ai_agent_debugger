@@ -71,8 +71,15 @@ describe('durable session gate', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await screen.findByRole('heading', { name: 'No traces yet' })).toBeTruthy()
     expect(window.location.hash).toBe('#/projects/default/runs')
-    expect(screen.getByText('Ada Lovelace', { selector: '.topbar-user' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+    // The user, appearance and Sign out live in the sidebar footer menu, not the top bar.
+    const topbar = within(document.querySelector('.topbar'))
+    expect(topbar.queryByText('Ada Lovelace')).toBeNull()
+    expect(topbar.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    await user.click(screen.getByLabelText('Account menu: Ada Lovelace'))
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.getByText(ADA.email)).toBeTruthy()
+    expect(menu.getByRole('group', { name: 'Appearance' })).toBeTruthy()
+    await user.click(menu.getByRole('menuitem', { name: 'Sign out' }))
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy()
     expect(window.location.hash).toBe('#/account/login?returnTo=%2Fprojects%2Fdefault')
     expect(calls(fetcher)).toContain('POST /api/v1/auth/logout')
@@ -126,7 +133,7 @@ describe('registration', () => {
     expect(await screen.findByRole('heading', { name: 'No traces yet' })).toBeTruthy()
     expect(window.location.hash).toBe('#/projects/default/runs')
     expect(screen.queryByText(KEY_1)).toBeNull()
-    expect(screen.getByText('Ada Lovelace', { selector: '.topbar-user' })).toBeTruthy()
+    expect(screen.getByLabelText('Account menu: Ada Lovelace')).toBeTruthy()
   })
 
   it.each([
@@ -155,12 +162,25 @@ describe('registration', () => {
 })
 
 describe('settings', () => {
-  it('shows the account and rotates the key only after confirmation', async () => {
+  it('shows General and API key tabs, a placeholder snippet, and rotates the key only after confirmation', async () => {
     const { fetcher, user } = start('/projects/default/settings', { signedIn: true })
-    const account = await screen.findByRole('region', { name: 'Account' })
-    expect(within(account).getByText('Ada Lovelace')).toBeTruthy()
-    expect(within(account).getByText(ADA.email)).toBeTruthy()
-    expect(within(account).getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
+    // General: the one project only; the account is on Profile; no storage line.
+    const general = await screen.findByRole('tabpanel', { name: 'General' })
+    expect(within(general).queryByText('Ada Lovelace')).toBeNull()
+    expect(within(general).queryByText(ADA.email)).toBeNull()
+    expect(within(general).getByText('Default project')).toBeTruthy()
+    expect(within(general).queryByText('Storage')).toBeNull()
+    await user.click(screen.getByRole('tab', { name: 'API key' }))
+    const keys = within(screen.getByRole('table', { name: 'API keys' }))
+    expect(keys.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Key prefix', 'Actions'])
+    expect(keys.getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
+    // The snippet has a placeholder, never the truncated key; Copy copies the snippet.
+    expect(screen.getByText(/AGENT_DEBUGGER_API_KEY=<your key>/)).toBeTruthy()
+    expect(screen.queryByText(new RegExp(`AGENT_DEBUGGER_API_KEY=${KEY_1.slice(0, 12)}`))).toBeNull()
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    await user.click(screen.getByRole('button', { name: 'Copy .env for your agent' }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('AGENT_DEBUGGER_API_KEY=<your key>'))
     const rotateCalls = () => calls(fetcher).filter(call => call === 'POST /api/v1/auth/key/rotate')
     // Cancel: nothing sent.
     await user.click(screen.getByRole('button', { name: 'Rotate key' }))
@@ -175,20 +195,85 @@ describe('settings', () => {
     expect(rotateCalls()).toHaveLength(1)
     expect(screen.getByText(KEY_2)).toBeTruthy()
     expect(screen.getByRole('note').textContent).toContain('You won’t see this again')
-    expect(within(account).getByText(`${KEY_2.slice(0, 12)}…`)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(within(screen.getByRole('table', { name: 'API keys' })).getByText(`${KEY_2.slice(0, 12)}…`)).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rotate key' }))
     expect(screen.queryByText(KEY_2)).toBeNull()
     expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0)
   })
 
-  it('hides project create and rename in durable mode', async () => {
-    const { user } = start('/projects', { signedIn: true })
-    expect(await screen.findByRole('list', { name: 'Available projects' })).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Create project' })).toBeNull()
-    expect(screen.queryByRole('link', { name: /Settings for/ })).toBeNull()
+  it('opens Profile from the account menu with the account details, and links to the API key tab', async () => {
+    const { user } = start('/projects/default', { signedIn: true })
+    await screen.findByRole('link', { name: 'Default project' })
+    await user.click(screen.getByLabelText('Account menu: Ada Lovelace'))
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Profile' }))
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeTruthy()
+    expect(window.location.hash).toBe('#/projects/default/profile')
+    const facts = within(document.querySelector('.settings-facts'))
+    expect(facts.getByText('Ada Lovelace')).toBeTruthy()
+    expect(facts.getByText(ADA.email)).toBeTruthy()
+    expect(facts.getByText('Default project')).toBeTruthy()
+    expect(facts.getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
+    await user.click(facts.getByRole('link', { name: 'Manage in Settings' }))
+    expect(await screen.findByRole('table', { name: 'API keys' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'API key' }).getAttribute('aria-selected')).toBe('true')
+  })
+
+  it('has no Projects nav or Projects page in durable mode: project URLs go to the Dashboard', async () => {
+    start('/projects', { signedIn: true })
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy()
+    expect(window.location.hash).toBe('#/projects/default')
+    const sidebar = within(screen.getByRole('complementary', { name: 'Project navigation' }))
+    expect(sidebar.getByRole('link', { name: 'Tracing' })).toBeTruthy()
+    expect(sidebar.queryByRole('link', { name: 'Projects' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Available projects' })).toBeNull()
     window.location.hash = '#/projects/new'
-    expect(await screen.findByRole('heading', { name: 'Project service unavailable' })).toBeTruthy()
+    await waitFor(() => expect(window.location.hash).toBe('#/projects/default'))
     expect(screen.queryByRole('button', { name: 'Create project' })).toBeNull()
-    void user
+    expect(screen.queryByRole('heading', { name: 'Create project' })).toBeNull()
+  })
+})
+
+describe('signed-in shell', () => {
+  it.each(['/projects/default', '/projects/default/runs', '/projects/default/settings'])('never offers Sign in in the sidebar on %s', async path => {
+    const { user } = start(path, { signedIn: true })
+    // Wait for the project, so the shell is the final one (pages re-mount it once loaded).
+    await screen.findByRole('link', { name: 'Default project' })
+    const sidebar = screen.getByRole('complementary', { name: 'Project navigation' })
+    const account = screen.getByLabelText('Account menu: Ada Lovelace')
+    expect(within(sidebar).queryByRole('link', { name: /Sign in/ })).toBeNull()
+    expect(within(sidebar).queryByText('Sign in')).toBeNull()
+    // Name, theme and Sign out are in the footer menu only.
+    const topbar = within(document.querySelector('.topbar'))
+    expect(topbar.queryByText('Ada Lovelace')).toBeNull()
+    expect(topbar.queryByRole('button', { name: /Sign out|Theme|Appearance/ })).toBeNull()
+    expect(sidebar.contains(account)).toBe(true)
+    await user.click(account)
+    expect(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Sign out' })).toBeTruthy()
+  })
+
+  it('switches the theme from the account menu with radio items and the keyboard', async () => {
+    const { user } = start('/projects/default', { signedIn: true })
+    await screen.findByRole('link', { name: 'Default project' })
+    const account = screen.getByLabelText('Account menu: Ada Lovelace')
+    await user.click(account)
+    const themes = within(await screen.findByRole('group', { name: 'Appearance' }))
+    expect(themes.getAllByRole('menuitemradio').map(item => [item.textContent, item.getAttribute('aria-checked')])).toEqual([['Light', 'false'], ['Dark', 'false'], ['System', 'true']])
+    await user.click(themes.getByRole('menuitemradio', { name: 'Dark' }))
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(localStorage.getItem('agent-debugger.frontend.v1.theme')).toBe('dark')
+    // The menu stays open, so the choice is visible; Escape closes it and returns focus.
+    expect(themes.getByRole('menuitemradio', { name: 'Dark' }).getAttribute('aria-checked')).toBe('true')
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    expect(document.activeElement).toBe(account)
+    // Keyboard only: Enter opens, arrows move, Enter picks.
+    await user.keyboard('{Enter}')
+    await screen.findByRole('menu')
+    const light = screen.getByRole('menuitemradio', { name: 'Light' })
+    while (document.activeElement !== light) await user.keyboard('{ArrowDown}')
+    await user.keyboard('{Enter}')
+    expect(document.documentElement.dataset.theme).toBe('light')
+    expect(localStorage.getItem('agent-debugger.frontend.v1.theme')).toBe('light')
   })
 })

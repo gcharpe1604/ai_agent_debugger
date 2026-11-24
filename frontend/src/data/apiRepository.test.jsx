@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import App from '../app/App.jsx'
 import { parseQuery } from '../features/runs/query.js'
 import { createApiAdapters } from './apiRepository.js'
+import { chooseOption, selectedOption } from '../test/ui.js'
 
 const workspace = { id: "local", name: "Local captures", initial: "L", environment: "SDK telemetry · memory storage", dataSource: "local" }
 const status = { mode: "local", workspace }
@@ -19,8 +20,10 @@ it('opens actual trace IDs through Run Explorer and preserves raw status and met
   await user.click(await screen.findByRole('link', { name: `Captured run ${traceId}` }))
   await user.click(await screen.findByRole('treeitem', { name: /Captured run · Run · UNSET/ }))
   expect(await screen.findByText('Input and output not captured')).toBeTruthy()
-  expect(screen.queryByRole('group', { name: 'Payload format' })).toBeNull()
-  expect(screen.getByText('1 span received · completeness unknown')).toBeTruthy()
+  expect(screen.queryByRole('group', { name: /format$/ })).toBeNull()
+  // "received · completeness unknown" is only in the Spans tooltip.
+  expect(screen.queryByText(/completeness unknown/)).toBeNull()
+  expect(document.querySelector('[data-stat="spans"]').textContent).toBe('1 span')
   expect(screen.queryByText('Sample data')).toBeNull()
   expect(screen.queryByLabelText('Investigation details')).toBeNull()
   expect(window.location.hash).toContain(traceId)
@@ -53,6 +56,7 @@ it('shows local Settings with server-reported retention, the SDK endpoint and no
   await user.click(await screen.findByRole('link', { name: 'Project settings' }))
   expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy()
   expect(screen.getByText('Traces are kept for 4 h, then removed.')).toBeTruthy()
+  await user.click(screen.getByRole('tab', { name: 'API key' }))
   expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/local\/traces/)).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Create API key' }).disabled).toBe(true)
   expect(screen.getByRole('link', { name: 'Docs (opens in a new tab)' }).getAttribute('target')).toBe('_blank')
@@ -81,8 +85,8 @@ it('keeps the Home setup steps available offline and verifies only the requested
   window.history.replaceState(null, '', '/#/projects/local/runs')
   const user = userEvent.setup()
   render(<App {...adapters}/> )
-  await user.click(await screen.findByRole('link', { name: 'Home' }))
-  expect(await screen.findByRole('heading', { name: 'Home' })).toBeTruthy()
+  await user.click(await screen.findByRole('link', { name: 'Dashboard' }))
+  expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy()
   expect(await screen.findByText('Backend unavailable')).toBeTruthy()
   expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull()
   reachable = true
@@ -138,23 +142,24 @@ describe('failed local run: first error surfacing', () => {
   })
   const selectedRow = async () => (await screen.findAllByRole('treeitem')).find(row => row.getAttribute('aria-selected') === 'true')
 
-  it('reads the first error from the list without opening the run, and hides all-unknown columns', async () => {
+  it('lists each run on one line with no first-error line or mode badge, and hides all-unknown columns', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     render(<App {...createApiAdapters(fetcher)}/> )
     const link = await screen.findByRole('link', { name: `tool-task-agent ${failedId}` })
-    const cell = link.closest('td')
-    expect(within(cell).getByRole('link', { name: /First recorded error/ }).getAttribute('href')).toContain('span=a000000000000002')
-    expect(within(cell).getByText('ToolTimeout · LocalTools.invoke (+1)')).toBeTruthy()
-    expect(within(cell).getByText('Controlled')).toBeTruthy()
+    const row = link.closest('tr')
+    expect(within(row).queryByRole('link', { name: /First recorded error/ })).toBeNull()
+    expect(within(row).queryByText('Controlled')).toBeNull()
+    expect(row.querySelector('.error-count').textContent).toBe('3')
+    expect(row.querySelector('.error-count').dataset.tone).toBe('error')
+    const clean = screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('tr')
+    expect(clean.querySelector('.error-count').dataset.tone).toBe('muted')
     expect(screen.queryByText(/root cause|cause:/i)).toBeNull()
-    // The completed run has no first-error line or mode badge (execution_mode is null).
-    expect(within(screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('td')).queryByText('First recorded error')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Sort by error spans' }).title).toMatch(/including parents that carry a child's error/)
+    expect(screen.getByRole('button', { name: 'Sort by errors' }).title).toMatch(/including parents that carry a child's error/)
     expect(screen.queryByRole('columnheader', { name: /Completeness/ })).toBeNull()
     expect(screen.queryByRole('columnheader', { name: /Investigation/ })).toBeNull()
   })
 
-  it('keeps recovered runs in Has span errors and preserves that filter after following a first error', async () => {
+  it('keeps recovered runs in Has span errors and preserves that filter after opening a failed run at its first error', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher)}/> )
@@ -166,11 +171,16 @@ describe('failed local run: first error surfacing', () => {
     await user.click(within(filters).getByRole('checkbox', { name: /^Has error spans/ }))
     await screen.findByRole('link', { name: /Recovered run/ })
     await waitFor(() => expect(screen.queryByRole('link', { name: /Captured run/ })).toBeNull())
-    await user.click(screen.getByRole('link', { name: /First recorded error/ }))
+    await user.click(screen.getByRole('link', { name: `tool-task-agent ${failedId}` }))
     expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000002')
     const inspector = await screen.findByRole('region', { name: 'Span inspector' })
     expect(within(inspector).getByRole('heading', { name: 'Pay · attempt 1' })).toBeTruthy()
-    expect(within(inspector).getByText('LocalTools.invoke')).toBeTruthy()
+    // The full operation name is in the Details popover.
+    await user.click(within(inspector).getByRole('button', { name: 'Details' }))
+    expect(within(await screen.findByRole('dialog')).getByText('LocalTools.invoke')).toBeTruthy()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
     expect(screen.queryByText('0 loaded')).toBeNull()
     await user.click(screen.getByRole('link', { name: 'Back to Traces' }))
     expect(await screen.findByRole('link', { name: /Recovered run/ })).toBeTruthy()
@@ -187,21 +197,69 @@ describe('failed local run: first error surfacing', () => {
     expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000003')
   })
 
-  it('summarises the project on Home and links failures to their first error', async () => {
+  it('shows the Dashboard: KPI tiles, traces over time and the two tables for the chosen range', async () => {
     window.history.replaceState(null, '', '/#/projects/local')
+    const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher)}/> )
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeTruthy()
-    const traces = await screen.findByRole('region', { name: 'Traces' })
-    expect(within(traces).getByText('3')).toBeTruthy()
-    const status = screen.getByRole('region', { name: 'Execution status' })
-    expect(within(status).getByText(/1 recovered after a retry/)).toBeTruthy()
-    const failures = screen.getByRole('region', { name: 'Recent failed traces' })
-    expect(within(failures).getByRole('link', { name: 'tool-task-agent' }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?span=a000000000000002`)
-    expect(within(failures).getByText('ToolTimeout · LocalTools.invoke (+1)')).toBeTruthy()
-    // Traces exist, so the setup steps move below the summary instead of leading the page.
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('aria-current')).toBe('page')
+    // Default range is the last 7 days; these fixture runs are older.
+    expect(selectedOption('Time range')).toBe('Last 7 days')
+    expect((await screen.findAllByText('No traces in this time range.')).length).toBe(2)
+    expect(screen.getByRole('region', { name: 'Traces' }).querySelector('.kpi-value').textContent).toBe('0')
+    await chooseOption(user, 'Time range', 'All time')
+    const tile = label => screen.getByRole('region', { name: label }).querySelector('.kpi-value').textContent
+    await waitFor(() => expect(tile('Traces')).toBe('3'))
+    expect(tile('Error rate')).toBe('33%')
+    expect(tile('p50 latency')).toMatch(/ms$/)
+    expect(tile('p95 latency')).toMatch(/ms$/)
+    // One day of runs: one stacked bar with its counts in the tooltip label.
+    const chart = screen.getByRole('region', { name: 'Traces over time' })
+    expect(within(chart).getByRole('img', { name: /Traces over time: 3 traces/ })).toBeTruthy()
+    expect(chart.querySelectorAll('.chart-failed')).toHaveLength(1)
+    expect(chart.querySelector('[aria-label*="1 failed"]').getAttribute('aria-label')).toMatch(/2 completed, 1 failed$/)
+    const latency = within(screen.getByRole('region', { name: 'Latency by agent' }))
+    expect(latency.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Agent', 'Runs', 'p50', 'p95', 'Error rate'])
+    expect(latency.getByRole('row', { name: /tool-task-agent/ }).textContent).toContain('100%')
+    const failures = within(screen.getByRole('region', { name: 'Recent failures' }))
+    expect(failures.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Timestamp', 'Name', 'First error'])
+    expect(failures.getByRole('link', { name: 'tool-task-agent' }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?span=a000000000000002`)
+    expect(failures.getByText('ToolTimeout')).toBeTruthy()
+    expect(screen.queryByText(/Based on the latest/)).toBeNull()
+    // The local Dashboard keeps the setup steps below the figures.
     expect(screen.getByRole('region', { name: 'Send your first trace' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('says when the Dashboard is based on a capped read', async () => {
+    window.history.replaceState(null, '', '/#/projects/local')
+    const adapters = createApiAdapters(fetcher)
+    const repository = { ...adapters.repository, listRuns: async args => ({ ...await adapters.repository.listRuns(args), partialAt: 1000 }) }
+    render(<App {...adapters} repository={repository}/> )
+    expect(await screen.findByText('Based on the latest 1,000 runs')).toBeTruthy()
+  })
+
+  it('turns the filter panel into a drawer on a narrow layout: Filters opens it, Esc closes it', async () => {
+    window.history.replaceState(null, '', '/#/projects/local/runs')
+    // A 700 px trace layout (1024 px window less the sidebar) has no room for an inline panel.
+    const measure = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () { return this.classList.contains('traces-layout') ? { width: 700, height: 600, top: 0, left: 0, right: 700, bottom: 600 } : measure.call(this) })
+    const user = userEvent.setup()
+    render(<App {...createApiAdapters(fetcher)}/> )
+    await screen.findByRole('link', { name: /Recovered run/ })
+    expect(screen.queryByRole('complementary', { name: 'Trace filters' })).toBeNull()
+    const toggle = screen.getByRole('button', { name: 'Filters' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    await user.click(toggle)
+    const drawer = screen.getByRole('complementary', { name: 'Trace filters' })
+    expect(drawer.closest('.filters-drawer')).toBeTruthy()
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close filters' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('complementary', { name: 'Trace filters' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filters' }))
+    // The drawer's choice is not saved as the inline panel preference.
+    expect(localStorage.getItem('agent-debugger.frontend.v1.traces.filters')).toBeNull()
+    vi.restoreAllMocks()
   })
 
   it('opens filters from the left, moves focus between the toggles and offers JSON downloads in the top bar', async () => {
@@ -212,8 +270,8 @@ describe('failed local run: first error surfacing', () => {
     expect(screen.queryByText('Matching traces')).toBeNull()
     await user.click(screen.getByRole('button', { name: 'Hide filters' }))
     expect(screen.queryByRole('complementary', { name: 'Trace filters' })).toBeNull()
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Show filters' }))
-    await user.click(screen.getByRole('button', { name: 'Show filters' }))
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filters' }))
+    await user.click(screen.getByRole('button', { name: 'Filters' }))
     expect(screen.getByRole('complementary', { name: 'Trace filters' })).toBeTruthy()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Hide filters' }))
     const topbar = () => within(document.querySelector('.topbar'))
@@ -236,7 +294,13 @@ describe('failed local run: first error surfacing', () => {
     expect(window.location.hash).toContain(`peek=${failedId}`)
     expect(within(peek).getByText('2 of 3')).toBeTruthy()
     expect(await within(peek).findByText('First recorded error')).toBeTruthy()
-    expect(within(peek).getByText('Error spans').nextElementSibling.textContent).toBe('3')
+    expect(within(peek).getByText('Errors').nextElementSibling.textContent).toBe('3')
+    // Shortcuts are listed on the info button, not in a footer.
+    expect(within(peek).getByRole('button', { name: 'Keyboard shortcuts: J next trace · K previous trace · Esc close' })).toBeTruthy()
+    expect(within(peek).queryByText('next')).toBeNull()
+    // Beside the preview the table keeps Timestamp, Name, Status and Latency.
+    expect(screen.getAllByRole('columnheader').map(cell => cell.textContent.replace(/[↑↓]/g, ''))).toEqual(expect.arrayContaining(['Timestamp', 'Name', 'Status', 'Latency']))
+    expect(screen.getByRole('separator', { name: 'Resize trace preview' })).toBeTruthy()
     expect(within(peek).getByRole('link', { name: /Pay · attempt 1/ }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?time=all&span=a000000000000002`)
     expect(within(peek).getByRole('link', { name: 'Open full trace' }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?time=all`)
     await user.keyboard('j')
@@ -251,22 +315,60 @@ describe('failed local run: first error surfacing', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: `Preview Captured run ${traceId}` })))
   })
 
-  it('focuses search with /, hides columns and changes row height like Langfuse table controls', async () => {
+  it('focuses search with / and hides columns like Langfuse table controls', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher)}/> )
     await screen.findByRole('link', { name: /Recovered run/ })
     await user.keyboard('/')
     expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search traces' }))
-    await user.click(screen.getByLabelText('Columns, 5 of 5 shown'))
-    await user.click(screen.getByRole('checkbox', { name: 'Started' }))
-    expect(screen.queryByRole('columnheader', { name: /Started/ })).toBeNull()
+    // No "/" or "↵" hints in the field.
+    expect(document.querySelector('.search-field').textContent).toBe('')
+    await user.click(screen.getByLabelText('Columns, 6 of 6 shown'))
+    await user.click(screen.getByRole('menuitemcheckbox', { name: 'Timestamp' }))
+    expect(screen.queryByRole('columnheader', { name: /Timestamp/ })).toBeNull()
     expect(localStorage.getItem('agent-debugger.frontend.v1.traces.columns.hidden')).toBe('startedAt')
-    expect(screen.getByLabelText('Columns, 4 of 5 shown')).toBeTruthy()
-    expect(screen.getByRole('link', { name: /First recorded error/ })).toBeTruthy()
-    await user.click(screen.getByLabelText('Row height: Medium'))
-    await user.click(screen.getByRole('radio', { name: /Small/ }))
-    expect(screen.queryByRole('link', { name: /First recorded error/ })).toBeNull()
-    expect(localStorage.getItem('agent-debugger.frontend.v1.traces.density')).toBe('small')
+    expect(screen.getByLabelText('Columns, 5 of 6 shown')).toBeTruthy()
+    expect(screen.queryByLabelText(/Row height/)).toBeNull()
+  })
+
+  it('works the Columns menu and Rows per page select from the keyboard alone', async () => {
+    window.history.replaceState(null, '', '/#/projects/local/runs')
+    const user = userEvent.setup()
+    render(<App {...createApiAdapters(fetcher)}/> )
+    await screen.findByRole('link', { name: /Recovered run/ })
+    // Columns menu: Enter opens it on the first item, Space toggles and keeps it open, Escape returns focus.
+    const columns = screen.getByLabelText('Columns, 6 of 6 shown')
+    columns.focus()
+    await user.keyboard('{Enter}')
+    const menu = await screen.findByRole('menu')
+    expect(within(menu).getByRole('menuitemcheckbox', { name: 'Name' }).getAttribute('aria-disabled')).toBe('true')
+    const latency = within(menu).getByRole('menuitemcheckbox', { name: 'Latency' })
+    while (document.activeElement !== latency) await user.keyboard('{ArrowDown}')
+    await user.keyboard(' ')
+    expect(latency.getAttribute('aria-checked')).toBe('false')
+    expect(screen.getByRole('menu')).toBeTruthy()
+    expect(screen.queryByRole('columnheader', { name: /Latency/ })).toBeNull()
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+    expect(document.activeElement).toBe(screen.getByLabelText('Columns, 5 of 6 shown'))
+    // Rows per page: a combobox; arrows move, Enter picks, Escape cancels without a change.
+    const rows = screen.getByRole('combobox', { name: 'Rows per page' })
+    expect(rows.textContent).toBe('25')
+    rows.focus()
+    await user.keyboard('{Enter}')
+    const listbox = await screen.findByRole('listbox')
+    expect(within(listbox).getAllByRole('option').map(option => option.textContent)).toEqual(['5', '10', '25', '50'])
+    await user.keyboard('{Escape}')
+    await waitFor(() => expect(screen.queryByRole('listbox')).toBeNull())
+    expect(rows.textContent).toBe('25')
+    expect(document.activeElement).toBe(rows)
+    await user.keyboard('{Enter}')
+    await screen.findByRole('listbox')
+    const ten = screen.getByRole('option', { name: '10' })
+    while (document.activeElement !== ten) await user.keyboard('{ArrowUp}')
+    await user.keyboard('{Enter}')
+    await waitFor(() => expect(screen.getByRole('combobox', { name: 'Rows per page' }).textContent).toBe('10'))
+    expect(window.location.hash).toContain('pageSize=10')
   })
 })

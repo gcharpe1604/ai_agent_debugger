@@ -1,109 +1,106 @@
 /* Account and project presentation share the debugger's semantic palette. */
 .account-shell { min-height: 100dvh; display: flex; flex-direction: column; }
-.account-header { min-height: 72px; padding: 20px 32px; display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.account-brand { display: inline-flex; align-items: center; gap: 9px; font-weight: 600; flex-shrink: 0; }
+.account-header { min-height: 72px; padding: var(--space-5) var(--space-6); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.account-brand { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 600; flex-shrink: 0; }
 .account-utilities select { max-width: 120px; background: transparent; }
-.account-main { flex: 1; display: grid; align-content: center; padding: 48px 24px 72px; outline: none; }
+.account-main { flex: 1; display: grid; align-content: center; padding: 48px var(--space-6) 72px; outline: none; }
 .account-main:focus-visible { outline: none; }
-.account-main[data-registration="true"] { align-content: start; padding-top: clamp(24px, 3vh, 40px); padding-bottom: 24px; }
+.account-main[data-registration="true"] { align-content: start; padding-top: clamp(24px, 3vh, 40px); padding-bottom: var(--space-6); }
 .account-form, .account-main .access-state { width: 100%; max-width: 384px; margin: 0 auto; }
-.account-form h1, .account-main .access-state h1 { font-size: 28px; line-height: 36px; letter-spacing: -.7px; }
-.account-description { color: var(--secondary); margin-top: 10px; line-height: 22px; }
-.account-form form { margin-top: 32px; }
-.registration-email { font-weight: 500; color: var(--text); overflow-wrap: anywhere; }
-.registration-progress { display: flex; gap: 16px; padding: 0; margin: 24px 0 0; list-style: none; color: var(--secondary); font-size: 12px; line-height: 20px; }
-.registration-progress li { display: flex; align-items: center; gap: 8px; flex: 1; padding-bottom: 12px; border-bottom: 2px solid var(--border); }
-.registration-progress li[aria-current="step"] { color: var(--text); border-color: var(--text); font-weight: 600; }
-.step-number { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border: 1px solid var(--control); border-radius: 50%; font-size: 11px; }
-[aria-current="step"] > .step-number { background: var(--solid); border-color: var(--solid); color: var(--on-solid); }
+.account-form h1, .account-main .access-state h1 { font-size: var(--text-xl); line-height: var(--leading); letter-spacing: -.7px; }
+.account-description { color: var(--color-text-secondary); margin-top: var(--space-3); line-height: var(--leading); }
+.account-form form { margin-top: var(--space-8); }
+.registration-email { font-weight: 500; color: var(--color-text); overflow-wrap: anywhere; }
+.registration-progress { display: flex; gap: var(--space-4); padding: 0; margin: var(--space-6) 0 0; list-style: none; color: var(--color-text-secondary); font-size: var(--text-xs); line-height: var(--leading); }
+.registration-progress li { display: flex; align-items: center; gap: var(--space-2); flex: 1; padding-bottom: var(--space-3); border-bottom: 2px solid var(--color-border); }
+.registration-progress li[aria-current="step"] { color: var(--color-text); border-color: var(--color-text); font-weight: 600; }
+.step-number { display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; flex-shrink: 0; border: 1px solid var(--color-border-strong); border-radius: 50%; font-size: var(--text-xs); }
+[aria-current="step"] > .step-number { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
 .step-number .icon { width: 12px; height: 12px; }
-.account-form:has(.registration-progress) form { margin-top: 24px; }
-.registration-agreement { margin: 2px 0 24px; font-size: 13px; line-height: 20px; }
-.registration-terms { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; min-height: 24px; }
-.registration-terms input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--solid); flex-shrink: 0; }
-.registration-agreement .field-error { font-size: 12px; line-height: 18px; margin-top: 8px; }
-.registration-actions { display: flex; align-items: stretch; gap: 12px; }
+.account-form:has(.registration-progress) form { margin-top: var(--space-6); }
+.registration-agreement { margin: 2px 0 var(--space-6); font-size: var(--text-sm); line-height: var(--leading); }
+.registration-terms { display: flex; align-items: flex-start; gap: var(--space-3); cursor: pointer; min-height: 24px; }
+.registration-terms input { width: 16px; height: 16px; margin: 2px 0 0; accent-color: var(--color-accent); flex-shrink: 0; }
+.registration-agreement .field-error { font-size: var(--text-xs); line-height: var(--leading); margin-top: var(--space-2); }
+.registration-actions { display: flex; align-items: stretch; gap: var(--space-3); }
 .registration-actions .account-submit { flex: 1; width: auto; }
-.form-field { display: flex; flex-direction: column; gap: 8px; margin-bottom: 22px; }
-.form-field label { font-size: 13px; line-height: 18px; font-weight: 600; }
-.form-field input { width: 100%; min-width: 0; height: 42px; background: var(--panel); border: 1px solid var(--control); border-radius: 5px; padding: 10px 12px; font-size: 14px; }
-.form-field input[readonly] { color: var(--secondary); }
-.form-field input[aria-invalid="true"], .password-field[data-invalid="true"] { border-color: var(--error); }
-.form-field p { font-size: 12px; line-height: 18px; }
-.password-field { display: flex; align-items: stretch; background: var(--panel); border: 1px solid var(--control); border-radius: 5px; }
-.password-field:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
-.password-field input { border: 0; background: transparent; height: 40px; }
+.form-field { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); }
+.form-field label { font-size: var(--text-sm); line-height: var(--leading); font-weight: 600; }
+.form-field input { width: 100%; min-width: 0; height: var(--control-height); background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); padding: 0 var(--space-3); font-size: var(--text-sm); }
+.form-field input[readonly] { color: var(--color-text-secondary); }
+.form-field input[aria-invalid="true"], .password-field[data-invalid="true"] { border-color: var(--color-danger); }
+.form-field p { font-size: var(--text-xs); line-height: var(--leading); }
+.password-field { display: flex; align-items: stretch; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); }
+.password-field:focus-within { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.password-field input { border: 0; background: transparent; height: calc(var(--control-height) - 2px); }
 .password-field input:focus-visible { outline: none; }
-.password-toggle { display: inline-flex; justify-content: center; align-items: center; min-width: 40px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: var(--secondary); flex-shrink: 0; }
-.password-toggle:hover:not(:disabled) { color: var(--text); background: var(--hover); }
-.password-toggle:disabled { cursor: default; color: var(--disabled-text); }
-.field-error, .form-error { color: var(--error); }
-.form-error { background: var(--error-surface); border: 1px solid var(--error-border); padding: 10px 12px; border-radius: 5px; margin-bottom: 18px; font-size: 13px; line-height: 20px; }
-.account-shell .button.solid, .project-page .button.solid, .access-state .button.solid { background: var(--solid); color: var(--on-solid); border-color: var(--solid); }
-.account-shell .button.solid:hover:not(:disabled), .project-page .button.solid:hover:not(:disabled), .access-state .button.solid:hover:not(:disabled) { background: var(--solid); opacity: .9; }
+.password-toggle { display: inline-flex; justify-content: center; align-items: center; min-width: var(--control-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); flex-shrink: 0; }
+.password-toggle:hover:not(:disabled) { color: var(--color-text); background: var(--color-hover); }
+.password-toggle:disabled { cursor: default; color: var(--color-muted); }
+.field-error, .form-error { color: var(--color-danger); }
+.form-error { background: var(--color-danger-surface); border: 1px solid var(--color-danger-border); padding: var(--space-3) var(--space-3); border-radius: var(--radius-control); margin-bottom: var(--space-5); font-size: var(--text-sm); line-height: var(--leading); }
+.account-shell .button.solid, .project-page .button.solid, .access-state .button.solid { background: var(--color-accent); color: var(--color-on-accent); border-color: var(--color-accent); }
+.account-shell .button.solid:hover:not(:disabled), .project-page .button.solid:hover:not(:disabled), .access-state .button.solid:hover:not(:disabled) { background: var(--color-accent); opacity: .9; }
 .account-shell .button:disabled, .project-page .button:disabled { opacity: .55; }
-.account-submit { width: 100%; min-height: 42px; font-weight: 600; }
-.account-links { display: flex; flex-direction: column; align-items: center; gap: 20px; margin-top: 24px; font-size: 13px; color: var(--secondary); }
-.account-links span a { color: var(--text); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
-.sample-entry { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 32px; color: var(--secondary); font-size: 13px; }
-.account-links > .sample-entry { width: 100%; border-top: 1px solid var(--border); padding-top: 20px; }
-.account-footer { padding: 16px 24px 24px; text-align: center; font-size: 12px; line-height: 18px; color: var(--muted); }
-.access-state { width: 100%; max-width: 440px; margin: auto; padding: 32px 0; }
-.access-symbol { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--border); border-radius: 8px; background: var(--panel); color: var(--secondary); margin-bottom: 24px; }
+.account-submit { width: 100%; }
+.account-links { display: flex; flex-direction: column; align-items: center; gap: var(--space-5); margin-top: var(--space-6); font-size: var(--text-sm); color: var(--color-text-secondary); }
+.account-links span a { color: var(--color-text); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
+.sample-entry { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 32px; color: var(--color-text-secondary); font-size: var(--text-sm); }
+.account-links > .sample-entry { width: 100%; border-top: 1px solid var(--color-border); padding-top: var(--space-5); }
+.account-footer { padding: var(--space-4) var(--space-6) var(--space-6); text-align: center; font-size: var(--text-xs); line-height: var(--leading); color: var(--color-muted); }
+.access-state { width: 100%; max-width: 440px; margin: auto; padding: var(--space-8) 0; }
+.access-symbol { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text-secondary); margin-bottom: var(--space-6); }
 .access-symbol .icon { width: 20px; height: 20px; }
-.access-state > p { margin-top: 12px; line-height: 22px; }
+.access-state > p { margin-top: var(--space-3); line-height: var(--leading); }
 .access-state h1:focus-visible { outline-offset: 5px; border-radius: 2px; }
-.form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 28px 0 20px; }
-.access-state .form-actions .button { min-height: 40px; }
-.access-state > .sample-entry { border-top: 1px solid var(--border); padding-top: 20px; width: 100%; justify-content: flex-start; }
-.project-page { width: 100%; max-width: 800px; margin: 0 auto; padding: 32px 24px; }
+.form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-8) 0 var(--space-5); }
+.access-state > .sample-entry { border-top: 1px solid var(--color-border); padding-top: var(--space-5); width: 100%; justify-content: flex-start; }
+.project-page { width: 100%; max-width: 800px; margin: 0 auto; padding: var(--space-8) var(--space-6); }
 .page:has(> .project-page):focus-visible { outline: none; }
-.project-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
-.project-heading h1 { font-size: 22px; line-height: 30px; letter-spacing: -.5px; }
-.project-description { line-height: 22px; }
-.project-form { margin-top: 28px; max-width: 640px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
-.project-fields { padding: 24px; }
-.project-fields h2 { font-size: 14px; line-height: 20px; }
-.section-description { color: var(--secondary); font-size: 13px; line-height: 20px; margin-top: 6px; margin-bottom: 24px; }
+.project-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); margin-bottom: var(--space-2); }
+.project-heading h1 { font-size: var(--text-xl); line-height: var(--leading); letter-spacing: -.5px; }
+.project-description { line-height: var(--leading); }
+.project-form { margin-top: var(--space-8); max-width: 640px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
+.project-fields { padding: var(--space-6); }
+.project-fields h2 { font-size: var(--text-base); line-height: var(--leading); }
+.section-description { color: var(--color-text-secondary); font-size: var(--text-sm); line-height: var(--leading); margin-top: var(--space-2); margin-bottom: var(--space-6); }
 .project-fields .form-field:last-child { margin-bottom: 0; }
-.project-fields .form-error { margin: 18px 0 0; }
-.project-identity { display: grid; grid-template-columns: 120px minmax(0,1fr); font-size: 12px; line-height: 18px; gap: 12px; padding-top: 22px; margin: 0; border-top: 1px solid var(--border); }
-.project-identity dt { color: var(--secondary); }
+.project-fields .form-error { margin: var(--space-5) 0 0; }
+.project-identity { display: grid; grid-template-columns: 120px minmax(0,1fr); font-size: var(--text-xs); line-height: var(--leading); gap: var(--space-3); padding-top: var(--space-6); margin: 0; border-top: 1px solid var(--color-border); }
+.project-identity dt { color: var(--color-text-secondary); }
 .project-identity dd { margin: 0; overflow-wrap: anywhere; }
-.project-form-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--border); background: var(--subtle); }
-.project-form-footer .button { min-height: 36px; }
-.project-save-status { min-height: 34px; padding: 0 24px 16px; font-size: 12px; line-height: 18px; background: var(--subtle); border-radius: 0 0 5px 5px; }
-.development-notice { font-size: 12px; line-height: 18px; color: var(--muted); margin-top: 20px; max-width: 640px; }
-.project-list { margin: 28px 0 0; padding: 0; list-style: none; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); }
-.project-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+.project-form-footer { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-6); border-top: 1px solid var(--color-border); background: var(--color-subtle); }
+.project-save-status { min-height: 34px; padding: 0 var(--space-6) var(--space-4); font-size: var(--text-xs); line-height: var(--leading); background: var(--color-subtle); border-radius: 0 0 var(--radius-control) var(--radius-control); }
+.development-notice { font-size: var(--text-xs); line-height: var(--leading); color: var(--color-muted); margin-top: var(--space-5); max-width: 640px; }
+.project-list { margin: var(--space-8) 0 0; padding: 0; list-style: none; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
+.project-list li { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) var(--space-5); border-bottom: 1px solid var(--color-border); }
 .project-list li:last-child { border-bottom: 0; }
-.project-list li > a:first-child { display: flex; align-items: center; gap: 12px; min-width: 0; }
-.project-list li strong { overflow-wrap: anywhere; font-size: 14px; }
+.project-list li > a:first-child { display: flex; align-items: center; gap: var(--space-3); min-width: 0; }
+.project-list li strong { overflow-wrap: anywhere; font-size: var(--text-base); }
 .project-list li .mono { display: block; margin-top: 2px; overflow-wrap: anywhere; }
-.project-empty { margin-top: 28px; padding: 48px 24px; border: 1px solid var(--border); border-radius: 6px; background: var(--panel); display: flex; align-items: center; flex-direction: column; text-align: center; }
-.project-empty .access-symbol { margin-bottom: 20px; }
-.project-empty h2 { font-size: 18px; line-height: 26px; letter-spacing: -.25px; }
-.project-empty p { max-width: 340px; margin-top: 10px; line-height: 22px; }
-.project-empty .button { margin-top: 24px; min-height: 36px; }
+.project-empty { margin-top: var(--space-8); padding: 48px var(--space-6); border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); display: flex; align-items: center; flex-direction: column; text-align: center; }
+.project-empty .access-symbol { margin-bottom: var(--space-5); }
+.project-empty h2 { font-size: var(--text-xl); line-height: var(--leading); letter-spacing: -.25px; }
+.project-empty p { max-width: 340px; margin-top: var(--space-3); line-height: var(--leading); }
+.project-empty .button { margin-top: var(--space-6); }
 @media(max-width:767px) {
-  .account-header { min-height: 64px; padding: 16px 20px; }
-  .account-utilities select { min-height: 36px; }
-  .account-main { padding: 40px 24px; }
-  .account-main[data-registration="true"] { padding-top: 24px; padding-bottom: 24px; }
-  .account-form h1, .account-main .access-state h1 { font-size: 26px; line-height: 34px; }
-  .account-footer { padding: 16px 24px 24px; }
+  .account-header { min-height: 64px; padding: var(--space-4) var(--space-5); }
+  .account-main { padding: 40px var(--space-6); }
+  .account-main[data-registration="true"] { padding-top: var(--space-6); padding-bottom: var(--space-6); }
+  .account-form h1, .account-main .access-state h1 { font-size: var(--text-xl); line-height: var(--leading); }
+  .account-footer { padding: var(--space-4) var(--space-6) var(--space-6); }
   .account-shell .button, .password-toggle, .project-page .button, .form-field input { min-height: 44px; }
   .password-field input { min-height: 42px; }
   .account-links a { min-height: 44px; }
   .registration-terms { min-height: 44px; align-items: center; }
   .registration-terms input { margin-top: 0; }
-  .project-page { padding: 24px 16px; }
-  .project-fields { padding: 20px 16px; }
-  .project-form-footer { padding: 16px; flex-wrap: wrap; }
-  .project-save-status { padding-inline: 16px; }
-  .project-identity { grid-template-columns: 1fr; gap: 6px; }
-  .project-list li { padding: 14px 12px; gap: 10px; }
-  .project-empty { padding: 32px 16px; }
-  .page > .access-state { width: auto; margin: auto 24px; }
+  .project-page { padding: var(--space-6) var(--space-4); }
+  .project-fields { padding: var(--space-5) var(--space-4); }
+  .project-form-footer { padding: var(--space-4); flex-wrap: wrap; }
+  .project-save-status { padding-inline: var(--space-4); }
+  .project-identity { grid-template-columns: 1fr; gap: var(--space-2); }
+  .project-list li { padding: var(--space-4) var(--space-3); gap: var(--space-3); }
+  .project-empty { padding: var(--space-8) var(--space-4); }
+  .page > .access-state { width: auto; margin: auto var(--space-6); }
 }
-@media(max-width:359px) { .account-header { padding-inline: 16px; gap: 8px; } .account-utilities select { max-width: 92px; } .account-main { padding-inline: 20px; } }
+@media(max-width:359px) { .account-header { padding-inline: var(--space-4); gap: var(--space-2); } .account-utilities select { max-width: 92px; } .account-main { padding-inline: var(--space-5); } }
