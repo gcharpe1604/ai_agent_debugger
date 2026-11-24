@@ -19,8 +19,10 @@ it('opens actual trace IDs through Run Explorer and preserves raw status and met
   await user.click(await screen.findByRole('link', { name: `Captured run ${traceId}` }))
   await user.click(await screen.findByRole('treeitem', { name: /Captured run · Run · UNSET/ }))
   expect(await screen.findByText('Input and output not captured')).toBeTruthy()
-  expect(screen.queryByRole('group', { name: 'Payload format' })).toBeNull()
-  expect(screen.getByText('1 span received · completeness unknown')).toBeTruthy()
+  expect(screen.queryByRole('group', { name: /format$/ })).toBeNull()
+  // "received · completeness unknown" is only in the Spans tooltip.
+  expect(screen.queryByText(/completeness unknown/)).toBeNull()
+  expect(document.querySelector('[data-stat="spans"]').textContent).toBe('1 span')
   expect(screen.queryByText('Sample data')).toBeNull()
   expect(screen.queryByLabelText('Investigation details')).toBeNull()
   expect(window.location.hash).toContain(traceId)
@@ -210,6 +212,30 @@ describe('failed local run: first error surfacing', () => {
     expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page')
   })
 
+  it('turns the filter panel into a drawer on a narrow layout: Filters opens it, Esc closes it', async () => {
+    window.history.replaceState(null, '', '/#/projects/local/runs')
+    // A 700 px trace layout (1024 px window less the sidebar) has no room for an inline panel.
+    const measure = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function () { return this.classList.contains('traces-layout') ? { width: 700, height: 600, top: 0, left: 0, right: 700, bottom: 600 } : measure.call(this) })
+    const user = userEvent.setup()
+    render(<App {...createApiAdapters(fetcher)}/> )
+    await screen.findByRole('link', { name: /Recovered run/ })
+    expect(screen.queryByRole('complementary', { name: 'Trace filters' })).toBeNull()
+    const toggle = screen.getByRole('button', { name: 'Filters' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    await user.click(toggle)
+    const drawer = screen.getByRole('complementary', { name: 'Trace filters' })
+    expect(drawer.closest('.filters-drawer')).toBeTruthy()
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Close filters' }))
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('complementary', { name: 'Trace filters' })).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filters' }))
+    // The drawer's choice is not saved as the inline panel preference.
+    expect(localStorage.getItem('agent-debugger.frontend.v1.traces.filters')).toBeNull()
+    vi.restoreAllMocks()
+  })
+
   it('opens filters from the left, moves focus between the toggles and offers JSON downloads in the top bar', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     const user = userEvent.setup()
@@ -242,7 +268,13 @@ describe('failed local run: first error surfacing', () => {
     expect(window.location.hash).toContain(`peek=${failedId}`)
     expect(within(peek).getByText('2 of 3')).toBeTruthy()
     expect(await within(peek).findByText('First recorded error')).toBeTruthy()
-    expect(within(peek).getByText('Error spans').nextElementSibling.textContent).toBe('3')
+    expect(within(peek).getByText('Errors').nextElementSibling.textContent).toBe('3')
+    // Shortcuts are listed on the info button, not in a footer.
+    expect(within(peek).getByRole('button', { name: 'Keyboard shortcuts: J next trace · K previous trace · Esc close' })).toBeTruthy()
+    expect(within(peek).queryByText('next')).toBeNull()
+    // Beside the preview the table keeps Timestamp, Name, Status and Latency.
+    expect(screen.getAllByRole('columnheader').map(cell => cell.textContent.replace(/[↑↓]/g, ''))).toEqual(expect.arrayContaining(['Timestamp', 'Name', 'Status', 'Latency']))
+    expect(screen.getByRole('separator', { name: 'Resize trace preview' })).toBeTruthy()
     expect(within(peek).getByRole('link', { name: /Pay · attempt 1/ }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?time=all&span=a000000000000002`)
     expect(within(peek).getByRole('link', { name: 'Open full trace' }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?time=all`)
     await user.keyboard('j')

@@ -123,6 +123,16 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 .segmented { display: inline-flex; height: var(--control-height); padding: 2px; gap: 2px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-subtle); }
 .segmented > button { padding: 0 var(--space-3); border: 0; border-radius: 4px; background: transparent; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: var(--weight-medium); }
 .segmented > button[aria-pressed="true"] { background: var(--color-bg); color: var(--color-text); box-shadow: 0 1px 2px #0000001a; }
+.segmented.small { height: 28px; }
+.segmented.small > button { padding: 0 var(--space-2); font-size: var(--text-xs); }
+/* Divider between two panes (trace tree | inspector, trace list | preview). */
+.split-divider { position: relative; width: 1px; flex: none; min-height: 0; cursor: col-resize; touch-action: none; background: var(--color-border); z-index: 3; }
+/* The line is 1 px; the grab area is 9 px wide, centred on it. */
+.split-divider::before { content: ''; position: absolute; top: 0; bottom: 0; left: -4px; right: -4px; }
+.split-divider span { position: absolute; top: 50%; left: -2px; width: 5px; height: 32px; margin-top: -16px; border-radius: 3px; background: var(--color-border-strong); opacity: 0; transition: opacity .1s; }
+.split-divider:is(:hover, :focus-visible, :active) { background: var(--color-text-secondary); }
+.split-divider:is(:hover, :focus-visible, :active) span { opacity: 1; background: var(--color-text-secondary); }
+.split-divider:focus-visible { outline: none; }
 
 .section-label { color: var(--color-muted); font-size: var(--text-xs); font-weight: var(--weight-medium); }
 .text-button { min-height: 24px; padding: 2px; border: 0; background: none; color: var(--color-accent); font-size: var(--text-xs); text-decoration: underline; text-underline-offset: 3px; }
@@ -197,7 +207,16 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 .explorer { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; container-type: inline-size; }
 .query-toolbar { display: flex; align-items: center; flex-wrap: wrap; flex-shrink: 0; gap: var(--space-2); padding: 0 var(--space-6) var(--space-4); }
 .traces-layout { display: flex; flex: 1; min-width: 0; min-height: 0; border-top: 1px solid var(--color-border); }
-.runs-ledger { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.runs-ledger { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; container-type: inline-size; }
+/* A narrow table beside the preview: tighter cells so Timestamp, Name, Status and Latency fit. */
+@container (max-width: 560px) {
+  .runs-ledger .runs-table :is(th, td) { padding: 0 var(--space-2); }
+  .runs-ledger .runs-table :is(th, td):first-child { padding-left: var(--space-3); }
+  .runs-ledger .runs-table :is(th, td):last-child { padding-right: var(--space-3); }
+  .runs-ledger .runs-table .col-start { width: 136px; }
+  .runs-ledger .runs-table .col-status { width: 104px; }
+  .runs-ledger .runs-table .col-duration { width: 76px; }
+}
 #trace-filters { flex: 0 0 248px; min-width: 0; overflow-y: auto; border-right: 1px solid var(--color-border); }
 .facet-sidebar { display: flex; flex-direction: column; font-size: var(--text-sm); }
 .facet-header { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2); border-bottom: 1px solid var(--color-border); }
@@ -219,10 +238,11 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 .facet-duration { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: var(--space-2); }
 .facet-duration label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-xs); }
 .facet-duration input { width: 100%; min-width: 0; height: var(--control-height); padding: 0 var(--space-2); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); background: var(--color-bg); color: var(--color-text); }
-@container (max-width: 820px) {
-  .traces-layout { flex-direction: column; }
-  #trace-filters { flex-basis: auto; max-height: 45dvh; border-right: 0; border-bottom: 1px solid var(--color-border); }
-}
+/* Narrow layouts (or a wide preview): the filter panel is a drawer over the table. */
+.traces-layout { position: relative; }
+.filters-drawer { position: absolute; top: 0; bottom: 0; left: 0; z-index: 30; width: min(280px, 85%); background: var(--color-surface); box-shadow: var(--shadow-popover); }
+.filters-backdrop { position: absolute; inset: 0; z-index: 29; background: #00000026; }
+[data-theme="dark"] .filters-backdrop { background: #00000066; }
 
 .toolbar-end { display: flex; align-items: center; gap: var(--space-2); margin-left: auto; }
 .search-form { flex: 1; min-width: 240px; }
@@ -247,7 +267,7 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 
 /* Trace list: one 40 px line per trace. Name takes the free width; the other
    columns are fixed so values line up from row to row. */
-.runs-table { width: 100%; min-width: 760px; border-collapse: collapse; table-layout: fixed; font-size: var(--text-sm); }
+.runs-table { width: 100%; min-width: 360px; border-collapse: collapse; table-layout: fixed; font-size: var(--text-sm); }
 .col-run { width: auto; }
 .col-start { width: 148px; }
 .col-trace-id { width: 112px; }

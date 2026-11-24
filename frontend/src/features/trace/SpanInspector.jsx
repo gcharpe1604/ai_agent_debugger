@@ -7,13 +7,12 @@ import Timestamp from '../../components/Timestamp.jsx'
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/Popover.jsx'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs.jsx'
 import { flagLabels } from '../../data/durableRepository.js'
-import Payload, { JsonValue } from './Payload.jsx'
-import { hasCapturedValue } from './capture.js'
+import Payload from './Payload.jsx'
+import JsonView from './JsonView.jsx'
+import { breadcrumb, inspectorTabs, spanErrorCount } from './inspectorModel.js'
 
-const tabs = ['Content', 'Attributes', 'Events', 'Errors']
 // Internal tab keys stay stable (URL/cache state); labels follow developer vocabulary.
 const tabLabels = { Content: 'Input / Output', Attributes: 'Metadata', Events: 'Events', Errors: 'Errors' }
-const formatLabels = { Readable: 'Formatted', JSON: 'Raw' }
 // Readable metadata, in display order. Everything else stays in the raw table.
 const metadataFields = [
   ['debugger.execution.mode', 'Execution mode'],
@@ -63,13 +62,12 @@ const summaryFields = [
   ['debugger.model.provider', 'Provider'],
 ]
 
-function SpanContent({ data, span, ui, patch, jump, jumpPayload }) {
+function SpanContent({ data, span, ui, patch, jump }) {
   const isTool = span.type === 'tool'
   const payloads = [
     { slot: 'input', label: isTool ? 'Arguments' : 'Input', value: data.input, capture: data.inputCapture },
     { slot: 'output', label: isTool ? 'Result' : 'Output', value: data.output, capture: data.outputCapture },
   ]
-  const readable = payloads.filter(({ value, capture }) => hasCapturedValue(value, capture))
   const disabled = payloads.every(({ capture }) => capture?.state === 'disabled')
   const disabledReasons = disabled ? [...new Set(payloads.map(({ capture }) => capture.reason).filter(Boolean))] : []
   const capturedFacts = summaryFields.flatMap(([field, label]) => {
@@ -104,14 +102,7 @@ function SpanContent({ data, span, ui, patch, jump, jumpPayload }) {
       <strong>Input and output not captured</strong>
       {disabledReasons.map(reason => <p key={reason}>{reason}</p>)}
       <p>Name, type, status and timing are recorded; see Metadata.{data.source === 'durable' ? '' : ' Input/output capture with redaction is planned for durable ingestion.'}</p>
-    </div> : <>
-      {readable.length > 0 && <div className="payload-controls">
-        <div role="group" aria-label="Payload format">{['Readable', 'JSON'].map(format => <button key={format} className="format-button" aria-pressed={ui.format === format} onClick={() => patch({ format })}>{formatLabels[format]}</button>)}</div>
-        {readable.length > 1 && <div>{readable.map(({ slot, label }) => <button className="text-button" key={slot} onClick={() => jumpPayload(slot)}>{label} ↓</button>)}</div>}
-        {ui.format === 'JSON' && <label className="trace-check"><input type="checkbox" checked={ui.wrap} onChange={event => patch({ wrap: event.target.checked })}/>Wrap</label>}
-      </div>}
-      <div className={`payload-layout ${readable.reduce((total, { value }) => total + (JSON.stringify(value)?.length || 0), 0) > 1000 ? 'long-payload' : ''}`}>{payloads.map(payload => <Payload key={payload.slot} {...payload} format={ui.format} wrap={ui.wrap}/>)}</div>
-    </>}
+    </div> : <div className="payload-layout">{payloads.map(payload => <Payload key={payload.slot} {...payload} format={ui.formats?.[payload.slot] || 'Readable'} onFormat={format => patch({ formats: { ...ui.formats, [payload.slot]: format } })}/>)}</div>}
   </>
 }
 
@@ -121,8 +112,8 @@ function SpanDetails({ span, data, copy }) {
   const startTime = data?.attributes?.['otel.start_time_unix_nano']
   const endTime = data?.attributes?.['otel.end_time_unix_nano']
   return <Popover>
-    <PopoverTrigger><button type="button" className="text-button inspector-details-button">Details</button></PopoverTrigger>
-    <PopoverContent className="trace-popover identity-details" align="start">
+    <PopoverTrigger><button type="button" className="trace-icon-button" aria-label="Details" title="Span identifiers and timing"><Icon name="info"/></button></PopoverTrigger>
+    <PopoverContent className="trace-popover identity-details" align="end">
       <dl>
         <dt>Operation</dt><dd>{span.name}</dd>
         <dt>Span ID</dt><dd><code>{span.id}</code><button className="trace-icon-button" aria-label="Copy span ID" onClick={() => copy(span.id)}><Icon name="copy"/></button></dd>
@@ -138,64 +129,52 @@ function SpanDetails({ span, data, copy }) {
   </Popover>
 }
 
-export default function SpanInspector({ repository, projectId, runId, span, ui, patch, dispatch, mode, width, maxWidth, canPin, pin, close, back, resize, resetWidth, jump, inspectorRef }) {
+export default function SpanInspector({ repository, projectId, runId, span, path = [], ui, patch, dispatch, single, close, back, jump, inspectorRef }) {
   const { data, busy, error, retry } = useSpanRead(repository, projectId, runId, span.id)
   const body = useRef(null)
   const [copyNotice, setCopyNotice] = useState('')
-  const readingKey = `${span.id}:${ui.tab}:${ui.format}`
+  const errors = spanErrorCount(span, data)
+  const tabs = inspectorTabs(errors)
+  const tab = tabs.includes(ui.tab) ? ui.tab : 'Content'
+  const readingKey = `${span.id}:${tab}`
   const readingPosition = ui.reading[readingKey] || 0
-  useLayoutEffect(() => { if (body.current && data) body.current.scrollTop = readingPosition }, [span.id, ui.tab, ui.format, data, readingPosition])
+  const startTime = data?.attributes?.['otel.start_time_unix_nano']
+  useLayoutEffect(() => { if (body.current && data) body.current.scrollTop = readingPosition }, [span.id, tab, data, readingPosition])
   async function copy(value) {
     try { await navigator.clipboard.writeText(value); setCopyNotice('Span identifier copied') }
     catch { setCopyNotice(`Copy unavailable. Identifier: ${value}`) }
-  }
-  function jumpPayload(direction) {
-    const target = body.current.querySelector(`[data-payload="${direction}"]`)
-    if (target) body.current.scrollTop += target.getBoundingClientRect().top - body.current.getBoundingClientRect().top - 44
   }
   function content() {
     if (busy) return <p className="inspector-read-state" role="status">Loading selected span details…</p>
     if (error) return <div className="inspector-read-state" role="alert"><p>{error}</p><button className="button" onClick={retry}>Retry span read</button></div>
     if (!data) return null
-    if (ui.tab === 'Content') return <SpanContent data={data} span={span} ui={ui} patch={patch} jump={jump} jumpPayload={jumpPayload}/>
-    if (ui.tab === 'Attributes') return <SpanMetadata span={span} data={data} ui={ui} patch={patch} copy={copy}/>
-    if (ui.tab === 'Events') return <div className="inspector-tab-content">{data.events === undefined ? <p>Events unavailable in this capture.</p> : !data.events.length ? <p>No recorded events.</p> : data.events.map((event, index) => <section className="recorded-event" key={index}><h3>{event.name}</h3><p className="secondary">{Number.isFinite(event.atMs) ? `Recorded offset ${durationText(event.atMs)}` : 'Time not recorded'}</p><JsonValue value={event.attributes || {}}/></section>)}</div>
-    return <div className="inspector-tab-content">{data.error ? <><h3 className="error-text">{data.errorType || 'Recorded error'}</h3><p className="error-detail">{data.error}</p><JsonValue value={{ status: data.status, type: data.errorType, message: data.error, recorded_owner: data.errorOwner }}/></> : <p>{data.status === 'ERROR' ? 'ERROR status recorded; exception details unavailable.' : 'No recorded exception details for this span.'}</p>}</div>
+    if (tab === 'Content') return <SpanContent data={data} span={span} ui={ui} patch={patch} jump={jump}/>
+    if (tab === 'Attributes') return <SpanMetadata span={span} data={data} ui={ui} patch={patch} copy={copy}/>
+    if (tab === 'Events') return <div className="inspector-tab-content">{data.events === undefined ? <p>Events unavailable in this capture.</p> : !data.events.length ? <p>No recorded events.</p> : data.events.map((event, index) => <section className="recorded-event" key={index}><h3>{event.name}</h3><p className="secondary">{Number.isFinite(event.atMs) ? `Recorded offset ${durationText(event.atMs)}` : 'Time not recorded'}</p><JsonView value={event.attributes || {}}/></section>)}</div>
+    return <div className="inspector-tab-content">{data.error ? <><h3 className="error-text">{data.errorType || 'Recorded error'}</h3><p className="error-detail">{data.error}</p><JsonView value={{ status: data.status, type: data.errorType, message: data.error, recorded_owner: data.errorOwner }}/></> : <p>{data.status === 'ERROR' ? 'ERROR status recorded; exception details unavailable.' : 'No recorded exception details for this span.'}</p>}</div>
   }
-  return <section className="span-inspector" role="region" aria-label="Span inspector" aria-describedby="span-title" tabIndex="-1" ref={inspectorRef}>
-    {mode === 'single' && <button className="inspector-back" onClick={back}><Icon name="back"/>Back to execution</button>}
+  return <section id="span-inspector" className="span-inspector" role="region" aria-label="Span inspector" aria-describedby="span-title" tabIndex="-1" ref={inspectorRef}>
+    {single && <button className="inspector-back" onClick={back}><Icon name="back"/>Back to execution</button>}
     <header className="inspector-header">
       <div className="inspector-identity">
-        <p className="section-label">Selected span</p>
+        {path.length > 0 && <nav className="inspector-path" aria-label="Span ancestry"><ol>{breadcrumb(path).map((item, position) => <li key={item.span?.id ?? `hidden-${position}`}>{item.span ? <button type="button" className="text-button" onClick={() => jump(item.span.id)} title={`${item.span.name} · ${item.span.id}`}>{operationLabel(item.span)}</button> : <span title={`${item.hidden} more ${item.hidden === 1 ? 'ancestor' : 'ancestors'}`}>…</span>}</li>)}</ol></nav>}
         <div className="inspector-operation" data-type={span.type}><Icon name={span.type}/><h2 id="span-title" title={span.name}>{operationLabel(span)}</h2></div>
         <div className="inspector-meta">
-          <span>{typeLabel(span.type)}</span>
           <span className="badge" data-state={span.status}>{statusText(span.status)}</span>
-          <span className="tabular">{durationText(span.duration)}</span>
-          <SpanDetails span={span} data={data} copy={copy}/>
+          <span className="inspector-fact tabular" title={exactDuration(span.duration)}><Icon name="timer"/>{durationText(span.duration)}</span>
+          {typeof startTime === 'string' && <span className="inspector-fact"><Icon name="calendar"/><Timestamp value={startTime}/></span>}
+          <span className="inspector-fact">{typeLabel(span.type)}</span>
         </div>
       </div>
       <div className="inspector-actions">
-        {mode !== 'single' && <button className="trace-icon-button" aria-label="Back to execution" title="Back to execution" onClick={back}><Icon name="back"/></button>}
-        {canPin && <button className="trace-icon-button" aria-label={ui.mode === 'pinned' ? 'Unpin span inspector' : 'Pin span inspector'} title={ui.mode === 'pinned' ? 'Unpin inspector' : 'Pin inspector'} aria-pressed={ui.mode === 'pinned'} onClick={pin}><Icon name="pin"/></button>}
-        <Popover>
-          <PopoverTrigger><button type="button" className="trace-icon-button" aria-label="Inspector options" title="Inspector options"><Icon name="more"/></button></PopoverTrigger>
-          <PopoverContent className="trace-popover">
-            <strong>{mode === 'pinned' ? 'Pinned split' : mode === 'single' ? 'Single pane' : 'Overlay'} inspector</strong>
-            {mode !== 'single' && <>
-              <label>Inspector width<input aria-label="Inspector width" type="range" min="480" max={maxWidth} step="1" value={Math.round(width)} onChange={event => resize(Number(event.target.value))}/><span>{Math.round(width)} px · keyboard splitter steps 16 px</span></label>
-              <button className="button small" onClick={resetWidth}>Reset inspector width</button>
-            </>}
-            <p>Only available captured values are displayed. Raw statuses and recorded relationships are preserved.</p>
-          </PopoverContent>
-        </Popover>
-        <button className="trace-icon-button" aria-label="Close span inspector" title="Close inspector" onClick={close}><Icon name="close"/></button>
+        <SpanDetails span={span} data={data} copy={copy}/>
+        <button className="trace-icon-button" aria-label="Close span inspector" title="Close inspector (Esc)" onClick={close}><Icon name="close"/></button>
       </div>
     </header>
-    <Tabs className="inspector-tabs-root" value={ui.tab} onValueChange={tab => patch({ tab })}>
-      <TabsList className="inspector-tabs" aria-label="Span detail sections">{tabs.map(tab => <TabsTrigger key={tab} value={tab}>{tabLabels[tab]}</TabsTrigger>)}</TabsList>
+    <Tabs className="inspector-tabs-root" value={tab} onValueChange={next => patch({ tab: next })}>
+      <TabsList className="inspector-tabs" aria-label="Span detail sections">{tabs.map(key => <TabsTrigger key={key} value={key}>{tabLabels[key]}{key === 'Errors' && <span className="tab-count">{errors}</span>}</TabsTrigger>)}</TabsList>
       {/* One panel element for every tab, so the reading position logic keeps one scroll container. */}
-      <TabsContent value={ui.tab} className="inspector-body" aria-busy={busy} ref={body} onScroll={event => dispatch({ type: 'read-position', key: readingKey, top: event.currentTarget.scrollTop })}>{content()}</TabsContent>
+      <TabsContent value={tab} className="inspector-body" aria-busy={busy} ref={body} onScroll={event => dispatch({ type: 'read-position', key: readingKey, top: event.currentTarget.scrollTop })}>{content()}</TabsContent>
     </Tabs>
     <span className="sr-only" aria-live="polite">{copyNotice}</span>
   </section>

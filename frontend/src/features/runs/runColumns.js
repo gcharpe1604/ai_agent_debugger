@@ -44,3 +44,23 @@ export function firstErrorText(firstError) {
 export const firstErrorTitle = firstError => `Open ${typeLabel(firstError.operationType)} span ${firstError.spanId}. Earliest recorded ERROR span without ERROR descendants. The extra count uses the same rule. This link identifies an error to inspect, not a cause.`
 
 export const executionModeLabel = mode => ({ controlled: 'Controlled', live: 'Live' }[mode] ?? null)
+
+// Column widths in px (the colgroup widths in index.css); Name takes the rest
+// and needs at least NAME_MIN. Used to decide which columns fit.
+const columnWidths = { startedAt: 148, traceId: 112, outcome: 112, durationMs: 96, spanCount: 72, recordedErrorCount: 72, model: 140, totalTokens: 88, costUsd: 88, completeness: 120, investigation: 136 }
+const NAME_MIN = 160
+const GUTTERS = 24
+// Timestamp, Name, Status and Latency always stay; these go first, in order.
+export const columnDropOrder = ['traceId', 'spanCount', 'recordedErrorCount', 'model', 'totalTokens', 'costUsd', 'completeness', 'investigation']
+
+// The visible fields that fit `width` px of table. An unknown width keeps all.
+export function fitRunColumns(fields, width) {
+  if (!(width > 0)) return fields
+  let kept = [...fields]
+  const needed = () => kept.reduce((sum, field) => sum + (field === 'name' ? NAME_MIN : columnWidths[field] ?? 100), GUTTERS)
+  for (const field of columnDropOrder) {
+    if (needed() <= width) break
+    kept = kept.filter(item => item !== field)
+  }
+  return kept
+}

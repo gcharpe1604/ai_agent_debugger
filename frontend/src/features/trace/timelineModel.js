@@ -76,3 +76,14 @@ export const timeLabel = formatDuration
 export function intervalLabel(timing) {
   return timing?.state === 'valid' ? `Recorded ${timeLabel(timing.start)} to ${timeLabel(timing.end)}, duration ${timeLabel(timing.duration)}${timing.mismatch ? '; recorded duration disagrees with endpoints' : ''}` : timing?.reason || 'Timing not recorded'
 }
+
+// Where a span sits on the trace's recorded extent, as fractions 0..1, or null
+// when its interval or the extent is not usable.
+export function waterfallPosition(timing, extent) {
+  if (timing?.state !== 'valid' || !extent?.available || extent.source === 'point') return null
+  const total = extent.end - extent.start
+  if (!(total > 0)) return null
+  const clamp = value => Math.max(0, Math.min(1, value))
+  const left = clamp((timing.start - extent.start) / total)
+  return { left, width: Math.max(0, clamp((timing.end - extent.start) / total) - left) }
+}

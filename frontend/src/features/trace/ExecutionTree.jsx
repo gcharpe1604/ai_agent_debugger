@@ -5,6 +5,7 @@ import { ROW_HEIGHT, windowRows, restoreAnchor, statusText, durationText, typeLa
 import TimelineTrack from './TimelineTrack.jsx'
 import { intervalLabel, timeLabel } from './timelineModel.js'
 import { exactDuration } from '../../app/format.js'
+import DurationBar from './Waterfall.jsx'
 import { flagLabels } from '../../data/durableRepository.js'
 
 // Parent-child connector lines. Column d (0-based) sits under the disclosure of
@@ -15,7 +16,7 @@ export function TreeGuides({ depth, guides, last, leaf }) {
   return <span className="tree-guides" aria-hidden="true">{columns}<span className={`tree-guide tree-elbow${last ? ' last' : ''}${leaf ? ' leaf' : ''}`} style={{ '--guide-level': depth - 1 }}/></span>
 }
 
-export default function ExecutionTree({ index, rows, ui, treeRef, select, patch, toggle, filtered, showIds, timing, timeWindow, receivedOnly }) {
+export default function ExecutionTree({ index, rows, ui, treeRef, select, patch, toggle, filtered, columns = ['name', 'start', 'type', 'duration'], pathIds = new Set(), timing, timeWindow, receivedOnly }) {
   const timeline = ui.view === 'timeline'
   const size = useElementSize(treeRef)
   const active = rows.some(row => row.id === ui.active && row.span) ? ui.active : rows.find(row => row.span)?.id
@@ -23,9 +24,7 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
   const top = Math.min(max, ui.anchor ? restoreAnchor(rows, ui.anchor, index) : ui.scrollTop)
   const rendered = useMemo(() => windowRows(rows, top, size.height, active), [rows, top, size.height, active])
   const canExpand = row => row?.hasChildren && (!receivedOnly || row.childLoaded > 0)
-  // Share of the trace's recorded extent, drawn as a thin latency bar under the duration.
-  const extent = timing.extent.available && timing.extent.source !== 'point' ? timing.extent.end - timing.extent.start : 0
-  const share = span => extent > 0 && Number.isFinite(span.duration) && span.duration > 0 ? Math.min(1, span.duration / extent) : 0
+  const inlineType = timeline || !columns.includes('type')
   useLayoutEffect(() => { if (treeRef.current && Math.abs(treeRef.current.scrollTop - top) > 0.5) treeRef.current.scrollTop = top }, [treeRef, top])
   function move(id) {
     const position = rows.findIndex(row => row.id === id)
@@ -74,26 +73,26 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
         const disclosure = canExpand(row)
         const cap = timeline ? 3 : 6
         const type = types.includes(row.span.type) ? row.span.type : 'custom'
-        return <div key={row.id} id={`trace-row-${row.id}`} role="treeitem" data-span-id={row.id} className={`trace-row trace-grid${ui.selected === row.id ? ' selected' : ''}${active === row.id ? ' keyboard-active' : ''}`} style={{ top: row.index * ROW_HEIGHT }} aria-level={row.depth + 1} aria-posinset={row.position} aria-setsize={row.siblings} aria-selected={ui.selected === row.id} aria-expanded={disclosure ? row.expanded : undefined} aria-label={`${name} · ${typeLabel(row.span.type)} · ${statusText(row.span.status)} · ${durationText(row.span.duration)} · ${row.id}${row.context ? ' · Ancestor context' : ''}`} aria-description={(timeline ? intervalLabel(timing.byId.get(row.id)) + '; ' : '') + `${row.childLoaded} loaded children; ${row.childKnown === null ? 'total unknown' : `${row.childKnown} known children`}`} title={`${row.span.name}\nSpan ${row.id}\nRecorded parent ${(row.span.recordedParentId === undefined ? row.span.parentId : row.span.recordedParentId) ?? 'root'}\nDepth ${row.depth + 1}`} onClick={() => { treeRef.current.focus({ preventScroll: true }); select(row.id) }}>
+        return <div key={row.id} id={`trace-row-${row.id}`} role="treeitem" data-span-id={row.id} className={`trace-row trace-grid${ui.selected === row.id ? ' selected' : ''}${active === row.id ? ' keyboard-active' : ''}`} data-on-path={pathIds.has(row.id) || undefined} style={{ top: row.index * ROW_HEIGHT }} aria-level={row.depth + 1} aria-posinset={row.position} aria-setsize={row.siblings} aria-selected={ui.selected === row.id} aria-expanded={disclosure ? row.expanded : undefined} aria-label={`${name} · ${typeLabel(row.span.type)} · ${statusText(row.span.status)} · ${durationText(row.span.duration)} · ${row.id}${row.context ? ' · Ancestor context' : ''}`} aria-description={(timeline ? intervalLabel(timing.byId.get(row.id)) + '; ' : '') + `${row.childLoaded} loaded children; ${row.childKnown === null ? 'total unknown' : `${row.childKnown} known children`}`} title={`${row.span.name}\nSpan ${row.id}\nRecorded parent ${(row.span.recordedParentId === undefined ? row.span.parentId : row.span.recordedParentId) ?? 'root'}\nDepth ${row.depth + 1}`} onClick={() => { treeRef.current.focus({ preventScroll: true }); select(row.id) }}>
         <div className="trace-operation" data-type={type} data-error={row.span.status === 'ERROR' || undefined} style={{ '--span-depth': Math.min(row.depth, cap) }}>
           {row.depth > 0 && row.depth <= cap && <TreeGuides depth={row.depth} guides={row.guides} last={row.last} leaf={!disclosure}/>}
           {disclosure ? <button className={`tree-disclosure ${row.expanded ? 'expanded' : ''}`} data-disclosure="true" tabIndex="-1" aria-label={`${row.expanded ? 'Collapse' : 'Expand'} ${row.span.name}`} aria-disabled={filtered} title={filtered ? 'Matching ancestor paths stay visible while filtering' : undefined} onClick={event => { event.stopPropagation(); if (!filtered) toggle(row.id) }}><Icon name="chevron"/></button> : <span className="tree-disclosure"/>}
+          <span className="status-dot" data-state={row.span.status ?? 'unknown'} aria-hidden="true" title={statusText(row.span.status)}/>
           <Icon name={type}/>
           {row.depth > cap && <span className="depth-marker" title={`Recorded depth ${row.depth + 1}`}>↳{row.depth + 1}</span>}
           <span className="trace-name-stack">
             {attempt ? <span className="trace-operation-name trace-attempt-name"><span>{attempt.step}</span><span className="trace-attempt">· <span className="trace-attempt-word">attempt </span>{attempt.attempt}</span></span> : <span className="trace-operation-name">{row.span.name}</span>}
-            <span className="trace-inline-type">{typeLabel(row.span.type)} · {timeline ? <span className={row.span.status === 'ERROR' ? 'error-text' : ''}>{statusText(row.span.status)}</span> : `${Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}${timeLabel(row.span.start)}`}{timeline && showChildCount ? ` · ${childLabel(row)}` : ''}{row.context ? ' · ancestor' : ''}</span>
+            {inlineType && <span className="trace-inline-type">{typeLabel(row.span.type)} · {timeline ? <span className={row.span.status === 'ERROR' ? 'error-text' : ''}>{statusText(row.span.status)}</span> : `${Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}${timeLabel(row.span.start)}`}{timeline && showChildCount ? ` · ${childLabel(row)}` : ''}{row.context ? ' · ancestor' : ''}</span>}
           </span>
           {!timeline && showChildCount && <span className="trace-child-count" title={`${row.childLoaded} loaded children; ${row.childKnown === null ? 'total unknown' : `${row.childKnown} known`}`}>{childLabel(row)}</span>}
           {row.span.retryOf && <span className="trace-retry-glyph" title={`Recorded retry of ${row.span.retryOf}`}><Icon name="retry"/></span>}
           {row.span.flags?.map(flag => flagLabels[flag] && <span key={flag} className="trace-flag" data-flag={flag} title={flag === 'conflict' ? `${row.span.versionCount} versions of this span were received` : flag === 'missing_parent' ? `Recorded parent ${row.span.recordedParentId} was not received` : 'This span is part of a parent cycle'}>{flagLabels[flag]}</span>)}
         </div>
         {timeline ? <><TimelineTrack timing={timing.byId.get(row.id)} window={timeWindow} status={row.span.status} type={type} label={durationText(row.span.duration)}/><span className="sr-only">{timing.byId.get(row.id)?.state === 'valid' ? `Recorded interval ${timeLabel(timing.byId.get(row.id).start)} to ${timeLabel(timing.byId.get(row.id).end)}` : timing.byId.get(row.id)?.reason}</span></> : <>
-          {showIds && <span className="trace-id-cell mono" title={row.id}>{row.id}</span>}
-          <span className="trace-start-cell tabular" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
-          <span className="trace-type-cell">{typeLabel(row.span.type)}</span>
-          <span className={`trace-status-cell ${row.span.status === 'ERROR' ? 'badge' : 'status-text'}`} data-state={row.span.status} title={statusText(row.span.status)}>{statusText(row.span.status)}</span>
-          <span className="trace-duration tabular latency-bar" style={{ '--share': share(row.span) }} title={`${exactDuration(row.span.duration)}${extent > 0 ? ` · ${(share(row.span) * 100).toFixed(1)}% of the trace` : ''}`}>{durationText(row.span.duration)}</span>
+          {columns.includes('id') && <span className="trace-id-cell mono" title={row.id}>{row.id}</span>}
+          {columns.includes('start') && <span className="trace-start-cell tabular" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>}
+          {columns.includes('type') && <span className="trace-type-cell">{typeLabel(row.span.type)}</span>}
+          <DurationBar span={row.span} timing={timing.byId.get(row.id)} extent={timing.extent}/>
         </>}
       </div>})}
     </div>

@@ -39,13 +39,13 @@ function DurationFilter({ query, onChange }) {
   </form>
 }
 
-export default function FacetSidebar({ query, facets, onChange, onClose }) {
+export default function FacetSidebar({ query, facets, onChange, onClose, closeLabel = 'Hide filters' }) {
   const counts = facets || { outcome: {}, mode: {}, agent: {}, errors: {} }
   const agents = Object.keys(counts.agent).concat(query.agents.filter(name => !(name in counts.agent))).sort((a, b) => a.localeCompare(b, 'en'))
   const active = query.outcomes.length + query.modes.length + query.agents.length + Number(query.hasErrors) + Number(query.minMs !== null || query.maxMs !== null)
   return <aside className="facet-sidebar" aria-label="Trace filters">
     <header className="facet-header">
-      <button type="button" id="hide-filters" className="trace-icon-button" aria-label="Hide filters" aria-expanded="true" title="Hide filters" onClick={onClose}><Icon name="panel-left"/></button>
+      <button type="button" id="hide-filters" className="trace-icon-button" aria-label={closeLabel} aria-expanded="true" aria-controls="trace-filters" title={closeLabel} onClick={onClose}><Icon name={closeLabel === 'Hide filters' ? 'panel-left' : 'close'}/></button>
       <strong>Filters</strong>
       {active > 0 && <button type="button" className="text-button" onClick={() => onChange({ outcomes: [], modes: [], agents: [], hasErrors: false, minMs: null, maxMs: null })}>Clear all</button>}
     </header>

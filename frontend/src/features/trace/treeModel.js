@@ -80,35 +80,6 @@ export function visibleTree(index, expanded, query) {
   return { rows, matches, filtered }
 }
 
-// The run's top-level steps in recorded start order: the children of the first
-// operation that has more than one child, following single-child wrappers
-// (run -> agent -> steps). Routing spans (route.*) mark decisions between steps.
-// `repeat` flags a step name seen earlier, i.e. a loop or retry. Derived
-// structure only: start order is not causal order.
-export const PATH_PREFIXES = ['node.']
-export function executionPath(index, limit = 40) {
-  let parent = index.roots.length === 1 ? index.roots[0] : null
-  const seen = new Set([parent?.id])
-  while (parent && (index.children.get(parent.id)?.length || 0) === 1) {
-    const only = index.children.get(parent.id)[0]
-    if (seen.has(only.id)) break
-    seen.add(only.id); parent = only
-  }
-  const children = parent ? [...(index.children.get(parent.id) || [])] : []
-  if (children.length < 2) return { steps: [], hidden: 0 }
-  // Stable sort: steps that share a start time (coarse clocks tick in ~1 ms
-  // steps) keep the order they were received in, which is their end order.
-  children.sort((a, b) => (Number.isFinite(a.start) ? a.start : Infinity) - (Number.isFinite(b.start) ? b.start : Infinity))
-  const names = new Set()
-  const steps = children.map(span => {
-    const decision = span.name.startsWith('route.')
-    const label = decision ? span.name.slice('route.'.length) : PATH_PREFIXES.reduce((name, prefix) => name.startsWith(prefix) ? name.slice(prefix.length) : name, operationLabel(span))
-    const repeat = !decision && names.has(label)
-    if (!decision) names.add(label)
-    return { id: span.id, label, decision, repeat, error: span.status === 'ERROR', type: span.type }
-  })
-  return { steps: steps.slice(0, limit), hidden: Math.max(0, steps.length - limit) }
-}
 export function windowRows(rows, scrollTop, height, activeId) {
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5)
   const end = Math.min(rows.length, Math.ceil((scrollTop + height) / ROW_HEIGHT) + 5)

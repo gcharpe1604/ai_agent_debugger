@@ -16,7 +16,7 @@ describe('Captured values and navigation identity', () => {
   })
   it('preserves closed selection on reload while stripping only trace query from the Runs return link', () => {
     const query = 'search=order&outcome=Completed&span=abc&spanStatus=ERROR&loaded=1260&panel=closed'
-    expect(initialTraceState(query, null, 'pinned')).toMatchObject({ selected: 'abc', open: false, mode: 'pinned', status: 'ERROR' })
+    expect(initialTraceState(query, null)).toMatchObject({ selected: 'abc', open: false, status: 'ERROR' })
     expect(returnQuery(query)).toBe('search=order&outcome=Completed')
   })
 })

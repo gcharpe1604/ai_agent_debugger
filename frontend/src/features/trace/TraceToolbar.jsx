@@ -8,7 +8,7 @@ import { FitSelected } from './TimelineControls.jsx'
 
 const statusOptions = [{ value: '', label: 'All raw statuses' }, ...['OK', 'ERROR', 'UNSET'].map(value => ({ value, label: value })), { value: 'unknown', label: 'Unknown / unrecognized' }]
 
-export default function TraceToolbar({ ui, filter, patch, index, jump, wide, switchView, timing, timeWindowChange }) {
+export default function TraceToolbar({ ui, filter, patch, index, jump, wide, switchView, timing, timeWindowChange, children }) {
   const jumpInput = useRef(null)
   const activeFilters = Number(!!ui.type) + Number(!!ui.status)
   return <div className="trace-toolbar">
@@ -25,13 +25,14 @@ export default function TraceToolbar({ ui, filter, patch, index, jump, wide, swi
         <p>Search and filters cover loaded structure only. Matching ancestors remain visible.</p>
       </PopoverContent>
     </Popover>
+    {children}
     <Popover>
       <PopoverTrigger><button type="button" className="button icon-only" aria-label="Execution options" title="Execution options"><Icon name="more"/></button></PopoverTrigger>
       <PopoverContent className="trace-popover">
         {ui.view === 'timeline' && <><FitSelected selected={timing.byId.get(ui.selected)} extent={timing.navigationExtent} change={timeWindowChange}/><p>Timing scope: {timing.extent.source === 'run' ? 'recorded run extent' : timing.extent.source === 'loaded' ? 'loaded timing only' : timing.extent.source === 'point' ? 'zero extent; 1 ms navigation view' : 'unavailable'}. Loaded spans: {timing.missingCount} missing, {timing.invalidCount} invalid, {timing.outsideCount} outside reported run bounds, {timing.mismatchCount} duration disagreements. Minimum drawing marks do not change recorded durations.</p></>}
         <button type="button" className="button" onClick={() => patch({ collapsed: [] })}>Expand loaded branches</button>
         <button type="button" className="button" disabled={!!(ui.search || ui.type || ui.status)} title="Matching ancestor paths stay expanded while filtering" onClick={() => patch({ collapsed: index.spans.map(span => span.id), scrollTop: 0, anchor: null })}>Collapse loaded branches</button>
-        <label className="trace-check" title={ui.view === 'timeline' ? 'The optional ID column is a Tree presentation. IDs remain searchable and copyable in Details.' : !wide ? 'The ID column requires at least 840 px of explorer width. IDs remain available in Details and search.' : undefined}><input type="checkbox" checked={ui.showIds || false} disabled={!wide} onChange={event => patch({ showIds: event.target.checked })}/>Span ID column</label>
+        <label className="trace-check" title={ui.view === 'timeline' ? 'The optional ID column is a Tree presentation. IDs remain searchable and copyable in Details.' : !wide ? 'The ID column needs at least 840 px of tree width. IDs remain available in Details and search.' : undefined}><input type="checkbox" checked={ui.showIds || false} disabled={!wide} onChange={event => patch({ showIds: event.target.checked })}/>Span ID column</label>
         <form onSubmit={event => { event.preventDefault(); jump(jumpInput.current.value.trim().toLowerCase()) }}><label>Jump to loaded span ID<input className="input mono" ref={jumpInput} placeholder="Full span ID"/></label><button className="button" type="submit">Jump to span</button></form>
       </PopoverContent>
     </Popover>

@@ -38,7 +38,7 @@ function AdvancedFilters({ query, onChange, live }) {
     <button type="submit" className="button solid">Apply filters</button>
   </form></PopoverContent></Popover>
 }
-export default function RunToolbar({ query, onChange, onReset, live = false, filtersOpen = false, toggleFilters, children }) {
+export default function RunToolbar({ query, onChange, onReset, live = false, filtersOpen = false, filtersDrawer = false, toggleFilters, children }) {
   const resettableView = query.sort !== 'startedAt' || query.direction !== 'desc' || query.pageSize !== 25 || query.time !== (live ? 'all' : 'window')
   const modes = query.modes || [], agents = query.agents || []
   const chips = [
@@ -54,7 +54,7 @@ export default function RunToolbar({ query, onChange, onReset, live = false, fil
   ]
   const sidebarFilters = query.outcomes.length + modes.length + agents.length + Number(query.hasErrors) + Number(query.minMs !== null || query.maxMs !== null)
   return <><div className={`query-toolbar${live ? ' local-toolbar' : ''}`}>
-    {live && !filtersOpen && <button type="button" id="show-filters" className="button" aria-expanded="false" onClick={toggleFilters} title="Show the filter panel"><Icon name="panel-left"/>Show filters{sidebarFilters > 0 && <span className="count">{sidebarFilters}</span>}</button>}
+    {live && (filtersDrawer || !filtersOpen) && <button type="button" id="show-filters" className="button" aria-expanded={filtersOpen} aria-controls={filtersOpen ? 'trace-filters' : undefined} onClick={toggleFilters} title={filtersDrawer ? 'Open the filter drawer' : 'Show the filter panel'}><Icon name={filtersDrawer ? 'filter' : 'panel-left'}/>{filtersDrawer ? 'Filters' : 'Show filters'}{sidebarFilters > 0 && <span className="count">{sidebarFilters}</span>}</button>}
     <Search value={query.search} onSearch={search => onChange({ search })}/>
     {live && <Select aria-label="Time range" value={query.range || ''} onValueChange={range => onChange({ range })} options={rangeOptions.map(([value, label]) => ({ value, label }))}/>}
     {!live && <Select aria-label="Execution outcome" value={query.outcomes.length > 1 ? 'multiple' : query.outcomes[0] || ''} onValueChange={value => onChange({ outcomes: value ? [value] : [] })} options={choice('All outcomes', 'Multiple outcomes', ['Completed', 'Failed', 'Unknown'], query.outcomes)}/>}

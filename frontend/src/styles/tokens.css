@@ -68,6 +68,11 @@
   --type-api: #0369a1;
   --type-state: #4b5563;
   --type-custom: #be185d;
+  /* JSON viewer values. */
+  --json-string: #067d17;
+  --json-number: #1d4ed8;
+  --json-boolean: #9a3412;
+  --json-null: hsl(240 3.8% 46.1%);
 }
 
 [data-theme="dark"] {
@@ -105,4 +110,8 @@
   --type-api: #7dd3fc;
   --type-state: #cbd5e1;
   --type-custom: #f9a8d4;
+  --json-string: #a5d6a7;
+  --json-number: #93c5fd;
+  --json-boolean: #fdba74;
+  --json-null: hsl(0 0% 58%);
 }

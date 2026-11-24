@@ -11,7 +11,7 @@ async function open(repository = traceRepository) {
   await screen.findByRole('tree', { name: 'Execution spans' })
   return user
 }
-it('switches the same virtualized explorer without losing overlay, selection or payload presentation', async () => {
+it('switches the same virtualized explorer without losing the inspector, selection or payload presentation', async () => {
   const repository = { ...traceRepository, readSpan: vi.fn(traceRepository.readSpan) }
   const user = await open(repository)
   await user.click(screen.getByRole('treeitem', { name: /^lookup-order · attempt 1 · Tool/ }))
@@ -29,11 +29,10 @@ it('switches the same virtualized explorer without losing overlay, selection or 
   expect(screen.getByRole('tabpanel')).toBe(body)
   expect(window.location.hash).toContain('search=order')
 })
-it('keeps pinning, filters, row anchors and the explicit time window across view switches', async () => {
+it('keeps the split inspector, filters, row anchors and the explicit time window across view switches', async () => {
   window.history.replaceState(null, '', '/#/projects/agent-examples/runs/R-7000')
   const user = await open()
   await user.click(screen.getAllByRole('treeitem')[0])
-  await user.click(screen.getByRole('button', { name: 'Pin span inspector' }))
   const tree = screen.getByRole('tree', { name: 'Execution spans' })
   tree.scrollTop = 4000; fireEvent.scroll(tree)
   await user.click(screen.getByRole('button', { name: 'Timeline', exact: true }))
@@ -86,7 +85,6 @@ it('does not automatically zoom to a selection outside the window; Fit selected 
   await user.click(screen.getByRole('treeitem', { name: /^classify-request/ }))
   expect(screen.getByLabelText('Visible time window').textContent).toBe(before)
   expect(document.querySelector('[data-span-id="a9e5d27100000003"] [data-timing="before"]')).toBeTruthy()
-  await user.click(screen.getByRole('button', { name: 'Pin span inspector' }))
   await user.click(screen.getByLabelText('Execution options'))
   await user.click(screen.getByRole('button', { name: 'Fit selected interval' }))
   expect(screen.getByLabelText('Visible time window').textContent).not.toBe(before)
