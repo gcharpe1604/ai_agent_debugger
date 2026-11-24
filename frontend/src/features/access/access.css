@@ -1,6 +1,6 @@
 /* Account and project presentation share the debugger's semantic palette. */
 .account-shell { min-height: 100dvh; display: flex; flex-direction: column; }
-.account-header { min-height: 72px; padding: var(--space-5) var(--space-8); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
+.account-header { min-height: 72px; padding: var(--space-5) var(--space-6); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
 .account-brand { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 600; flex-shrink: 0; }
 .account-utilities select { max-width: 120px; background: transparent; }
 .account-main { flex: 1; display: grid; align-content: center; padding: 48px var(--space-6) 72px; outline: none; }
@@ -26,15 +26,15 @@
 .registration-actions .account-submit { flex: 1; width: auto; }
 .form-field { display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6); }
 .form-field label { font-size: var(--text-sm); line-height: var(--leading); font-weight: 600; }
-.form-field input { width: 100%; min-width: 0; height: 42px; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); padding: var(--space-3) var(--space-3); font-size: var(--text-base); }
+.form-field input { width: 100%; min-width: 0; height: var(--control-height); background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); padding: 0 var(--space-3); font-size: var(--text-sm); }
 .form-field input[readonly] { color: var(--color-text-secondary); }
 .form-field input[aria-invalid="true"], .password-field[data-invalid="true"] { border-color: var(--color-danger); }
 .form-field p { font-size: var(--text-xs); line-height: var(--leading); }
 .password-field { display: flex; align-items: stretch; background: var(--color-surface); border: 1px solid var(--color-border-strong); border-radius: var(--radius-control); }
 .password-field:focus-within { outline: 2px solid var(--color-focus); outline-offset: 2px; }
-.password-field input { border: 0; background: transparent; height: 40px; }
+.password-field input { border: 0; background: transparent; height: calc(var(--control-height) - 2px); }
 .password-field input:focus-visible { outline: none; }
-.password-toggle { display: inline-flex; justify-content: center; align-items: center; min-width: 40px; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); flex-shrink: 0; }
+.password-toggle { display: inline-flex; justify-content: center; align-items: center; min-width: var(--control-height); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); flex-shrink: 0; }
 .password-toggle:hover:not(:disabled) { color: var(--color-text); background: var(--color-hover); }
 .password-toggle:disabled { cursor: default; color: var(--color-muted); }
 .field-error, .form-error { color: var(--color-danger); }
@@ -42,7 +42,7 @@
 .account-shell .button.solid, .project-page .button.solid, .access-state .button.solid { background: var(--color-accent); color: var(--color-on-accent); border-color: var(--color-accent); }
 .account-shell .button.solid:hover:not(:disabled), .project-page .button.solid:hover:not(:disabled), .access-state .button.solid:hover:not(:disabled) { background: var(--color-accent); opacity: .9; }
 .account-shell .button:disabled, .project-page .button:disabled { opacity: .55; }
-.account-submit { width: 100%; min-height: 42px; font-weight: 600; }
+.account-submit { width: 100%; }
 .account-links { display: flex; flex-direction: column; align-items: center; gap: var(--space-5); margin-top: var(--space-6); font-size: var(--text-sm); color: var(--color-text-secondary); }
 .account-links span a { color: var(--color-text); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
 .sample-entry { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 32px; color: var(--color-text-secondary); font-size: var(--text-sm); }
@@ -54,7 +54,6 @@
 .access-state > p { margin-top: var(--space-3); line-height: var(--leading); }
 .access-state h1:focus-visible { outline-offset: 5px; border-radius: 2px; }
 .form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-3); margin: var(--space-8) 0 var(--space-5); }
-.access-state .form-actions .button { min-height: 40px; }
 .access-state > .sample-entry { border-top: 1px solid var(--color-border); padding-top: var(--space-5); width: 100%; justify-content: flex-start; }
 .project-page { width: 100%; max-width: 800px; margin: 0 auto; padding: var(--space-8) var(--space-6); }
 .page:has(> .project-page):focus-visible { outline: none; }
@@ -71,7 +70,6 @@
 .project-identity dt { color: var(--color-text-secondary); }
 .project-identity dd { margin: 0; overflow-wrap: anywhere; }
 .project-form-footer { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); padding: var(--space-4) var(--space-6); border-top: 1px solid var(--color-border); background: var(--color-subtle); }
-.project-form-footer .button { min-height: 36px; }
 .project-save-status { min-height: 34px; padding: 0 var(--space-6) var(--space-4); font-size: var(--text-xs); line-height: var(--leading); background: var(--color-subtle); border-radius: 0 0 var(--radius-control) var(--radius-control); }
 .development-notice { font-size: var(--text-xs); line-height: var(--leading); color: var(--color-muted); margin-top: var(--space-5); max-width: 640px; }
 .project-list { margin: var(--space-8) 0 0; padding: 0; list-style: none; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-surface); }
@@ -84,10 +82,9 @@
 .project-empty .access-symbol { margin-bottom: var(--space-5); }
 .project-empty h2 { font-size: var(--text-xl); line-height: var(--leading); letter-spacing: -.25px; }
 .project-empty p { max-width: 340px; margin-top: var(--space-3); line-height: var(--leading); }
-.project-empty .button { margin-top: var(--space-6); min-height: 36px; }
+.project-empty .button { margin-top: var(--space-6); }
 @media(max-width:767px) {
   .account-header { min-height: 64px; padding: var(--space-4) var(--space-5); }
-  .account-utilities select { min-height: 36px; }
   .account-main { padding: 40px var(--space-6); }
   .account-main[data-registration="true"] { padding-top: var(--space-6); padding-bottom: var(--space-6); }
   .account-form h1, .account-main .access-state h1 { font-size: var(--text-xl); line-height: var(--leading); }
