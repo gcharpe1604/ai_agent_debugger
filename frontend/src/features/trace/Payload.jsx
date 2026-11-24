@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { captureLabels, hasCapturedValue } from './capture.js'
-import JsonView from './JsonView.jsx'
+import ReadableView from './ReadableView.jsx'
 
 // Raw JSON, always wrapped so long values never scroll sideways.
 export function JsonValue({ value }) {
@@ -32,7 +32,7 @@ export default function Payload({ label, slot = label.toLowerCase(), value, capt
       </div>}
     </div>
     {capture?.reason && <p className="capture-reason">{capture.reason}</p>}
-    {canRead ? current === 'JSON' ? <JsonValue value={value}/> : <JsonView value={value}/> : !capture?.reason && <p className="payload-unavailable">Reason not recorded.</p>}
+    {canRead ? current === 'JSON' ? <JsonValue value={value}/> : <ReadableView value={value}/> : !capture?.reason && <p className="payload-unavailable">Reason not recorded.</p>}
     <span className="sr-only" aria-live="polite">{notice}</span>
   </section>
 }

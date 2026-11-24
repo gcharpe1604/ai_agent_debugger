@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import Timestamp from '../../components/Timestamp.jsx'
 import Tooltip from '../../components/ui/Tooltip.jsx'
+import StatusLabel from '../../components/StatusLabel.jsx'
 import { runsHref } from '../../app/routes.jsx'
 import { exactDuration } from '../../app/format.js'
 import { useTraceRead } from '../trace/useTraceRead.js'
@@ -43,7 +44,7 @@ export default function TracePeek({ repository, projectId, runId, listSearch, po
     <header className="peek-header">
       <div className="peek-heading">
         <p className="section-label">Trace {position.index >= 0 ? <span className="peek-position">{position.index + 1} of {position.total}</span> : null}</p>
-        <div className="peek-title"><Icon name="branch"/><h2 title={run?.name}>{run?.name || runId}</h2>{run && <span className="badge" data-state={run.outcome}>{run.outcome}</span>}</div>
+        <div className="peek-title"><Icon name="branch"/><h2 title={run?.name}>{run?.name || runId}</h2>{run && <StatusLabel state={run.outcome}/>}</div>
       </div>
       <div className="peek-toolbar">
         <Tooltip content={PEEK_SHORTCUTS}><button type="button" className="trace-icon-button" aria-label={`Keyboard shortcuts: ${PEEK_SHORTCUTS}`}><Icon name="info"/></button></Tooltip>

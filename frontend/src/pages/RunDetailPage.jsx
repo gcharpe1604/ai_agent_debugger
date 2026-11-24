@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import StatusLabel from '../components/StatusLabel.jsx'
 import { runsHref, evidenceHref } from '../app/routes.jsx'
 import InvestigationControl from '../features/evidence/InvestigationControl.jsx'
 import { useTraceRead } from '../features/trace/useTraceRead.js'
@@ -38,7 +39,7 @@ export default function RunDetailPage({ repository, investigationRepository, rou
           <div className="trace-title">
             <span className="trace-title-icon" aria-hidden="true"><Icon name="branch"/></span>
             <h1 title={data.run.service && data.run.service !== data.run.name ? `${data.run.name} · ${data.run.service}` : undefined}>{data.run.name || route.runId}</h1>
-            {outcome && <span className="badge" data-state={outcome}>{outcome}</span>}
+            {outcome && <StatusLabel state={outcome}/>}
             {!live && <div className="trace-run-actions">
               {copyId}
               {new URLSearchParams(route.search).has('evidenceAttempt') && <a className="button small" href={evidenceHref(project.id, route.runId, route.search)} aria-label="Back to evidence">Back to evidence</a>}

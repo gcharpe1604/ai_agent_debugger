@@ -7,6 +7,9 @@ import { waterfallPosition } from './timelineModel.js'
 import { breadcrumb, inspectorTabs, spanErrorCount } from './inspectorModel.js'
 import JsonView, { ARRAY_PREVIEW, STRING_PREVIEW } from './JsonView.jsx'
 import TraceFacts from './TraceFacts.jsx'
+import ReadableView from './ReadableView.jsx'
+import Payload from './Payload.jsx'
+import StatusLabel from '../../components/StatusLabel.jsx'
 import SplitDivider from '../../components/ui/SplitDivider.jsx'
 import { splitKeyWidth } from '../../components/ui/split.js'
 import { TooltipProvider } from '../../components/ui/Tooltip.jsx'
@@ -102,6 +105,61 @@ describe('JSON viewer', () => {
     render(<JsonView value={'<b>not bold</b>'}/>)
     expect(screen.getByText('<b>not bold</b>').className).toBe('json-string')
     expect(document.querySelector('b')).toBeNull()
+  })
+})
+
+describe('Formatted payload view', () => {
+  const value = { question: 'How long do I have?', topics: ['workspace_deletion'], limits: { days: 14, strict: true, note: null }, empty: '' }
+  it('shows a field/value table with plain strings and no JSON quotes, braces or commas', () => {
+    render(<ReadableView value={value}/>)
+    const view = screen.getByRole('group', { name: 'Formatted value' })
+    expect(within(view).getByText('question')).toBeTruthy()
+    expect(within(view).getByText('How long do I have?').className).toBe('json-string')
+    expect(view.textContent).not.toMatch(/[{}[\]",]/)
+    expect(within(view).getByText('14').className).toBe('json-number')
+    expect(within(view).getByText('true').className).toBe('json-boolean')
+    expect(within(view).getByText('Empty text')).toBeTruthy()
+    expect(within(view).getByText('workspace_deletion')).toBeTruthy()
+  })
+  it('folds nested objects and lists with a count; deeper levels start folded', async () => {
+    const user = userEvent.setup()
+    render(<ReadableView value={{ outer: { middle: { inner: { leaf: 'deep' } } } }}/>)
+    expect(screen.queryByText('deep')).toBeNull()
+    expect(screen.getByText('1 field')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Expand inner' }))
+    expect(screen.getByText('deep')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Collapse outer' }))
+    expect(screen.queryByText('deep')).toBeNull()
+  })
+  it(`shows the first ${ARRAY_PREVIEW} list items until Show more, and never renders markup`, async () => {
+    const user = userEvent.setup()
+    render(<ReadableView value={{ items: Array.from({ length: 12 }, (_, index) => index === 0 ? '<b>x</b>' : `item-${index}`), rows: [{ id: 1 }] }}/>)
+    // Plain values stack as a list; a list of objects keeps numbered rows.
+    expect(screen.getByText('item-1').closest('ul').className).toBe('readable-list')
+    expect(screen.getByRole('button', { name: 'Collapse 0' })).toBeTruthy()
+    expect(document.querySelector('b')).toBeNull()
+    expect(screen.queryByText('item-10')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Show 2 more items' }))
+    expect(screen.getByText('item-11')).toBeTruthy()
+  })
+  it('Formatted shows the table and Raw the JSON text in a payload panel', async () => {
+    const user = userEvent.setup()
+    render(<Payload label="Input" value={value} capture={{ state: 'captured' }}/>)
+    expect(screen.getByRole('group', { name: 'Formatted value' })).toBeTruthy()
+    expect(document.querySelector('pre')).toBeNull()
+    await user.click(screen.getByRole('button', { name: 'Raw' }))
+    expect(screen.queryByRole('group', { name: 'Formatted value' })).toBeNull()
+    expect(document.querySelector('pre').textContent).toBe(JSON.stringify(value, null, 2))
+  })
+})
+
+describe('status label', () => {
+  it.each([['Completed', 'ok'], ['OK', 'ok'], ['Failed', 'error'], ['ERROR', 'error'], ['Partial', 'warning'], ['Unknown', 'unknown']])('shows %s as plain text after a %s icon', (state, kind) => {
+    render(<StatusLabel state={state}/>)
+    const label = screen.getByText(state)
+    expect(label.className).toBe('status-label')
+    expect(label.dataset.kind).toBe(kind)
+    expect(label.querySelector('svg')).toBeTruthy()
   })
 })
 

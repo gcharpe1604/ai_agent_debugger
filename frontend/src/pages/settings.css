@@ -33,3 +33,10 @@
 .settings-table code { font-family: var(--font-mono); font-size: var(--text-xs); }
 .settings-actions-cell { width: 1%; text-align: right; white-space: nowrap; }
 @media (max-width: 767px) { .settings-tabs { padding: 0 var(--space-3) var(--space-4); } }
+/* Profile. */
+.profile-identity { display: flex; align-items: center; gap: var(--space-3); }
+.profile-identity p { margin: 0; }
+.profile-avatar { width: 40px; height: 40px; font-size: var(--text-base); }
+.profile-name { font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading); }
+.profile-link { margin-left: var(--space-2); color: var(--color-text); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; }
+.settings-facts .trace-copy { height: auto; min-height: 0; padding: 0; }

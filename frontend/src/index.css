@@ -336,6 +336,15 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 .badge:is([data-state="Completed"], [data-state="ok"]) { background: var(--color-success-surface); color: var(--color-success); }
 .badge[data-state="Partial"] { background: var(--color-warning-surface); color: var(--color-warning); }
 .badge:is([data-state="Failed"], [data-state="ERROR"], [data-state="error"], [data-state="Completed"], [data-state="ok"], [data-state="Partial"]) { border-color: color-mix(in srgb, currentColor 16%, transparent); }
+/* GitHub-style status (StatusLabel): plain text after a filled icon whose mark
+   is cut out in the page colour. */
+.status-label { display: inline-flex; align-items: center; gap: 6px; flex: none; color: var(--color-text); font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; }
+.status-label .icon { flex: none; width: 16px; height: 16px; color: var(--color-muted); }
+.status-label[data-kind="ok"] .icon { color: var(--dot-ok); }
+.status-label[data-kind="error"] .icon { color: var(--dot-error); }
+.status-label[data-kind="warning"] .icon { color: var(--dot-warning); }
+.status-label:not([data-kind="unknown"]) .icon circle { fill: currentColor; }
+.status-label:not([data-kind="unknown"]) .icon > :not(circle) { stroke: var(--color-bg); stroke-width: 2.5; }
 
 .error-text { color: var(--color-danger); }
 .analysis-error { display: inline-flex; align-items: center; gap: var(--space-1); color: var(--color-danger); }

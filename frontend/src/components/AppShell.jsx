@@ -3,7 +3,7 @@ import Icon from './Icon.jsx'
 import Select from './ui/Select.jsx'
 import Tooltip, { TooltipProvider } from './ui/Tooltip.jsx'
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './ui/Menu.jsx'
-import { accountHref, homeHref, runsHref, settingsHref } from '../app/routes.jsx'
+import { accountHref, homeHref, profileHref, runsHref, settingsHref } from '../app/routes.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
 import { usePreference, useTheme } from '../app/preferences.js'
 import { hasModifier, isTyping } from '../app/keyboard.js'
@@ -19,8 +19,8 @@ function ProjectSelect({ projects, project }) {
   return <Select className="project-select" aria-label="Project" value={project?.id || ''} disabled={!projects.length} placeholder={projects.length ? 'Choose a project' : 'No projects available'} options={options} onValueChange={id => { window.location.hash = runsHref(id).slice(1) }}/>
 }
 
-// Sidebar footer: who is signed in, theme and Sign out, in one menu.
-function UserMenu({ account, local, collapsed }) {
+// Sidebar footer: who is signed in, Profile, theme and Sign out, in one menu.
+function UserMenu({ account, local, collapsed, profile }) {
   const theme = useTheme()
   const [state, setState] = useState('idle')
   const user = account?.user
@@ -43,6 +43,7 @@ function UserMenu({ account, local, collapsed }) {
       </Tooltip>
       <MenuContent className="user-menu" side="top" align="start">
         <MenuLabel className="user-menu-identity"><strong>{name}</strong>{detail && <span>{detail}</span>}</MenuLabel>
+        {user && profile && <MenuItem onSelect={() => { window.location.hash = profile.slice(1) }}><Icon name="user"/>Profile</MenuItem>}
         <MenuSeparator/>
         <MenuLabel>Appearance</MenuLabel>
         {/* One segmented control: Light | Dark | System. Arrow keys still move between them. */}
@@ -73,9 +74,9 @@ function Shell({ projects, project, route, children, header, crumbs, actions, lo
   const projectName = project?.name || (local ? 'Local captures' : null)
   const projectId = project?.id || projects[0]?.id || (local ? 'local' : null)
   const runsLink = projectId ? runsHref(projectId, returnQuery(route.search)) : undefined
-  const tracingActive = !!projectId && route.projectId === projectId && !route.settings && !route.home
+  const tracingActive = !!projectId && route.projectId === projectId && !route.settings && !route.profile && !route.home
   const settingsProjectId = project?.id || (local ? 'local' : null)
-  const pageName = route.home ? 'Dashboard' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
+  const pageName = route.home ? 'Dashboard' : route.settings ? 'Settings' : route.profile ? 'Profile' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
   const trail = crumbs ?? [pageName]
   const main = useRef(null)
   const previousPath = useRef(null)
@@ -116,7 +117,7 @@ function Shell({ projects, project, route, children, header, crumbs, actions, lo
         {!singleProject && navItem('Sign in', accountHref('login', route.path + (route.search ? '?' + route.search : '')), 'arrow', false, { ariaLabel: 'Sign in — authentication not connected', tooltip: 'Sign in' })}
       </div>
       <div className="sidebar-footer">
-        <UserMenu account={account} local={local && !durable} collapsed={collapsed}/>
+        <UserMenu account={account} local={local && !durable} collapsed={collapsed} profile={projectId ? profileHref(projectId) : null}/>
       </div>
     </aside>
     <div className="workspace">

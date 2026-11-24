@@ -1,5 +1,5 @@
 import {
-  ArrowLeft, ArrowLeftRight, ArrowRight, Bot, Calendar, Check, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, CircleAlert,
+  ArrowLeft, ArrowLeftRight, ArrowRight, Bot, Calendar, Check, ChevronDown, ChevronRight, ChevronUp, ChevronsUpDown, CircleAlert, CircleCheck, CircleDashed, CircleX,
   Clock, Code, Columns3, Copy, Cpu, Database, Diamond, Download, Ellipsis, ExternalLink, Eye, EyeOff, FileSearch, FileText,
   Funnel, GitBranch, House, IndentIncrease, LayoutDashboard, Info, Keyboard, KeyRound, Layers, ListTree, Lock, LogOut, Monitor, Moon, PanelLeft, PanelRight, Pin,
   Play, RefreshCw, RotateCcw, Rows3, Rows4, Search, Settings, Shapes, Sun, Timer, User, Wrench, X,
@@ -17,6 +17,7 @@ const icons = {
   'panel-left': PanelLeft, 'chevron-down': ChevronDown, up: ChevronUp, down: ChevronDown, columns: Columns3,
   rows: Rows3, 'rows-compact': Rows4, keyboard: Keyboard, clock: Clock, 'sign-out': LogOut, sun: Sun, moon: Moon,
   'chevrons-up-down': ChevronsUpDown, more: Ellipsis, calendar: Calendar, timer: Timer, layers: Layers, depth: IndentIncrease, shapes: Shapes, dashboard: LayoutDashboard,
+  'status-ok': CircleCheck, 'status-error': CircleX, 'status-warning': CircleAlert, 'status-unknown': CircleDashed,
 }
 const spanTypes = new Set(['run', 'agent', 'model', 'tool', 'retrieval', 'api', 'state', 'custom'])
 

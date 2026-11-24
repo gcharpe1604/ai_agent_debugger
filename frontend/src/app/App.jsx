@@ -14,6 +14,7 @@ import AccountPage from '../features/access/AccountPage.jsx'
 import AccessState from '../features/access/AccessState.jsx'
 import HomePage from '../pages/HomePage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
+import ProfilePage from '../pages/ProfilePage.jsx'
 import { AccountContext } from '../features/access/session.js'
 import { DURABLE_PROJECT } from '../data/durableRepository.js'
 
@@ -50,7 +51,8 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   if (route.home && local && route.projectId === 'local') return protect(<HomePage project={project} projects={projects} route={route} local repository={repository} traceRepository={traceRepository} checking={state.busy} checkConnection={state.retry}/>)
   if (route.home && project) return protect(<HomePage key={project.id} project={project} projects={projects} route={route} local={false} repository={repository}/>)
   if (route.home && local) return protect(<AppShell projects={projects} project={project} route={route} local><AccessState kind="unavailable"/></AppShell>)
-  if (project?.dataSource === 'local' && route.settings) return protect(<AppShell projects={projects} project={project} route={route}><SettingsPage project={project}/></AppShell>)
+  if (project?.dataSource === 'local' && route.settings) return protect(<AppShell projects={projects} project={project} route={route}><SettingsPage project={project} initialTab={new URLSearchParams(route.search).get('tab')}/></AppShell>)
+  if (project && route.profile) return protect(<AppShell projects={projects} project={project} route={route}><ProfilePage project={project}/></AppShell>)
   if (project?.dataSource === 'local' && route.evidence) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
   // Account/access routes unmount project workspaces, dropping rendered trace/evidence caches.
   // Disconnected authentication never fabricates or blocks captured local telemetry.

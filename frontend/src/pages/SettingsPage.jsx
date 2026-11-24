@@ -64,11 +64,12 @@ function Facts({ rows }) {
   return <dl className="settings-facts">{rows.filter(Boolean).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
 }
 
-// Settings: General (account and project) and API key. Local mode has no
-// accounts or keys; its API key tab explains the loopback endpoint instead.
-export default function SettingsPage({ project }) {
+// Settings: General (the project) and API key; the account itself is on the
+// Profile page. Local mode has no accounts or keys; its API key tab explains
+// the loopback endpoint instead.
+export default function SettingsPage({ project, initialTab }) {
   const account = useAccount()
-  const [tab, setTab] = useState('general')
+  const [tab, setTab] = useState(initialTab === 'api-key' ? 'api-key' : 'general')
   const retention = hours(project.retentionSeconds)
   const signedIn = project.storage === 'durable' && account?.user
   return <section className="settings-page" aria-labelledby="settings-heading">
@@ -77,8 +78,6 @@ export default function SettingsPage({ project }) {
       <TabsList aria-label="Settings sections"><TabsTrigger value="general">General</TabsTrigger><TabsTrigger value="api-key">API key</TabsTrigger></TabsList>
       <TabsContent value="general" className="settings-panel">
         <Facts rows={[
-          signedIn && ['Name', account.user.name],
-          signedIn && ['Email', <span key="email" className="settings-readonly">{account.user.email}<span className="secondary"> · read-only</span></span>],
           ['Project', project.name],
           !signedIn && ['Project ID', <code key="id">{project.id}</code>],
           retention && ['Retention', `Traces are kept for ${retention}, then removed.`],

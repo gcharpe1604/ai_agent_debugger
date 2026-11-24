@@ -164,10 +164,10 @@ describe('registration', () => {
 describe('settings', () => {
   it('shows General and API key tabs, a placeholder snippet, and rotates the key only after confirmation', async () => {
     const { fetcher, user } = start('/projects/default/settings', { signedIn: true })
-    // General: name, read-only email, the one project; no storage line.
+    // General: the one project only; the account is on Profile; no storage line.
     const general = await screen.findByRole('tabpanel', { name: 'General' })
-    expect(within(general).getByText('Ada Lovelace')).toBeTruthy()
-    expect(within(general).getByText(ADA.email)).toBeTruthy()
+    expect(within(general).queryByText('Ada Lovelace')).toBeNull()
+    expect(within(general).queryByText(ADA.email)).toBeNull()
     expect(within(general).getByText('Default project')).toBeTruthy()
     expect(within(general).queryByText('Storage')).toBeNull()
     await user.click(screen.getByRole('tab', { name: 'API key' }))
@@ -200,6 +200,23 @@ describe('settings', () => {
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rotate key' }))
     expect(screen.queryByText(KEY_2)).toBeNull()
     expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0)
+  })
+
+  it('opens Profile from the account menu with the account details, and links to the API key tab', async () => {
+    const { user } = start('/projects/default', { signedIn: true })
+    await screen.findByRole('link', { name: 'Default project' })
+    await user.click(screen.getByLabelText('Account menu: Ada Lovelace'))
+    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Profile' }))
+    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeTruthy()
+    expect(window.location.hash).toBe('#/projects/default/profile')
+    const facts = within(document.querySelector('.settings-facts'))
+    expect(facts.getByText('Ada Lovelace')).toBeTruthy()
+    expect(facts.getByText(ADA.email)).toBeTruthy()
+    expect(facts.getByText('Default project')).toBeTruthy()
+    expect(facts.getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
+    await user.click(facts.getByRole('link', { name: 'Manage in Settings' }))
+    expect(await screen.findByRole('table', { name: 'API keys' })).toBeTruthy()
+    expect(screen.getByRole('tab', { name: 'API key' }).getAttribute('aria-selected')).toBe('true')
   })
 
   it('has no Projects nav or Projects page in durable mode: project URLs go to the Dashboard', async () => {

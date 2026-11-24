@@ -281,6 +281,25 @@
 .json-text .json-string { color: var(--color-text); }
 .json-more { margin-left: var(--space-2); padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); font: inherit; font-family: var(--font-sans); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .json-more:hover { color: var(--color-text); }
+/* Formatted payloads (ReadableView): a field/value table in the UI font. Open
+   objects and lists drop below their field name, indented on a guide line. */
+.readable-view { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--text-sm); line-height: 1.5; }
+.readable-fields { display: grid; grid-template-columns: minmax(88px, 28%) minmax(0, 1fr); column-gap: var(--space-3); margin: 0; }
+.readable-row { display: contents; }
+.readable-row > dt, .readable-row > dd { min-width: 0; padding: 6px 0; border-top: 1px solid var(--color-border); overflow-wrap: anywhere; }
+.readable-row:first-child > dt, .readable-row:first-child > dd { border-top: 0; }
+.readable-row > dt { color: var(--color-text-secondary); font-size: var(--text-xs); line-height: 20px; }
+.readable-row > dd { margin: 0; white-space: pre-wrap; }
+.readable-branch[data-open] > dt { grid-column: 1 / -1; }
+.readable-branch[data-open] > dd { grid-column: 1 / -1; margin-left: 7px; padding: 0 0 var(--space-1) var(--space-3); border-top: 0; border-left: 1px solid var(--color-guide); }
+.readable-toggle { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 100%; margin-left: -2px; padding: 0 var(--space-1) 0 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.readable-toggle:hover { color: var(--color-text); }
+.readable-toggle .icon { flex: none; width: 12px; height: 12px; transition: transform .1s; }
+.readable-toggle[aria-expanded="true"] .icon { transform: rotate(90deg); }
+.readable-toggle span { overflow-wrap: anywhere; }
+.readable-summary, .readable-empty { color: var(--color-muted); }
+.readable-view .json-string { color: var(--color-text); }
+.readable-scalar { padding: var(--space-1) 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .trace-columns .trace-duration-cell { text-align: right; }
 /* A narrow tree pane: the Errors filter keeps its icon and accessible name only. */
 @container (max-width: 760px) {
@@ -291,3 +310,8 @@
 @container (max-width: 640px) {
   .trace-toolbar { flex-wrap: wrap; height: auto; min-height: 48px; padding-block: var(--space-2); }
 }
+.inspector-meta .status-label { gap: var(--space-1); font-size: var(--text-xs); }
+.inspector-meta .status-label .icon { width: 14px; height: 14px; }
+.readable-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.readable-list > li { padding-left: 12px; position: relative; }
+.readable-list > li::before { content: ""; position: absolute; top: .7em; left: 2px; width: 4px; height: 4px; border-radius: 50%; background: var(--color-muted); }

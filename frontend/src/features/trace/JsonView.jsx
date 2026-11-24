@@ -9,7 +9,7 @@ export const STRING_PREVIEW = 400
 // Nodes deeper than this start folded.
 const OPEN_DEPTH = 3
 
-function StringValue({ value, quoted = true }) {
+export function StringValue({ value, quoted = true }) {
   const [full, setFull] = useState(false)
   const long = value.length > STRING_PREVIEW
   const text = long && !full ? value.slice(0, STRING_PREVIEW) : value
@@ -53,7 +53,7 @@ function Node({ name, value, depth, last }) {
 
 // A top-level string is shown as text (no quotes), still shortened when long.
 export default function JsonView({ value }) {
-  return <div className="json-view" role="group" aria-label="Formatted value">
+  return <div className="json-view" role="group" aria-label="JSON value">
     {typeof value === 'string' ? <div className="json-text"><StringValue value={value} quoted={false}/></div> : <Node value={value} depth={0} last/>}
   </div>
 }

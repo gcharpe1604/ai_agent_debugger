@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
+import StatusLabel from '../../components/StatusLabel.jsx'
 import { useSpanRead } from './useTraceRead.js'
 import { durationText, statusText, typeLabel, operationLabel } from './treeModel.js'
 import { exactDuration } from '../../app/format.js'
@@ -160,7 +161,7 @@ export default function SpanInspector({ repository, projectId, runId, span, path
         {path.length > 0 && <nav className="inspector-path" aria-label="Span ancestry"><ol>{breadcrumb(path).map((item, position) => <li key={item.span?.id ?? `hidden-${position}`}>{item.span ? <button type="button" className="text-button" onClick={() => jump(item.span.id)} title={`${item.span.name} · ${item.span.id}`}>{operationLabel(item.span)}</button> : <span title={`${item.hidden} more ${item.hidden === 1 ? 'ancestor' : 'ancestors'}`}>…</span>}</li>)}</ol></nav>}
         <div className="inspector-operation" data-type={span.type}><Icon name={span.type}/><h2 id="span-title" title={span.name}>{operationLabel(span)}</h2></div>
         <div className="inspector-meta">
-          <span className="badge" data-state={span.status}>{statusText(span.status)}</span>
+          <StatusLabel state={span.status}>{statusText(span.status)}</StatusLabel>
           <span className="inspector-fact tabular" title={exactDuration(span.duration)}><Icon name="timer"/>{durationText(span.duration)}</span>
           {typeof startTime === 'string' && <span className="inspector-fact"><Icon name="calendar"/><Timestamp value={startTime}/></span>}
           <span className="inspector-fact">{typeLabel(span.type)}</span>
