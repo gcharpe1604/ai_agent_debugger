@@ -56,6 +56,7 @@ it('shows local Settings with server-reported retention, the SDK endpoint and no
   await user.click(await screen.findByRole('link', { name: 'Project settings' }))
   expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy()
   expect(screen.getByText('Traces are kept for 4 h, then removed.')).toBeTruthy()
+  await user.click(screen.getByRole('tab', { name: 'API key' }))
   expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/local\/traces/)).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Create API key' }).disabled).toBe(true)
   expect(screen.getByRole('link', { name: 'Docs (opens in a new tab)' }).getAttribute('target')).toBe('_blank')

@@ -295,15 +295,16 @@ describe('durable source in the app', () => {
     expect(screen.queryByRole('link', { name: /rag\.run/ })).toBeNull()
   })
 
-  it('describes durable storage and the durable endpoint in Settings', async () => {
+  it('shows the durable endpoint with a key placeholder in Settings', async () => {
     window.history.replaceState(null, '', '/?source=durable#/projects/default/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(durableFetcher(), { source: 'durable' })}/>)
     await user.click(await screen.findByRole('link', { name: 'Project settings' }))
-    expect(await screen.findByText(/ClickHouse, written by the trace-writer from Kafka/)).toBeTruthy()
+    await user.click(await screen.findByRole('tab', { name: 'API key' }))
     expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/traces/)).toBeTruthy()
-    expect(screen.getByText(/AGENT_DEBUGGER_API_KEY=adbg_sk_AbCd…/)).toBeTruthy()
-    expect(screen.queryByText(/Temporary memory on the local backend/)).toBeNull()
+    expect(screen.getByText(/AGENT_DEBUGGER_API_KEY=<your key>/)).toBeTruthy()
+    expect(screen.getByText('adbg_sk_AbCd…')).toBeTruthy()
+    expect(screen.queryByText(/Temporary memory on the local backend|ClickHouse, written by/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'Create API key' })).toBeNull()
     expect(screen.getByRole('button', { name: 'Rotate key' })).toBeTruthy()
   })

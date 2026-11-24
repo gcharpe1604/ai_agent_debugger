@@ -162,12 +162,25 @@ describe('registration', () => {
 })
 
 describe('settings', () => {
-  it('shows the account and rotates the key only after confirmation', async () => {
+  it('shows General and API key tabs, a placeholder snippet, and rotates the key only after confirmation', async () => {
     const { fetcher, user } = start('/projects/default/settings', { signedIn: true })
-    const account = await screen.findByRole('region', { name: 'Account' })
-    expect(within(account).getByText('Ada Lovelace')).toBeTruthy()
-    expect(within(account).getByText(ADA.email)).toBeTruthy()
-    expect(within(account).getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
+    // General: name, read-only email, the one project; no storage line.
+    const general = await screen.findByRole('tabpanel', { name: 'General' })
+    expect(within(general).getByText('Ada Lovelace')).toBeTruthy()
+    expect(within(general).getByText(ADA.email)).toBeTruthy()
+    expect(within(general).getByText('Default project')).toBeTruthy()
+    expect(within(general).queryByText('Storage')).toBeNull()
+    await user.click(screen.getByRole('tab', { name: 'API key' }))
+    const keys = within(screen.getByRole('table', { name: 'API keys' }))
+    expect(keys.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Key prefix', 'Actions'])
+    expect(keys.getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
+    // The snippet has a placeholder, never the truncated key; Copy copies the snippet.
+    expect(screen.getByText(/AGENT_DEBUGGER_API_KEY=<your key>/)).toBeTruthy()
+    expect(screen.queryByText(new RegExp(`AGENT_DEBUGGER_API_KEY=${KEY_1.slice(0, 12)}`))).toBeNull()
+    const writeText = vi.fn(async () => {})
+    Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } })
+    await user.click(screen.getByRole('button', { name: 'Copy .env for your agent' }))
+    expect(writeText).toHaveBeenCalledWith(expect.stringContaining('AGENT_DEBUGGER_API_KEY=<your key>'))
     const rotateCalls = () => calls(fetcher).filter(call => call === 'POST /api/v1/auth/key/rotate')
     // Cancel: nothing sent.
     await user.click(screen.getByRole('button', { name: 'Rotate key' }))
@@ -182,8 +195,9 @@ describe('settings', () => {
     expect(rotateCalls()).toHaveLength(1)
     expect(screen.getByText(KEY_2)).toBeTruthy()
     expect(screen.getByRole('note').textContent).toContain('You won’t see this again')
-    expect(within(account).getByText(`${KEY_2.slice(0, 12)}…`)).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Done' }))
+    expect(within(screen.getByRole('table', { name: 'API keys' })).getByText(`${KEY_2.slice(0, 12)}…`)).toBeTruthy()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Rotate key' }))
     expect(screen.queryByText(KEY_2)).toBeNull()
     expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0)
   })
