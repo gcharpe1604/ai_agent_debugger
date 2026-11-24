@@ -52,25 +52,23 @@
 .trace-columns { min-height: 28px; flex-shrink: 0; padding-right: calc(12px + var(--tree-gutter, 0px)); font-size: var(--text-xs); line-height: var(--leading); color: var(--color-text-secondary); border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); background: var(--color-bg); }
 /* Duration cell: mini waterfall (offset and length on the trace) plus the value. */
 .trace-duration { display: grid; grid-template-columns: minmax(0,1fr) auto; align-items: center; gap: var(--space-2); min-width: 0; text-align: right; white-space: nowrap; }
-.waterfall { position: relative; height: 6px; min-width: 24px; border-radius: 3px; background: var(--color-subtle); overflow: hidden; }
-.waterfall-bar { position: absolute; top: 0; bottom: 0; left: calc(var(--left) * 100%); width: max(2px, calc(var(--width) * 100%)); border-radius: 3px; background: color-mix(in srgb, var(--color-text-secondary) 55%, transparent); }
+.waterfall { --bar-color: var(--color-text-secondary); position: relative; height: 6px; min-width: 24px; border-radius: 3px; background: color-mix(in srgb, var(--bar-color) 30%, transparent); overflow: hidden; }
+.waterfall-bar { position: absolute; top: 0; bottom: 0; left: calc(var(--left) * 100%); width: max(2px, calc(var(--width) * 100%)); border-radius: 3px; background: var(--bar-color); }
 .waterfall-bar[data-error] { background: var(--color-danger); }
-.trace-row.selected .waterfall-bar:not([data-error]) { background: var(--color-text); }
 .waterfall-value { min-width: 52px; font-size: var(--text-xs); color: var(--color-text-secondary); }
 .trace-row.selected .waterfall-value { color: var(--color-text); }
 .trace-workbench[data-view="timeline"] .waterfall { display: none; }
 .trace-tree { flex: 1; min-height: 0; min-width: 0; min-height: 96px; position: relative; overflow: auto; scrollbar-gutter: stable; overscroll-behavior: contain; }
 .trace-tree:focus-visible { outline-offset: -2px; }
 .trace-canvas { position: relative; min-width: 100%; }
-.trace-row { position: absolute; right: 0; left: 0; height: var(--trace-row-height); font-size: var(--text-sm); cursor: pointer; box-shadow: inset 0 -1px var(--color-border); }
+.trace-row { position: absolute; right: 0; left: 0; height: var(--trace-row-height); font-size: var(--text-sm); cursor: pointer; }
 .trace-row:hover { background: var(--color-hover); }
 .trace-row.selected { background: var(--color-selected); border-left-color: var(--color-accent); }
 /* Ancestors of the selected span: a lighter tint and a thin marker. */
-.trace-row[data-on-path] { background: color-mix(in srgb, var(--color-selected) 55%, transparent); border-left-color: var(--color-border-strong); }
-[data-theme="dark"] .trace-row[data-on-path] { border-left-color: hsl(0 0% 32%); }
-.trace-operation > .status-dot { flex: none; margin: 0 2px; }
+.trace-row[data-on-path] { background: color-mix(in srgb, var(--color-selected) 55%, transparent); }
+.trace-operation > .status-dot { flex: none; margin: 0; }
 .trace-tree:focus-visible .trace-row.keyboard-active { outline: 2px solid var(--color-focus); outline-offset: -2px; z-index: 1; }
-.trace-operation { --tree-indent: 16px; --guide-center: 12px; position: relative; min-width: 0; display: flex; gap: var(--space-1); align-items: center; height: var(--trace-row-height); padding-left: calc(var(--span-depth) * var(--tree-indent)); }
+.trace-operation { --tree-indent: 20px; position: relative; min-width: 0; display: flex; gap: var(--space-1); align-items: center; height: var(--trace-row-height); padding-left: calc(var(--span-depth) * var(--tree-indent)); }
 .trace-operation > .icon { color: var(--color-accent); }
 .trace-operation[data-type] > .icon { color: var(--type-color); }
 [data-type="run"] { --type-color: var(--type-run); }
@@ -82,18 +80,23 @@
 [data-type="state"] { --type-color: var(--type-state); }
 [data-type="custom"] { --type-color: var(--type-custom); }
 /* Connector lines: one column per ancestor level, centred under its disclosure. */
+/* Connector guides (treeGuides): column c is centred at c * 20 + 10 px, the
+   parent's chevron column. A line per open ancestor; the elbow is ├ (full
+   height) or └ (top half), then 10 px across to the child's chevron column,
+   or on to 4 px before the status dot when the row has no chevron. */
 .tree-guides { position: absolute; inset: 0 auto 0 0; width: 0; pointer-events: none; }
-.tree-guide { position: absolute; top: 0; bottom: 0; left: calc(var(--guide-level) * var(--tree-indent) + var(--guide-center)); width: 1px; background: var(--color-border-strong); }
-.tree-elbow.last { bottom: 50%; }
-.tree-elbow::after { content: ''; position: absolute; top: calc(var(--trace-row-height) / 2); left: 0; width: calc(var(--tree-indent) - 6px); height: 1px; background: var(--color-border-strong); }
-.tree-elbow.leaf::after { width: calc(var(--tree-indent) + 4px); }
-[data-theme="dark"] .tree-guide, [data-theme="dark"] .tree-elbow::after { background: hsl(0 0% 28%); }
+.tree-line, .tree-elbow { position: absolute; top: 0; bottom: 0; left: calc(var(--guide-column) * var(--tree-indent) + var(--tree-indent) / 2); width: 1px; background: var(--color-guide); }
+.tree-elbow[data-kind="end"] { bottom: 50%; }
+.tree-elbow::after { content: ''; position: absolute; top: 100%; left: 0; width: calc(var(--tree-indent) / 2); height: 1px; background: var(--color-guide); }
+.tree-elbow[data-kind="tee"]::after { top: 50%; }
+.tree-elbow[data-leaf]::after { width: calc(var(--tree-indent) / 2 + var(--tree-indent)); }
 .trace-operation[data-error] > .icon { color: var(--color-danger); }
-.tree-disclosure { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 28px; flex: 0 0 24px; padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); }
+.tree-disclosure { display: inline-flex; align-items: center; justify-content: center; width: var(--tree-indent); height: 24px; flex: 0 0 var(--tree-indent); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); }
 .tree-disclosure .icon { width: 12px; height: 12px; }
 .tree-disclosure.expanded .icon { transform: rotate(90deg); }
 .tree-disclosure:hover { background: var(--color-hover); }
-.trace-name-stack { min-width: 0; flex: 1; }
+.trace-name-stack { min-width: 0; flex: 1; line-height: 1.2; }
+.trace-name-stack .trace-operation-name, .trace-name-stack .trace-inline-type { line-height: 1.2; }
 .trace-operation-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--text-sm); line-height: var(--leading); }
 .trace-attempt-name { display: flex; align-items: baseline; gap: var(--space-1); }
 .trace-attempt-name > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -205,8 +208,6 @@
 @container (max-width: 440px) {
   .trace-grid { gap: var(--space-2); padding-left: var(--space-2); padding-right: var(--space-2); }
   .trace-columns { padding-right: calc(8px + var(--tree-gutter, 0px)); }
-  .trace-operation { --tree-indent: 9px; --guide-center: 8px; }
-  .trace-operation .tree-disclosure { width: 16px; flex-basis: 16px; }
   .trace-operation .trace-child-count { display: none; }
   .trace-attempt-word { display: none; }
 }
@@ -278,7 +279,6 @@
 .json-more { margin-left: var(--space-2); padding: 0; border: 0; background: transparent; color: var(--color-text-secondary); font: inherit; font-family: var(--font-sans); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
 .json-more:hover { color: var(--color-text); }
 .trace-columns .trace-duration-cell { text-align: right; }
-.trace-row[data-on-path]:not(.selected) .waterfall-bar:not([data-error]) { background: var(--color-text-secondary); }
 /* A narrow tree pane: the Errors filter keeps its icon and accessible name only. */
 @container (max-width: 760px) {
   .trace-toolbar .trace-error-filter { width: var(--control-height); padding: 0; justify-content: center; }

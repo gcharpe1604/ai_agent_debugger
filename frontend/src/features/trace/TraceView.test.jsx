@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { treeColumns, treeGridTemplate } from './treeColumns.js'
+import { buildIndex, treeGuides, visibleTree } from './treeModel.js'
 import { waterfallPosition } from './timelineModel.js'
 import { breadcrumb, inspectorTabs, spanErrorCount } from './inspectorModel.js'
 import JsonView, { ARRAY_PREVIEW, STRING_PREVIEW } from './JsonView.jsx'
@@ -153,5 +154,45 @@ describe('trace header facts', () => {
     await user.click(screen.getByRole('button', { name: 'Types' }))
     const types = await screen.findByRole('list', { name: 'Spans by type' })
     expect(within(types).getAllByRole('listitem').map(item => item.textContent)).toEqual(['Agent1', 'Tool3'])
+  })
+})
+
+describe('tree connector guides', () => {
+  const span = (id, parentId) => ({ id, parentId, name: id, type: 'custom', status: 'OK', start: 0 })
+  const all = { search: '', type: '', status: '' }
+  const rowsFor = (spans, collapsed = []) => {
+    const index = buildIndex(spans)
+    const expanded = new Set(spans.map(item => item.id).filter(id => !collapsed.includes(id)))
+    return Object.fromEntries(visibleTree(index, expanded, all).rows.map(row => [row.id, treeGuides(row)]))
+  }
+  it('gives the root no guide and a single child a └ in the root column', () => {
+    const guides = rowsFor([span('r', null), span('a', 'r')])
+    expect(guides.r).toEqual({ lines: [], elbow: null })
+    expect(guides.a).toEqual({ lines: [], elbow: { column: 0, kind: 'end' } })
+  })
+  it('draws ├ for every sibling but the last, which gets └', () => {
+    const guides = rowsFor([span('r', null), span('a', 'r'), span('b', 'r'), span('c', 'r')])
+    expect([guides.a.elbow.kind, guides.b.elbow.kind, guides.c.elbow.kind]).toEqual(['tee', 'tee', 'end'])
+  })
+  it('keeps an ancestor line only while that ancestor has a later sibling', () => {
+    // r ├ a ─ a1 ─ a2   (a has a later sibling b, so column 0 runs through a's subtree)
+    //   └ b ─ b1 ─ b2   (b is last, so nothing runs below it)
+    const guides = rowsFor([span('r', null), span('a', 'r'), span('a1', 'a'), span('a2', 'a1'), span('b', 'r'), span('b1', 'b'), span('b2', 'b1')])
+    expect(guides.a1).toEqual({ lines: [0], elbow: { column: 1, kind: 'end' } })
+    expect(guides.a2).toEqual({ lines: [0], elbow: { column: 2, kind: 'end' } })
+    expect(guides.b1).toEqual({ lines: [], elbow: { column: 1, kind: 'end' } })
+    expect(guides.b2).toEqual({ lines: [], elbow: { column: 2, kind: 'end' } })
+  })
+  it('handles a deep chain of last children with no lines at all', () => {
+    const chain = [span('d0', null), ...Array.from({ length: 5 }, (_, i) => span(`d${i + 1}`, `d${i}`))]
+    const guides = rowsFor(chain)
+    expect(guides.d5).toEqual({ lines: [], elbow: { column: 4, kind: 'end' } })
+  })
+  it('hides a collapsed subtree and its guides; siblings keep theirs', () => {
+    const spans = [span('r', null), span('a', 'r'), span('a1', 'a'), span('b', 'r')]
+    const guides = rowsFor(spans, ['a'])
+    expect(Object.keys(guides)).toEqual(['r', 'a', 'b'])
+    expect(guides.a.elbow.kind).toBe('tee')
+    expect(guides.b.elbow.kind).toBe('end')
   })
 })

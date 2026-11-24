@@ -219,21 +219,24 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 }
 #trace-filters { flex: 0 0 248px; min-width: 0; overflow-y: auto; border-right: 1px solid var(--color-border); }
 .facet-sidebar { display: flex; flex-direction: column; font-size: var(--text-sm); }
-.facet-header { display: flex; align-items: center; gap: var(--space-2); min-height: 40px; padding: var(--space-1) var(--space-3) var(--space-1) var(--space-2); border-bottom: 1px solid var(--color-border); }
+.facet-header { display: flex; align-items: center; gap: var(--space-1); min-height: 40px; padding: var(--space-1) var(--space-4); }
+.facet-header > .trace-icon-button { margin-left: calc((var(--control-height) - 16px) / -2); }
 .facet-header strong { flex: 1; font-size: var(--text-sm); }
 /* A legend sits in the fieldset's top border, so the top padding goes on the legend. */
-.facet-group { min-width: 0; margin: 0; padding: 0 var(--space-4) var(--space-3); border: 0; border-bottom: 1px solid var(--color-border); }
+.facet-group { min-width: 0; margin: 0; padding: 0 var(--space-4) var(--space-3); border: 0; border-top: 1px solid var(--color-border); }
+.facet-header + .facet-group { border-top: 0; }
 .facet-group > legend { float: left; padding-top: var(--space-3); }
 .facet-group > legend + * { clear: both; }
-.facet-group:last-child { border-bottom: 0; }
-.facet-group legend, .facet-form legend { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-bottom: var(--space-2); padding: 0; color: var(--color-text); font-size: var(--text-xs); font-weight: var(--weight-semibold); }
+.facet-group legend, .facet-form legend { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 16px; margin-bottom: var(--space-2); padding: 0; color: var(--color-muted); font-size: var(--text-xs); line-height: 16px; font-weight: var(--weight-semibold); }
 .facet-group legend .text-button { font-weight: var(--weight-regular); }
-.facet-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-.facet-option { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); min-height: 28px; margin: 0 calc(var(--space-2) * -1); padding: 2px var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
+.facet-form fieldset { min-width: 0; margin: 0; padding: var(--space-3) 0 0; border: 0; }
+.facet-form legend { float: left; }
+.facet-form legend + * { clear: both; }
+.facet-option { display: grid; grid-template-columns: 16px minmax(0, 1fr) auto; align-items: center; gap: var(--space-2); height: 28px; margin: 0 calc(var(--space-2) * -1); padding: 0 var(--space-2); border-radius: var(--radius-control); cursor: pointer; }
 .facet-option:hover { background: var(--color-hover); }
 .facet-option input, .check-field input, .trace-check input { width: 16px; height: 16px; margin: 0; accent-color: var(--color-accent); }
 .facet-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.facet-count { color: var(--color-text-secondary); font-size: var(--text-xs); }
+.facet-count { color: var(--color-muted); font-size: var(--text-xs); text-align: right; font-variant-numeric: tabular-nums; }
 .facet-empty { margin: 0; color: var(--color-muted); font-size: var(--text-xs); }
 .facet-duration { display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: var(--space-2); }
 .facet-duration label { display: flex; flex-direction: column; gap: var(--space-1); color: var(--color-text-secondary); font-size: var(--text-xs); }

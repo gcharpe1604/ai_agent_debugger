@@ -68,6 +68,8 @@
   --type-api: #0369a1;
   --type-state: #4b5563;
   --type-custom: #be185d;
+  /* Tree connector guides: a border-strength grey at about 60 %. */
+  --color-guide: hsl(240 4% 46% / .35);
   /* JSON viewer values. */
   --json-string: #067d17;
   --json-number: #1d4ed8;
@@ -110,6 +112,7 @@
   --type-api: #7dd3fc;
   --type-state: #cbd5e1;
   --type-custom: #f9a8d4;
+  --color-guide: hsl(0 0% 60% / .32);
   --json-string: #a5d6a7;
   --json-number: #93c5fd;
   --json-boolean: #fdba74;

@@ -1,19 +1,24 @@
 import { useLayoutEffect, useMemo } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useElementSize } from './useElementSize.js'
-import { ROW_HEIGHT, windowRows, restoreAnchor, statusText, durationText, typeLabel, types, childLabel, recordedAttempt } from './treeModel.js'
+import { ROW_HEIGHT, treeGuides, windowRows, restoreAnchor, statusText, durationText, typeLabel, types, childLabel, recordedAttempt } from './treeModel.js'
 import TimelineTrack from './TimelineTrack.jsx'
 import { intervalLabel, timeLabel } from './timelineModel.js'
 import { exactDuration } from '../../app/format.js'
 import DurationBar from './Waterfall.jsx'
 import { flagLabels } from '../../data/durableRepository.js'
 
-// Parent-child connector lines. Column d (0-based) sits under the disclosure of
-// the ancestor at depth d; the last column is this row's own elbow.
-export function TreeGuides({ depth, guides, last, leaf }) {
-  const columns = []
-  for (let level = 1; level < depth; level++) if (guides?.[level]) columns.push(<span key={level} className="tree-guide" style={{ '--guide-level': level - 1 }}/>)
-  return <span className="tree-guides" aria-hidden="true">{columns}<span className={`tree-guide tree-elbow${last ? ' last' : ''}${leaf ? ' leaf' : ''}`} style={{ '--guide-level': depth - 1 }}/></span>
+// Connector lines from treeGuides: a 1 px vertical line per open ancestor
+// column, and this row's elbow (├ or └) in its parent's column. The elbow runs
+// 10 px to the row's chevron column; for a row without a chevron it continues
+// to 4 px before the status dot.
+export function TreeGuides({ row, leaf }) {
+  const { lines, elbow } = treeGuides(row)
+  if (!elbow) return null
+  return <span className="tree-guides" aria-hidden="true">
+    {lines.map(column => <span key={column} className="tree-line" style={{ '--guide-column': column }}/>)}
+    <span className="tree-elbow" data-kind={elbow.kind} data-leaf={leaf || undefined} style={{ '--guide-column': elbow.column }}/>
+  </span>
 }
 
 export default function ExecutionTree({ index, rows, ui, treeRef, select, patch, toggle, filtered, columns = ['name', 'start', 'type', 'duration'], pathIds = new Set(), timing, timeWindow, receivedOnly }) {
@@ -75,7 +80,7 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
         const type = types.includes(row.span.type) ? row.span.type : 'custom'
         return <div key={row.id} id={`trace-row-${row.id}`} role="treeitem" data-span-id={row.id} className={`trace-row trace-grid${ui.selected === row.id ? ' selected' : ''}${active === row.id ? ' keyboard-active' : ''}`} data-on-path={pathIds.has(row.id) || undefined} style={{ top: row.index * ROW_HEIGHT }} aria-level={row.depth + 1} aria-posinset={row.position} aria-setsize={row.siblings} aria-selected={ui.selected === row.id} aria-expanded={disclosure ? row.expanded : undefined} aria-label={`${name} · ${typeLabel(row.span.type)} · ${statusText(row.span.status)} · ${durationText(row.span.duration)} · ${row.id}${row.context ? ' · Ancestor context' : ''}`} aria-description={(timeline ? intervalLabel(timing.byId.get(row.id)) + '; ' : '') + `${row.childLoaded} loaded children; ${row.childKnown === null ? 'total unknown' : `${row.childKnown} known children`}`} title={`${row.span.name}\nSpan ${row.id}\nRecorded parent ${(row.span.recordedParentId === undefined ? row.span.parentId : row.span.recordedParentId) ?? 'root'}\nDepth ${row.depth + 1}`} onClick={() => { treeRef.current.focus({ preventScroll: true }); select(row.id) }}>
         <div className="trace-operation" data-type={type} data-error={row.span.status === 'ERROR' || undefined} style={{ '--span-depth': Math.min(row.depth, cap) }}>
-          {row.depth > 0 && row.depth <= cap && <TreeGuides depth={row.depth} guides={row.guides} last={row.last} leaf={!disclosure}/>}
+          {row.depth <= cap && <TreeGuides row={row} leaf={!disclosure}/>}
           {disclosure ? <button className={`tree-disclosure ${row.expanded ? 'expanded' : ''}`} data-disclosure="true" tabIndex="-1" aria-label={`${row.expanded ? 'Collapse' : 'Expand'} ${row.span.name}`} aria-disabled={filtered} title={filtered ? 'Matching ancestor paths stay visible while filtering' : undefined} onClick={event => { event.stopPropagation(); if (!filtered) toggle(row.id) }}><Icon name="chevron"/></button> : <span className="tree-disclosure"/>}
           <span className="status-dot" data-state={row.span.status ?? 'unknown'} aria-hidden="true" title={statusText(row.span.status)}/>
           <Icon name={type}/>
