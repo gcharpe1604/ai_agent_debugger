@@ -1,0 +1,10 @@
+.venv/
+build/
+tests/
+**/__pycache__/
+**/*.pyc
+*.egg-info/
+.env
+.env.*
+Dockerfile
+.dockerignore

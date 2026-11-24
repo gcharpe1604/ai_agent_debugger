@@ -1,0 +1,9 @@
+# Used by BuildKit for frontend/Dockerfile (context: repo root). Send only what the build needs.
+*
+!frontend/
+!deploy/Caddyfile
+frontend/node_modules/
+frontend/dist/
+frontend/verification/
+frontend/.env
+frontend/.env.*
