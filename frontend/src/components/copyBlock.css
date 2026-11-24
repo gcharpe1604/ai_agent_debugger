@@ -1,0 +1,10 @@
+.copy-block { border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+.copy-block-header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px 6px 12px; background: var(--subtle); border-bottom: 1px solid var(--border); font-size: 12px; color: var(--secondary); }
+.copy-block pre { margin: 0; padding: 12px; overflow-x: auto; font: 13px/20px "Cascadia Code",Consolas,monospace; background: var(--canvas); }
+/* Show-once API key: a warning above the copy boxes. */
+.key-reveal { display: flex; flex-direction: column; gap: 12px; }
+.key-reveal h1 { margin: 0; }
+.key-warning { display: flex; gap: 8px; align-items: flex-start; margin: 0; padding: 10px 12px; border: 1px solid var(--error-border); border-radius: 5px; background: var(--error-surface); font-size: 13px; line-height: 20px; }
+.key-warning .icon { width: 16px; height: 16px; flex: none; margin-top: 2px; color: var(--error); }
+.key-reveal .copy-block pre { white-space: pre-wrap; overflow-wrap: anywhere; }
+.key-reveal-actions { display: flex; gap: 8px; }

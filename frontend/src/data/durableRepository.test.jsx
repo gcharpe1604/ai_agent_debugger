@@ -9,7 +9,9 @@ import { createDurableAdapters, MAX_RUNS } from './durableRepository.js'
 const traceId = '1234567890abcdef1234567890abcdef'
 const ROOT = 'aaaaaaaaaaaaaaaa', ORPHAN = 'bbbbbbbbbbbbbbbb', TOOL = 'cccccccccccccccc', GONE = 'ffffffffffffffff'
 const START = '1792584000000000000'
-const projects = { projects: [{ id: 'local', name: 'Durable traces', storage: 'clickhouse', authentication: 'none' }] }
+// GET /api/v1/projects: a bare list with the signed-in user's one project.
+const projects = [{ id: 'default', name: 'Durable traces' }]
+const me = { id: '6f1c0d52-0000-4000-8000-000000000001', name: 'Ada Lovelace', email: 'ada@example.com', key_prefix: 'adbg_sk_AbCd' }
 const listRow = { trace_id: traceId, name: 'rag.run', missing_root: false, status: 'ERROR', service: 'rag_agent', execution_mode: 'controlled', start_time_unix_nano: START, end_time_unix_nano: '1792584000250000000', span_count: 3, error_span_count: 2 }
 const run = { ...listRow, root_span_id: ROOT, conflicted: true, recorded_recovered_retry: false, first_error: { span_id: TOOL, span_name: 'tool.search', operation_type: 'tool', error_type: 'TimeoutError', originating_error_span_count: 1 } }
 
@@ -55,13 +57,14 @@ const orphanBody = { run, span_id: ORPHAN, parent_span_id: null, recorded_parent
 const ok = body => ({ ok: true, status: 200, json: async () => body })
 function durableFetcher(overrides = {}) {
   return vi.fn(async url => {
+    if (url === '/api/v1/auth/me') return ok(me)
     if (!url.startsWith('/api/v1/projects')) throw new Error('unexpected read: ' + url)
     for (const [suffix, answer] of Object.entries(overrides)) if (url.includes(suffix)) return answer
     if (url === '/api/v1/projects') return ok(projects)
     if (url.endsWith('/spans/' + TOOL)) return ok(spanBody)
     if (url.endsWith('/spans/' + ORPHAN)) return ok(orphanBody)
     if (url.endsWith('/runs/' + traceId)) return ok(traceBody)
-    return ok({ project: 'local', runs: [listRow], next_cursor: null })
+    return ok({ project: 'default', runs: [listRow], next_cursor: null })
   })
 }
 async function connected(fetcher) {
@@ -71,14 +74,13 @@ async function connected(fetcher) {
 }
 
 describe('source switch', () => {
-  it('defaults to the local profile and accepts only known values', () => {
-    expect(resolveSource()).toBe('local')
-    expect(resolveSource('', undefined)).toBe('local')
+  it('defaults to the durable source; only ?source=local selects the local profile', () => {
+    expect(resolveSource()).toBe('durable')
+    expect(resolveSource('')).toBe('durable')
     expect(resolveSource('?source=durable')).toBe('durable')
-    expect(resolveSource('', 'durable')).toBe('durable')
-    expect(resolveSource('?source=local', 'durable')).toBe('local')
-    expect(resolveSource('?source=clickhouse')).toBe('local')
-    expect(resolveSource('', 'yes')).toBe('local')
+    expect(resolveSource('?source=local')).toBe('local')
+    expect(resolveSource('?source=clickhouse')).toBe('durable')
+    expect(resolveSource('?source=LOCAL')).toBe('durable')
   })
 
   it('reads only the local profile unless durable is selected, and only the durable API when it is', async () => {
@@ -89,8 +91,11 @@ describe('source switch', () => {
     const durable = durableFetcher()
     const adapters = createApiAdapters(durable, { source: 'durable' })
     const [project] = await adapters.projectAdapter.listProjects()
-    expect(project).toMatchObject({ id: 'local', name: 'Durable traces', storage: 'durable', dataSource: 'local' })
-    await adapters.repository.listRuns({ projectId: 'local', query: parseQuery('') })
+    expect(project).toMatchObject({ id: 'default', name: 'Durable traces', storage: 'durable', dataSource: 'local' })
+    expect(adapters.accountAdapter.mode).toBe('durable')
+    expect(adapters.projectAdapter.createProject).toBeUndefined()
+    expect(adapters.projectAdapter.updateProject).toBeUndefined()
+    await adapters.repository.listRuns({ projectId: 'default', query: parseQuery('') })
     expect(durable.mock.calls.every(([url]) => url.startsWith('/api/v1/projects'))).toBe(true)
   })
 })
@@ -98,8 +103,8 @@ describe('source switch', () => {
 describe('durable run list', () => {
   it('maps a run row and reports what the backend recorded', async () => {
     const rootless = { ...listRow, trace_id: 'f'.repeat(32), name: null, missing_root: true, status: null, service: null, execution_mode: null, error_span_count: 0 }
-    const { repository } = await connected(durableFetcher({ '/runs?': ok({ project: 'local', runs: [listRow, rootless], next_cursor: null }) }))
-    const result = await repository.listRuns({ projectId: 'local', query: parseQuery('') })
+    const { repository } = await connected(durableFetcher({ '/runs?': ok({ project: 'default', runs: [listRow, rootless], next_cursor: null }) }))
+    const result = await repository.listRuns({ projectId: 'default', query: parseQuery('') })
     const byId = Object.fromEntries(result.items.map(item => [item.id, item]))
     expect(byId[traceId]).toMatchObject({ name: 'rag.run', outcome: 'Failed', durationMs: 250, service: 'rag_agent', executionMode: 'controlled', recordedErrorCount: 2, startedAt: '2026-10-21T12:00:00.000Z', missingRoot: false })
     // No root span: the status is unknown, never guessed from the other spans.
@@ -110,13 +115,13 @@ describe('durable run list', () => {
   it('follows next_cursor until the list ends', async () => {
     const row = n => ({ ...listRow, trace_id: n.toString(16).padStart(32, '0') })
     const fetcher = vi.fn(async url => url === '/api/v1/projects' ? ok(projects)
-      : url.includes('cursor=c2') ? ok({ project: 'local', runs: [row(3)], next_cursor: null })
-        : url.includes('cursor=c1') ? ok({ project: 'local', runs: [row(2)], next_cursor: 'c2' })
-          : ok({ project: 'local', runs: [row(1)], next_cursor: 'c1' }))
+      : url.includes('cursor=c2') ? ok({ project: 'default', runs: [row(3)], next_cursor: null })
+        : url.includes('cursor=c1') ? ok({ project: 'default', runs: [row(2)], next_cursor: 'c2' })
+          : ok({ project: 'default', runs: [row(1)], next_cursor: 'c1' }))
     const { repository } = await connected(fetcher)
-    const result = await repository.listRuns({ projectId: 'local', query: parseQuery('') })
+    const result = await repository.listRuns({ projectId: 'default', query: parseQuery('') })
     expect(result.total).toBe(3)
-    expect(fetcher.mock.calls.map(([url]) => url).slice(1)).toEqual(['/api/v1/projects/local/runs?limit=200', '/api/v1/projects/local/runs?limit=200&cursor=c1', '/api/v1/projects/local/runs?limit=200&cursor=c2'])
+    expect(fetcher.mock.calls.map(([url]) => url).slice(1)).toEqual(['/api/v1/projects/default/runs?limit=200', '/api/v1/projects/default/runs?limit=200&cursor=c1', '/api/v1/projects/default/runs?limit=200&cursor=c2'])
   })
 
   it('stops at the run cap and says the list is partial', async () => {
@@ -125,10 +130,10 @@ describe('durable run list', () => {
       if (url === '/api/v1/projects') return ok(projects)
       const runs = Array.from({ length: 200 }, (_, i) => ({ ...listRow, trace_id: (page * 200 + i).toString(16).padStart(32, '0') }))
       page++
-      return ok({ project: 'local', runs, next_cursor: 'more' })
+      return ok({ project: 'default', runs, next_cursor: 'more' })
     })
     const { repository } = await connected(fetcher)
-    const result = await repository.listRuns({ projectId: 'local', query: parseQuery('') })
+    const result = await repository.listRuns({ projectId: 'default', query: parseQuery('') })
     expect(result.partialAt).toBe(MAX_RUNS)
     expect(result.total).toBe(MAX_RUNS)
     expect(page).toBe(MAX_RUNS / 200)
@@ -137,28 +142,30 @@ describe('durable run list', () => {
   it('surfaces a store failure and never falls back to the local profile or sample data', async () => {
     const fetcher = durableFetcher({ '/runs': { ok: false, status: 503 } })
     const { repository, traceRepository } = await connected(fetcher)
-    await expect(repository.listRuns({ projectId: 'local', query: parseQuery('') })).rejects.toThrow('ClickHouse) is unavailable')
-    await expect(repository.listRuns({ projectId: 'local', query: parseQuery('') })).rejects.toThrow('No sample data was substituted')
-    await expect(traceRepository.readTrace({ projectId: 'local', runId: traceId })).rejects.toThrow('No sample data was substituted')
+    await expect(repository.listRuns({ projectId: 'default', query: parseQuery('') })).rejects.toThrow('ClickHouse) is unavailable')
+    await expect(repository.listRuns({ projectId: 'default', query: parseQuery('') })).rejects.toThrow('No sample data was substituted')
+    await expect(traceRepository.readTrace({ projectId: 'default', runId: traceId })).rejects.toThrow('No sample data was substituted')
     await expect(repository.listRuns({ projectId: 'other', query: parseQuery('') })).rejects.toThrow('Captured workspace unavailable')
     expect(fetcher.mock.calls.some(([url]) => url.includes('/local/status') || url.includes('/api/v1/local/'))).toBe(false)
   })
 
   it('reports a missing trace, a wrong trace and an unexpected body as errors', async () => {
     const missing = await connected(durableFetcher({ ['/runs/' + traceId]: { ok: false, status: 404 } }))
-    await expect(missing.traceRepository.readTrace({ projectId: 'local', runId: traceId })).rejects.toThrow('not in durable storage')
+    await expect(missing.traceRepository.readTrace({ projectId: 'default', runId: traceId })).rejects.toThrow('not in durable storage')
     const wrong = await connected(durableFetcher({ ['/runs/' + traceId]: ok({ ...traceBody, run: { ...run, trace_id: '0'.repeat(32) } }) }))
-    await expect(wrong.traceRepository.readTrace({ projectId: 'local', runId: traceId })).rejects.toThrow('identity mismatch')
+    await expect(wrong.traceRepository.readTrace({ projectId: 'default', runId: traceId })).rejects.toThrow('identity mismatch')
     const odd = await connected(durableFetcher({ '/runs?': ok({ runs: [] }) }))
-    await expect(odd.repository.listRuns({ projectId: 'local', query: parseQuery('') })).rejects.toThrow('Unexpected telemetry response')
-    await expect(createDurableAdapters(async () => ok({ projects: [] })).projectAdapter.listProjects()).rejects.toThrow('Unexpected workspace response')
+    await expect(odd.repository.listRuns({ projectId: 'default', query: parseQuery('') })).rejects.toThrow('Unexpected telemetry response')
+    await expect(createDurableAdapters(async () => ok([])).projectAdapter.listProjects()).rejects.toThrow('Unexpected workspace response')
+    // The old { projects: [...] } shape is not accepted.
+    await expect(createDurableAdapters(async () => ok({ projects })).projectAdapter.listProjects()).rejects.toThrow('Unexpected workspace response')
   })
 })
 
 describe('durable trace and span', () => {
   it('follows the backend tree: order, effective parent, flags and one row per span', async () => {
     const { traceRepository } = await connected(durableFetcher())
-    const data = await traceRepository.readTrace({ projectId: 'local', runId: traceId })
+    const data = await traceRepository.readTrace({ projectId: 'default', runId: traceId })
     expect(data.spans.map(span => [span.id, span.parentId, span.recordedParentId, span.flags, span.versionCount])).toEqual([
       [ROOT, null, null, [], 1],
       [TOOL, ROOT, ROOT, ['conflict'], 2],
@@ -174,12 +181,12 @@ describe('durable trace and span', () => {
   it('has no structure note for a clean trace', async () => {
     const clean = { ...traceBody, tree: { ...traceBody.tree, warnings: [] } }
     const { traceRepository } = await connected(durableFetcher({ ['/runs/' + traceId]: ok(clean) }))
-    expect((await traceRepository.readTrace({ projectId: 'local', runId: traceId })).quality).toBeUndefined()
+    expect((await traceRepository.readTrace({ projectId: 'default', runId: traceId })).quality).toBeUndefined()
   })
 
   it('reads payloads by state, the stored error and every version of a conflicted span', async () => {
     const { traceRepository } = await connected(durableFetcher())
-    const data = await traceRepository.readSpan({ projectId: 'local', runId: traceId, spanId: TOOL })
+    const data = await traceRepository.readSpan({ projectId: 'default', runId: traceId, spanId: TOOL })
     expect(data.input).toEqual({ api_key: '[redacted]', q: 'refund policy' })
     expect(data.inputCapture.state).toBe('redacted')
     expect(data.inputCapture.reason).toContain('[redacted]')
@@ -195,18 +202,18 @@ describe('durable trace and span', () => {
   it('keeps a payload that is not JSON as text and rejects another span in the response', async () => {
     const text = { ...spanBody, versions: [{ ...spanBody.versions[0], input_state: 'truncated', input_payload: '{"q":"cut he' }] }
     const { traceRepository } = await connected(durableFetcher({ ['/spans/' + TOOL]: ok(text) }))
-    const data = await traceRepository.readSpan({ projectId: 'local', runId: traceId, spanId: TOOL })
+    const data = await traceRepository.readSpan({ projectId: 'default', runId: traceId, spanId: TOOL })
     expect(data.input).toBe('{"q":"cut he')
     expect(data.inputCapture.state).toBe('truncated')
     const other = await connected(durableFetcher({ ['/spans/' + TOOL]: ok(orphanBody) }))
-    await expect(other.traceRepository.readSpan({ projectId: 'local', runId: traceId, spanId: TOOL })).rejects.toThrow('identity mismatch')
+    await expect(other.traceRepository.readSpan({ projectId: 'default', runId: traceId, spanId: TOOL })).rejects.toThrow('identity mismatch')
   })
 })
 
 describe('durable source in the app', () => {
   it('opens a durable trace and shows structure warnings, row flags and conflicting versions', async () => {
     const fetcher = durableFetcher()
-    window.history.replaceState(null, '', '/?source=durable#/projects/local/runs')
+    window.history.replaceState(null, '', '/?source=durable#/projects/default/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher, { source: resolveSource(window.location.search) })}/>)
     await user.click(await screen.findByRole('link', { name: `rag.run ${traceId}` }))
@@ -231,12 +238,12 @@ describe('durable source in the app', () => {
     await user.click(orphanRow)
     const structure = await screen.findByRole('note', { name: 'Structure flags' })
     expect(structure.textContent).toContain(GONE)
-    expect(fetcher.mock.calls.every(([url]) => url.startsWith('/api/v1/projects'))).toBe(true)
+    expect(fetcher.mock.calls.every(([url]) => url.startsWith('/api/v1/projects') || url === '/api/v1/auth/me')).toBe(true)
   })
 
   it('shows a store failure as an error with a retry, not as an empty list', async () => {
     const fetcher = durableFetcher({ '/runs': { ok: false, status: 503 } })
-    window.history.replaceState(null, '', '/?source=durable#/projects/local/runs')
+    window.history.replaceState(null, '', '/?source=durable#/projects/default/runs')
     render(<App {...createApiAdapters(fetcher, { source: 'durable' })}/>)
     const alert = await screen.findByRole('alert')
     expect(alert.textContent).toContain('Could not load traces')
@@ -246,13 +253,15 @@ describe('durable source in the app', () => {
   })
 
   it('describes durable storage and the durable endpoint in Settings', async () => {
-    window.history.replaceState(null, '', '/?source=durable#/projects/local/runs')
+    window.history.replaceState(null, '', '/?source=durable#/projects/default/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(durableFetcher(), { source: 'durable' })}/>)
     await user.click(await screen.findByRole('link', { name: 'Project settings' }))
     expect(await screen.findByText(/ClickHouse, written by the trace-writer from Kafka/)).toBeTruthy()
     expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/traces/)).toBeTruthy()
+    expect(screen.getByText(/AGENT_DEBUGGER_API_KEY=adbg_sk_AbCd…/)).toBeTruthy()
     expect(screen.queryByText(/Temporary memory on the local backend/)).toBeNull()
-    expect(screen.getByRole('button', { name: 'Create API key' }).disabled).toBe(true)
+    expect(screen.queryByRole('button', { name: 'Create API key' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Rotate key' })).toBeTruthy()
   })
 })

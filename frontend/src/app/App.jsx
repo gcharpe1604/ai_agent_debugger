@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import RunExplorerPage from '../pages/RunExplorerPage.jsx'
 import RunDetailPage from '../pages/RunDetailPage.jsx'
@@ -6,7 +6,7 @@ import { disconnectedRuns, disconnectedTraces, disconnectedInvestigations, disco
 import EvidencePage from '../features/evidence/EvidencePage.jsx'
 import ReadBoundary from '../components/ReadBoundary.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
-import { runsHref, useRoute } from './routes.jsx'
+import { accountHref, replaceHash, runsHref, useRoute } from './routes.jsx'
 import { disconnectedAccount } from '../data/accessAdapters.js'
 import useProjects from '../features/access/useProjects.js'
 import ProjectsPage from '../features/access/ProjectsPage.jsx'
@@ -14,6 +14,8 @@ import AccountPage from '../features/access/AccountPage.jsx'
 import AccessState from '../features/access/AccessState.jsx'
 import HomePage from '../pages/HomePage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
+import { AccountContext } from '../features/access/session.js'
+import { DURABLE_PROJECT } from '../data/durableRepository.js'
 
 function ProjectWorkspace({ repository, traceRepository, investigationRepository, route, project, projects }) {
   const [traceViews] = useState(() => new Map())
@@ -25,7 +27,7 @@ function ProjectWorkspace({ repository, traceRepository, investigationRepository
   return protect(<RunExplorerPage key={project.id} project={project} projects={projects} route={route} repository={repository} traceRepository={traceRepository}/>)
 }
 
-export default function App({ repository = disconnectedRuns, traceRepository = disconnectedTraces, investigationRepository = disconnectedInvestigations, projectAdapter = disconnectedProjects, accountAdapter = disconnectedAccount }) {
+function Workspace({ repository = disconnectedRuns, traceRepository = disconnectedTraces, investigationRepository = disconnectedInvestigations, projectAdapter = disconnectedProjects, accountAdapter = disconnectedAccount }) {
   const route = useRoute()
   const adapter = projectAdapter
   const state = useProjects(adapter)
@@ -52,4 +54,50 @@ export default function App({ repository = disconnectedRuns, traceRepository = d
           : state.busy ? <p role="status">Loading projects…</p>
             : <AccessState kind="unavailable"/>}
   </AppShell>)
+}
+
+// Durable source: every read needs a session. Nothing project-scoped renders or
+// reads until GET /auth/me names a user; account pages render at any time.
+function DurableApp(props) {
+  const { accountAdapter } = props
+  const route = useRoute()
+  const [session, setSession] = useState({ state: 'checking' })
+  const [revision, setRevision] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController(); let current = true
+    accountAdapter.readSession({ signal: controller.signal }).then(
+      result => { if (current) setSession(result.state === 'signed-in' ? result : { state: 'signed-out' }) },
+      error => { if (current && error?.name !== 'AbortError') setSession({ state: 'error' }) },
+    )
+    return () => { current = false; controller.abort() }
+  }, [accountAdapter, revision])
+  // A 401 on a data read lands on session-expired: the session is gone.
+  // (State adjusted during render when the route changes, not in an effect.)
+  const [seenAccountRoute, setSeenAccountRoute] = useState(route.account)
+  if (route.account !== seenAccountRoute) {
+    setSeenAccountRoute(route.account)
+    if (route.account === 'session-expired') setSession({ state: 'signed-out' })
+  }
+  const target = route.path + (route.search ? '?' + route.search : '')
+  useEffect(() => { if (session.state === 'signed-out' && !route.account) replaceHash(accountHref('login', target)) }, [session.state, route.account, target])
+  const setUser = useCallback(user => setSession({ state: 'signed-in', user }), [])
+  const signOut = useCallback(async () => {
+    // An already-ended session is signed out too; other failures reach the button.
+    try { await accountAdapter.signOut() } catch (error) { if (error?.kind !== 'expired') throw error }
+    setSession({ state: 'signed-out' })
+    replaceHash(accountHref('login', `/projects/${DURABLE_PROJECT}`))
+  }, [accountAdapter])
+  const user = session.state === 'signed-in' ? session.user : null
+  const account = useMemo(() => ({ user, adapter: accountAdapter, setUser, signOut }), [user, accountAdapter, setUser, signOut])
+  let content
+  if (route.account) content = <AccountPage key={route.path} route={route} adapter={accountAdapter} onSignedIn={setUser}/>
+  else if (user) content = <Workspace key={user.id} {...props}/>
+  else if (session.state === 'error') content = <div className="account-shell"><main className="account-main"><AccessState kind="session" retry={() => { setSession({ state: 'checking' }); setRevision(value => value + 1) }}/></main></div>
+  else content = <p className="session-check" role="status">{session.state === 'checking' ? 'Checking your session…' : 'Redirecting to sign in…'}</p>
+  return <AccountContext.Provider value={account}>{content}</AccountContext.Provider>
+}
+
+export default function App(props) {
+  // The adapter set is fixed for the page's lifetime, so the branch never flips.
+  return props.accountAdapter?.mode === 'durable' ? <DurableApp {...props}/> : <Workspace {...props}/>
 }

@@ -24,6 +24,18 @@ export function safeReturn(value) {
   return value.startsWith('/projects') && (route.projectId || route.projectsPage === 'list') ? value : '/projects'
 }
 export const accountHref = (page, target = '/projects') => `#/account/${page}?returnTo=${encodeURIComponent(safeReturn(target))}`
+// Replace the current history entry (no Back loop through a redirect).
+export function replaceHash(href) {
+  window.history.replaceState(null, '', href)
+  window.dispatchEvent(new HashChangeEvent('hashchange'))
+}
+// A data read got 401: the session is gone. Send the user to the session-expired
+// page with a way back to where they were. Account pages never redirect again.
+export function expireSession(hash = window.location.hash) {
+  const route = parseRoute(hash)
+  if (route.account) return
+  replaceHash(accountHref('session-expired', route.path + (route.search ? '?' + route.search : '')))
+}
 export function runsHref(projectId, search = '', runId = null) { return `#/projects/${encodeURIComponent(projectId)}/runs${runId ? '/' + encodeURIComponent(runId) : ''}${search ? '?' + search : ''}` }
 export function evidenceHref(projectId, runId, search = '') {
   return `${runsHref(projectId, '', runId)}/evidence${search ? '?' + search : ''}`

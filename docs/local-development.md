@@ -20,7 +20,7 @@ cd frontend
 npm.cmd run dev
 ```
 
-Open [Runs](http://127.0.0.1:5175/). There is no source flag or special Vite mode. The frontend uses the normal `/api` proxy and backend adapter.
+Open [Runs](http://127.0.0.1:5175/?source=local#/projects/local/runs). `?source=local` selects this profile; without it the UI uses the durable source below and asks you to sign in. The frontend uses the normal `/api` proxy and backend adapter.
 
 ## Execute an agent
 
@@ -88,7 +88,7 @@ Historical agent-integration verification artifacts were removed during reposito
 
 ## Durable pipeline (Kafka → ClickHouse)
 
-The durable path is `POST /api/v1/traces` (protocol "1") → Kafka `agentdbg.traces.v1` → trace writer → ClickHouse `telemetry.telemetry_spans` → `GET /api/v1/projects/default/runs…` → UI with `?source=durable`. `scripts/demo_durable.ps1` runs steps 1-4 and posts a sample trace for you.
+The durable path is `POST /api/v1/traces` (protocol "1") → Kafka `agentdbg.traces.v1` → trace writer → ClickHouse `telemetry.telemetry_spans` → `GET /api/v1/projects/default/runs…` → UI (the default source). `scripts/demo_durable.ps1` runs steps 1-4 and posts a sample trace for you.
 
 Accounts: each user has one project and one API key. Writes send `Authorization: Bearer <API key>`; the spans go into the key owner's project. Reads (`/api/v1/projects…`) need a login session (`POST /api/v1/auth/login`, cookie `adbg_session`) and only see the user's own project, called `default` in URLs. The first user ever created gets `DEFAULT_PROJECT_ID`, so traces written before accounts existed stay readable. Only hashes of passwords (argon2) and keys (SHA-256) are stored; a key is shown once, at creation and at `POST /api/v1/auth/key/rotate`.
 
@@ -100,7 +100,7 @@ Each PowerShell window keeps its own `$env:` variables, so set them in the windo
    docker compose up -d --wait        # postgres, kafka, clickhouse healthy; kafka-init creates the topics
    ```
 
-2. Database and a user, once. Add `SESSION_SECRET` to the repo-root `.env` first (the backend does not start without it; see `.env.example`). Then create the `users` table and a user; `create_user.py` prints the API key once on stdout (it reads the password from `CREATE_USER_PASSWORD`, or prompts):
+2. Database and a user, once. Add `SESSION_SECRET` (at least 32 characters) to the repo-root `.env` first (the backend does not start without it; see `.env.example`). Then create the `users` table and a user; `create_user.py` prints the API key once on stdout (it reads the password from `CREATE_USER_PASSWORD`, or prompts):
 
    ```powershell
    uv run --project backend --locked alembic -c backend/alembic.ini upgrade head
@@ -129,7 +129,7 @@ Each PowerShell window keeps its own `$env:` variables, so set them in the windo
    uv run --directory examples/rag_agent --locked python -m rag_agent run RAG-04
    ```
 
-6. UI, window 4: `cd frontend; npm.cmd run dev`, then open `http://127.0.0.1:5175/?source=durable#/projects/local/runs` (or start the dev server with `$env:VITE_DATA_SOURCE = 'durable'`). `?source=local` switches back. Read failures show as errors; there is no fallback to sample or local data. **Not working yet:** the frontend has no login and still requests the `local` project, so the durable source now gets 401 (no session) or 404 (`local`) until the frontend is updated.
+6. UI, window 4: `cd frontend; npm.cmd run dev`, then open `http://127.0.0.1:5175/`. Without a session it shows Sign in; Register creates an account and shows its API key once, with the two `.env` lines for step 5. Settings shows the account and key prefix and rotates the key (the old key stops working at once). The top bar has Sign out. A 401 on any read goes to "Session expired" with a link back. `?source=local` switches to the local profile. Read failures show as errors; there is no fallback to sample or local data.
 
 ### Services
 

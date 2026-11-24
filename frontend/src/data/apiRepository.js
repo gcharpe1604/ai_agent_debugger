@@ -1,15 +1,14 @@
 // Actual SDK captures from the normal backend. No seeded records or fallback.
 import { selectRuns } from './runRepository.js'
 import { createDurableAdapters } from './durableRepository.js'
+import { createAccountAdapter } from './accountRepository.js'
 
-// Which read API the UI uses. 'local' (default) is the in-memory local-1
-// profile; 'durable' reads ClickHouse through /api/v1/projects. The URL
-// (?source=durable) wins over the build setting (VITE_DATA_SOURCE=durable).
-// An unknown value falls back to local; a failed read never switches source.
-export function resolveSource(search = '', configured = undefined) {
-  const requested = new URLSearchParams(search).get('source')
-  if (requested === 'durable' || requested === 'local') return requested
-  return configured === 'durable' ? 'durable' : 'local'
+// Which read API the UI uses. 'durable' (default) reads ClickHouse through
+// /api/v1/projects and needs a signed-in session; '?source=local' selects the
+// in-memory local-1 profile. Any other value is durable; a failed read never
+// switches source.
+export function resolveSource(search = '') {
+  return new URLSearchParams(search).get('source') === 'local' ? 'local' : 'durable'
 }
 
 const elapsed = (end, start) => Number(BigInt(end) - BigInt(start)) / 1e6
@@ -54,8 +53,8 @@ function spanView(span, run) {
   }
 }
 
-export function createApiAdapters(fetcher = fetch, { source = 'local' } = {}) {
-  if (source === 'durable') return createDurableAdapters(fetcher)
+export function createApiAdapters(fetcher = fetch, { source = 'local', onUnauthorized } = {}) {
+  if (source === 'durable') return { ...createDurableAdapters(fetcher, { onUnauthorized }), accountAdapter: createAccountAdapter(fetcher) }
   let workspace
   const scope = projectId => { if (projectId !== workspace?.id) throw new Error('Captured workspace unavailable') }
   async function read(path, signal) {

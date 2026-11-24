@@ -1,9 +1,12 @@
-// Durable read API (GET /api/v1/projects/local/...): spans read from ClickHouse,
-// tree and structure flags reconstructed by the backend. Read failures are
-// thrown; nothing here substitutes sample or local-profile data.
+// Durable read API (GET /api/v1/projects/default/...): spans read from ClickHouse,
+// tree and structure flags reconstructed by the backend. Every read needs the
+// session cookie; a 401 calls onUnauthorized and throws kind 'expired'. Read
+// failures are thrown; nothing here substitutes sample or local-profile data.
 import { selectRuns } from './runRepository.js'
 
 const BASE = '/api/v1/projects'
+// The signed-in user's only project, as the read API names it.
+export const DURABLE_PROJECT = 'default'
 const PAGE = 200
 // The run list is filtered and sorted in the browser, so it is read in full,
 // newest first, up to this many runs. Beyond it the list says it is partial.
@@ -26,7 +29,7 @@ const captureReasons = {
 
 function runView(run) {
   return {
-    id: run.trace_id, traceId: run.trace_id, projectId: 'local',
+    id: run.trace_id, traceId: run.trace_id, projectId: DURABLE_PROJECT,
     name: run.name ?? NO_ROOT, startedAt: isoTime(run.start_time_unix_nano), service: run.service ?? 'Not recorded',
     // First span start to last span end: the root may be missing or may not be the last to end.
     durationMs: elapsed(run.end_time_unix_nano, run.start_time_unix_nano),
@@ -81,19 +84,23 @@ function recordedError(version) {
   return { error: message || undefined, errorType: type || undefined }
 }
 
-export function createDurableAdapters(fetcher = fetch) {
+export function createDurableAdapters(fetcher = fetch, { onUnauthorized } = {}) {
   let workspace
   const scope = projectId => { if (projectId !== workspace?.id) throw new Error('Captured workspace unavailable') }
   async function read(path, signal) {
-    const response = await fetcher(BASE + path, { signal, cache: 'no-store', headers: { Accept: 'application/json' } })
+    const response = await fetcher(BASE + path, { signal, cache: 'no-store', credentials: 'same-origin', headers: { Accept: 'application/json' } })
     if (response.ok) return response.json()
+    if (response.status === 401) {
+      onUnauthorized?.()
+      throw Object.assign(new Error('Your session has ended. Sign in again.'), { kind: 'expired' })
+    }
     throw new Error(
       response.status === 404 ? 'This trace or span is not in durable storage.'
         : response.status === 503 ? 'The trace store (ClickHouse) is unavailable, so nothing was read. Start it and retry. No sample data was substituted.'
           : 'Durable telemetry read failed. Check the backend on 127.0.0.1:8008 and retry. No sample data was substituted.')
   }
   async function readTraceBody(runId, signal) {
-    const body = await read(`/local/runs/${encodeURIComponent(runId)}`, signal)
+    const body = await read(`/${DURABLE_PROJECT}/runs/${encodeURIComponent(runId)}`, signal)
     if (body.run?.trace_id !== runId || !Array.isArray(body.spans) || !Array.isArray(body.tree?.nodes)) throw new Error('Captured trace identity mismatch')
     return body
   }
@@ -104,8 +111,8 @@ export function createDurableAdapters(fetcher = fetch) {
       const runs = []
       let cursor = null, partial
       do {
-        const page = await read(`/local/runs?limit=${PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal)
-        if (page.project !== 'local' || !Array.isArray(page.runs)) throw new Error('Unexpected telemetry response')
+        const page = await read(`/${DURABLE_PROJECT}/runs?limit=${PAGE}${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, signal)
+        if (page.project !== DURABLE_PROJECT || !Array.isArray(page.runs)) throw new Error('Unexpected telemetry response')
         runs.push(...page.runs)
         cursor = page.next_cursor
         partial = !!cursor && runs.length >= MAX_RUNS
@@ -130,7 +137,7 @@ export function createDurableAdapters(fetcher = fetch) {
     },
     async readSpan({ projectId, runId, spanId, signal }) {
       scope(projectId)
-      const body = await read(`/local/runs/${encodeURIComponent(runId)}/spans/${encodeURIComponent(spanId)}`, signal)
+      const body = await read(`/${DURABLE_PROJECT}/runs/${encodeURIComponent(runId)}/spans/${encodeURIComponent(spanId)}`, signal)
       if (body.span_id !== spanId || body.run?.trace_id !== runId || !body.versions?.length) throw new Error('Captured span identity mismatch')
       const version = body.versions[0]
       const node = { parent_span_id: body.parent_span_id, recorded_parent_span_id: body.recorded_parent_span_id, flags: body.flags, versions: body.versions }
@@ -154,13 +161,14 @@ export function createDurableAdapters(fetcher = fetch) {
   }
   return {
     repository, traceRepository,
-    // No authentication yet: the server names one project and grants nothing.
+    // One project per account. No create or rename: those functions are absent,
+    // so the project pages never offer them.
     projectAdapter: { mode: 'durable', async listProjects({ signal } = {}) {
       const body = await read('', signal)
-      const project = body.projects?.find(item => item.id === 'local')
-      if (!project || typeof project.name !== 'string' || project.storage !== 'clickhouse') throw new Error('Unexpected workspace response')
+      const project = Array.isArray(body) ? body.find(item => item?.id === DURABLE_PROJECT) : null
+      if (!project || typeof project.name !== 'string') throw new Error('Unexpected workspace response')
       // dataSource 'local' = real captured telemetry (not fixtures); storage says where it lives.
-      workspace = { id: 'local', name: project.name, initial: 'D', environment: 'SDK telemetry · ClickHouse storage', dataSource: 'local', storage: 'durable', retentionSeconds: null }
+      workspace = { id: DURABLE_PROJECT, name: project.name, initial: (project.name.trim()[0] || 'D').toLocaleUpperCase(), environment: 'SDK telemetry · ClickHouse storage', dataSource: 'local', storage: 'durable', retentionSeconds: null }
       return [workspace]
     } },
   }
