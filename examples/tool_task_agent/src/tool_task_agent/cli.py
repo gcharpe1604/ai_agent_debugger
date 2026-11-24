@@ -2,6 +2,8 @@ import argparse
 import json
 import sys
 
+from dotenv import find_dotenv, load_dotenv
+
 from .tools import ToolError
 
 
@@ -28,6 +30,10 @@ def _ask(request):
 
 
 def main(argv=None) -> int:
+    # First, before any TraceSession: the nearest .env (searched from the current
+    # directory up) fills AGENT_DEBUGGER_ENDPOINT, AGENT_DEBUGGER_API_KEY and the
+    # model settings. override=False: a variable already set in the shell wins.
+    load_dotenv(find_dotenv(usecwd=True), override=False, encoding="utf-8")
     parser = argparse.ArgumentParser(description="Tool-using task agent")
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("list", help="List selectable scenarios")

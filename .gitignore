@@ -54,3 +54,4 @@ build/
 # Local verification artifacts are not needed to run or build the application.
 /frontend/verification/
 /docs/claude
+/ojt_logbook
