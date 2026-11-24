@@ -229,10 +229,12 @@ describe('durable source in the app', () => {
     // The first error is selected on open, so the inspector shows the conflicted tool span.
     const note = await screen.findByRole('note', { name: 'Conflicting versions' })
     expect(within(note).getByText('2 conflicting versions received')).toBeTruthy()
-    expect(within(note).getAllByRole('listitem').map(item => item.textContent)).toEqual([
-      'aaaa1111bbbb · tool.search · ERROR · received 2026-10-21 12:00:01.000 UTC',
-      'dddd3333eeee · tool.search.v2 · OK · received 2026-10-21 12:00:02.000 UTC',
+    const versions = within(note).getAllByRole('listitem')
+    expect(versions.map(item => item.textContent)).toEqual([
+      expect.stringMatching(/^aaaa1111bbbb · tool\.search · ERROR · received \d{2} Oct, \d{2}:\d{2}:01$/),
+      expect.stringMatching(/^dddd3333eeee · tool\.search\.v2 · OK · received \d{2} Oct, \d{2}:\d{2}:02$/),
     ])
+    expect(versions.map(item => item.querySelector('time').getAttribute('title'))).toEqual(['2026-10-21T12:00:01.000000000Z', '2026-10-21T12:00:02.000000000Z'])
     expect(screen.getByText('no answer in 30 s')).toBeTruthy()
     expect(screen.getByText('refund policy')).toBeTruthy()
     expect(screen.queryByText('Sample data')).toBeNull()
@@ -253,7 +255,7 @@ describe('durable source in the app', () => {
     expect(headers).toEqual(['Timestamp↓', 'Name', 'Trace ID', 'Status', 'Latency', 'Spans', 'Errors'])
     const cells = row => within(row).getAllByRole('cell')
     expect(cells(failed).map(cell => cell.textContent).slice(2)).toEqual(['12345678', 'Failed', '250.0 ms', '3', '2'])
-    expect(cells(failed)[0].querySelector('time').getAttribute('title')).toBe('2026-10-21 12:00:00.000 UTC')
+    expect(cells(failed)[0].querySelector('time').getAttribute('title')).toBe('2026-10-21T12:00:00.000Z')
     expect(cells(failed)[0].textContent).toMatch(/^\d{2} Oct, \d{2}:\d{2}:\d{2}$/)
     const errors = row => row.querySelector('.error-count')
     expect(errors(failed).dataset.tone).toBe('error')

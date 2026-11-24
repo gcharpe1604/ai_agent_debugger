@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { runsHref, evidenceHref } from '../../app/routes.jsx'
-import { exactDuration, formatDuration, shortTimestamp, utcTimestamp } from '../../app/format.js'
+import { exactDuration, formatDuration } from '../../app/format.js'
+import Timestamp from '../../components/Timestamp.jsx'
 import { ERROR_SPANS_TOOLTIP, errorTone, formatCost, numericColumns, runColumns, unsortableColumns } from './runColumns.js'
 
 const columnClass = { startedAt: 'col-start', name: 'col-run', traceId: 'col-trace-id', outcome: 'col-status', durationMs: 'col-duration', spanCount: 'col-count', recordedErrorCount: 'col-count', model: 'col-model', totalTokens: 'col-tokens', costUsd: 'col-cost', completeness: 'col-capture', investigation: 'col-investigation' }
@@ -17,7 +18,7 @@ export default function RunTable({ items, projectId, search, query, onSort, busy
     catch { setCopyNotice(`Copy unavailable. Trace ID: ${run.traceId}`) }
   }
   const cells = {
-    startedAt: run => { const short = shortTimestamp(run.startedAt); return <td key="startedAt" className="tabular">{short ? <time dateTime={run.startedAt} title={utcTimestamp(run.startedAt)}>{short}</time> : 'Unknown'}</td> },
+    startedAt: run => <td key="startedAt" className="tabular"><Timestamp value={run.startedAt}/></td>,
     name: run => <td key="name"><div className="run-name-line">
       <a className="run-link" href={runsHref(projectId, search, run.id)} aria-label={`${run.name} ${run.id}`} title={`${run.name} · ${run.service}`}><span>{run.name}</span></a>
       {onPeek && <button type="button" className="row-peek row-hover-action" data-peek-id={run.id} aria-label={`Preview ${run.name} ${run.id}`} aria-pressed={peek === run.id} title="Preview trace" onClick={() => onPeek(run.id)}><Icon name="eye"/></button>}

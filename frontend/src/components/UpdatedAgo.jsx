@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { agoText } from '../app/format.js'
+import { agoText, formatTimestamp } from '../app/format.js'
 
 // Re-renders its own label every 10 s. It never reads data; Refresh does.
 export default function UpdatedAgo({ at }) {
@@ -10,5 +10,6 @@ export default function UpdatedAgo({ at }) {
     return () => clearInterval(timer)
   }, [at])
   if (!Number.isFinite(at)) return null
-  return <time className="updated-ago" dateTime={new Date(at).toISOString()} title={`Last read ${new Date(at).toLocaleString()}`}>{agoText(at, now)}</time>
+  const iso = new Date(at).toISOString()
+  return <time className="updated-ago" dateTime={iso} title={`Last read ${formatTimestamp(iso)} (${iso})`}>{agoText(at, now)}</time>
 }

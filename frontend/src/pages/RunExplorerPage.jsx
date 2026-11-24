@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import Select from '../components/ui/Select.jsx'
 import UpdatedAgo from '../components/UpdatedAgo.jsx'
 import RunTable from '../features/runs/RunTable.jsx'
 import RunToolbar from '../features/runs/RunToolbar.jsx'
@@ -109,7 +110,7 @@ export default function RunExplorerPage({ project, projects, route, repository, 
                 {result.projectTotal > 0 && <button className="button" onClick={() => replaceQuery(project.id, '')}>Reset query</button>}
               </div>}
           </RunTable>
-          <footer className="table-footer"><span>{result ? `${result.total} trace${result.total === 1 ? '' : 's'}${busy ? ' · Refreshing data' : ''}` : live ? 'Backend telemetry repository' : 'Trace data source'}</span><div className="pagination"><label htmlFor="page-size">Rows per page</label><select id="page-size" aria-label="Rows per page" value={query.pageSize} onChange={event => change({ pageSize: Number(event.target.value) })}>{[5, 10, 25, 50].map(size => <option key={size}>{size}</option>)}</select><span>{result ? `Page ${result.page} of ${totalPages}` : 'Page —'}</span><button className="button small" aria-label="Previous page" aria-disabled={!canPrevious} onClick={() => { if (canPrevious) change({ page: result.page - 1 }) }}>Previous</button><button className="button small" aria-label="Next page" aria-disabled={!canNext} onClick={() => { if (canNext) change({ page: result.page + 1 }) }}>Next</button></div></footer>
+          <footer className="table-footer"><span>{result ? `${result.total} trace${result.total === 1 ? '' : 's'}${busy ? ' · Refreshing data' : ''}` : live ? 'Backend telemetry repository' : 'Trace data source'}</span><div className="pagination"><span id="page-size-label">Rows per page</span><Select aria-labelledby="page-size-label" value={String(query.pageSize)} onValueChange={size => change({ pageSize: Number(size) })} options={[5, 10, 25, 50].map(size => ({ value: String(size), label: String(size) }))} align="end"/><span>{result ? `Page ${result.page} of ${totalPages}` : 'Page —'}</span><button className="button small" aria-label="Previous page" aria-disabled={!canPrevious} onClick={() => { if (canPrevious) change({ page: result.page - 1 }) }}>Previous</button><button className="button small" aria-label="Next page" aria-disabled={!canNext} onClick={() => { if (canNext) change({ page: result.page + 1 }) }}>Next</button></div></footer>
         </div>
         {peek && traceRepository && <TracePeek repository={traceRepository} projectId={project.id} runId={peek} listSearch={key} position={{ index: peekIndex, total: items.length }} previous={previous} next={next} close={closePeek} width={peekWidth} minWidth={PEEK_MIN} maxWidth={peekMax} resize={value => setPeekWidth(String(Math.max(PEEK_MIN, Math.min(peekMax, Math.round(value)))))} resetWidth={() => setPeekWidth('auto')}/>}
       </div>

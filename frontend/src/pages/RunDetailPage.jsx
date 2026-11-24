@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import Timestamp from '../components/Timestamp.jsx'
 import { runsHref, evidenceHref } from '../app/routes.jsx'
 import InvestigationControl from '../features/evidence/InvestigationControl.jsx'
 import { useTraceRead } from '../features/trace/useTraceRead.js'
@@ -42,7 +43,7 @@ export default function RunDetailPage({ repository, investigationRepository, rou
           </div>
           <div className="trace-metadata">
             <span className="trace-fact"><Icon name="clock"/><span>Duration</span><span className="tabular">{durationText(data.run.durationMs)}</span></span>
-            <span className="trace-fact"><span>Started</span><strong>{data.run.startedAt.replace('T', ' ').replace('Z', ' UTC')}</strong></span>
+            <span className="trace-fact"><span>Started</span><Timestamp value={data.run.startedAt}/></span>
             {live ? <span className="trace-loaded">{data.spans.length.toLocaleString('en')} {data.spans.length === 1 ? 'span' : 'spans'} received · completeness unknown</span>
               : <span className="badge" data-state={data.run.completeness}>Capture {data.run.completeness}</span>}
             {stats && <span className={stats.errors ? 'error-text' : undefined}>{stats.errors} error {stats.errors === 1 ? 'span' : 'spans'} · depth {stats.depth}</span>}

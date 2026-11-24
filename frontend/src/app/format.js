@@ -24,22 +24,31 @@ export function formatSpanDuration(ms) {
   return micros < 1 ? '<1 µs' : micros >= 1000 ? formatDuration(ms) : `${micros} µs`
 }
 
-// "2026-11-10 19:53:08.420 UTC" from a Unix-nanosecond string; null when unusable.
-export function wallClock(nanos) {
-  if (typeof nanos !== 'string' || !/^\d{1,20}$/.test(nanos)) return null
-  const date = new Date(Number(BigInt(nanos) / 1000000n))
-  return Number.isNaN(date.getTime()) ? null : date.toISOString().replace('T', ' ').replace('Z', ' UTC')
+// The one date format in the UI. A value is either a Unix-nanosecond string (span
+// timestamps) or an ISO 8601 string (run summaries). Unusable values give null.
+function parseTimestamp(value) {
+  if (typeof value === 'string' && /^\d{1,20}$/.test(value)) {
+    const nanos = BigInt(value)
+    const date = new Date(Number(nanos / 1000000n))
+    // Keep every recorded digit: ms from the Date, the remaining µs/ns appended.
+    return Number.isNaN(date.getTime()) ? null : { date, iso: date.toISOString().replace('Z', `${String(nanos % 1000000n).padStart(6, '0')}Z`) }
+  }
+  if (typeof value !== 'string' || !value) return null
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? null : { date, iso: date.toISOString() }
 }
 
-// Table timestamps: "24 Nov, 11:41:18" in the viewer's time zone (timeZone only
-// for tests), with the full UTC time for the title. null/'Unknown' when unusable.
-export function shortTimestamp(iso, timeZone) {
-  const date = new Date(iso)
-  if (typeof iso !== 'string' || Number.isNaN(date.getTime())) return null
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(date).map(part => [part.type, part.value]))
-  return `${parts.day} ${parts.month}, ${parts.hour}:${parts.minute}:${parts.second}`
+// "24 Nov, 11:41:18" (or "24 Nov, 11:41" without seconds) in the viewer's time
+// zone; timeZone is for tests only. null when the value is unusable.
+export function formatTimestamp(value, { withSeconds = true, timeZone } = {}) {
+  const parsed = parseTimestamp(value)
+  if (!parsed) return null
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', ...(withSeconds && { second: '2-digit' }), hourCycle: 'h23' }).formatToParts(parsed.date).map(part => [part.type, part.value]))
+  return `${parts.day} ${parts.month}, ${parts.hour}:${parts.minute}${withSeconds ? `:${parts.second}` : ''}`
 }
-export const utcTimestamp = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? 'Unknown' : `${date.toISOString().slice(0, 23).replace('T', ' ')} UTC` }
+
+// Full UTC ISO time for the title attribute, e.g. "2026-11-10T19:53:08.420125900Z".
+export const timestampTitle = value => parseTimestamp(value)?.iso ?? null
 
 // Freshness label for the last data read.
 export function agoText(then, now) {

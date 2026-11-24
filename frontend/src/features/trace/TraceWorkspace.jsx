@@ -9,6 +9,7 @@ import ExecutionTree from './ExecutionTree.jsx'
 import TraceToolbar from './TraceToolbar.jsx'
 import SpanInspector from './SpanInspector.jsx'
 import InspectorResize from './InspectorResize.jsx'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/Popover.jsx'
 import { buildTimingIndex, normalizeWindow } from './timelineModel.js'
 import TimelineControls from './TimelineControls.jsx'
 import { TimelineAxis } from './TimelineTrack.jsx'
@@ -82,6 +83,8 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
       // Its original event path still identifies an inspector-origin activation.
       if (event.composedPath().includes(inspectorRef.current) || inspectorRef.current?.contains(event.target)) return
       if (event.target.closest('[data-inspector-trigger]')) return
+      // Menus, selects and popovers render in a portal outside the inspector.
+      if (event.target.closest('.ui-layer')) return
       if (event.target.closest('a[href], #project')) return
       if (event.target.closest('[data-span-id]') && !event.target.closest('[data-disclosure]')) return
       close()
@@ -137,7 +140,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     if (panel && rect.width && rect.height && rect.right > panel.left && rect.left < panel.right && rect.bottom > panel.top && rect.top < panel.bottom) close()
   }
   return <div className="trace-workbench" data-mode={ui.open && span ? effectiveMode : 'explore'} data-view={ui.view} data-single={single} data-open={!!(ui.open && span)} data-show-ids={showIds} ref={root} style={{ '--inspector-width': `${width}px`, '--tree-gutter': `${explorerSize.gutter || 0}px`, '--trace-row-height': `${ROW_HEIGHT}px` }} onFocusCapture={exposeKeyboardFocus} onKeyDown={event => {
-    if (event.key === 'Escape' && !document.querySelector('.trace-menu[open]') && ui.open && effectiveMode !== 'pinned') { event.preventDefault(); close(); treeRef.current?.focus({ preventScroll: true }) }
+    if (event.key === 'Escape' && ui.open && effectiveMode !== 'pinned') { event.preventDefault(); close(); treeRef.current?.focus({ preventScroll: true }) }
     if (event.key === 'F6' && ui.open && span) { event.preventDefault(); if (single) close(); else if (inspectorRef.current?.contains(document.activeElement)) treeRef.current.focus({ preventScroll: true }); else inspectorRef.current.focus({ preventScroll: true }) }
   }}>
     <div className="trace-explorer">
@@ -146,7 +149,7 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
       {(!receivedOnly || view.filtered || ui.selected || ui.reveal) && <div className="trace-context">
         {!receivedOnly && <span className="trace-loaded">{total === null ? `${loaded} loaded` : `${loaded} / ${total.toLocaleString('en')} loaded`}</span>}
         {view.filtered && <span>{view.matches.length} {view.matches.length === 1 ? 'match' : 'matches'}{contextCount > 0 ? ` · ${contextCount} ${contextCount === 1 ? 'ancestor' : 'ancestors'}` : ''}</span>}
-        {span && <details className="trace-menu trace-path"><summary aria-label={`Selected operation path and full name: ${span.name}`}>Selected path</summary><div className="trace-popover">{[...ancestors(index, span.id), span].map(parent => <button key={parent.id} data-inspector-trigger className="text-button" onClick={() => jump(parent.id)} title={`${parent.name} · ${parent.id}`}>{operationLabel(parent)}</button>)}</div></details>}
+        {span && <Popover><PopoverTrigger><button type="button" className="text-button trace-path" data-inspector-trigger aria-label={`Selected operation path and full name: ${span.name}`}>Selected path</button></PopoverTrigger><PopoverContent className="trace-popover" align="start">{[...ancestors(index, span.id), span].map(parent => <button type="button" key={parent.id} data-inspector-trigger className="text-button" onClick={() => jump(parent.id)} title={`${parent.name} · ${parent.id}`}>{operationLabel(parent)}</button>)}</PopoverContent></Popover>}
         {selectionHidden && <button className="text-button" data-inspector-trigger onClick={() => jump(ui.selected)}>Reveal selected span</button>}
         {ui.selected && !span && <span>Selected span is not loaded.</span>}
         {ui.open && span && <button className="text-button" data-inspector-trigger onClick={() => inspectorRef.current?.focus({ preventScroll: true })}>Focus inspector</button>}

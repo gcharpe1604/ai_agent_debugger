@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import Timestamp from '../components/Timestamp.jsx'
 import UpdatedAgo from '../components/UpdatedAgo.jsx'
 import { runsHref } from '../app/routes.jsx'
 import { formatSpanDuration } from '../app/format.js'
@@ -15,7 +16,6 @@ import '../features/home/home.css'
 // keeps at most 100 traces, so one read covers it.
 const allTraces = { ...parseQuery(''), time: 'all', pageSize: 10000 }
 const durationLabel = value => value === null ? '—' : formatSpanDuration(value)
-const started = value => value ? value.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC') : 'Unknown'
 
 function Bar({ value, total, tone }) {
   const share = total ? Math.round((value / total) * 100) : 0
@@ -68,7 +68,7 @@ function Overview({ project, result }) {
           return <li key={run.id}>
             <a href={href}>{run.name}</a>
             <span className="error-text">{firstErrorText(run.firstError) || 'Failed'}</span>
-            <time className="secondary" dateTime={run.startedAt}>{started(run.startedAt)}</time>
+            <Timestamp className="secondary" value={run.startedAt}/>
           </li>
         })}
       </ul> : <p className="home-note">No failed traces.</p>}

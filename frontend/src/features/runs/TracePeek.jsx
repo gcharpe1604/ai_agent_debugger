@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
+import Timestamp from '../../components/Timestamp.jsx'
 import { runsHref } from '../../app/routes.jsx'
 import { exactDuration } from '../../app/format.js'
 import { useTraceRead } from '../trace/useTraceRead.js'
@@ -58,7 +59,7 @@ export default function TracePeek({ repository, projectId, runId, listSearch, po
         {!data ? <div className="peek-state" aria-busy={busy}>{busy ? <p role="status">Loading trace…</p> : <><p role="alert">{error}</p><button className="button small" onClick={retry}>Retry</button></>}</div> : <>
           <dl className="peek-facts">
             <div><dt>Duration</dt><dd className="tabular" title={exactDuration(run.durationMs)}>{durationText(run.durationMs)}</dd></div>
-            <div><dt>Started</dt><dd>{run.startedAt.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC')}</dd></div>
+            <div><dt>Started</dt><dd><Timestamp value={run.startedAt}/></dd></div>
             <div><dt>Trace ID</dt><dd><button type="button" className="trace-copy mono" onClick={copy} title={runId} aria-label="Copy trace ID">{runId.slice(0, 8)}…{runId.slice(-4)}<Icon name="copy"/></button></dd></div>
             {executionModeLabel(run.executionMode) && <div><dt>Mode</dt><dd>{executionModeLabel(run.executionMode)}</dd></div>}
             <div><dt>Spans</dt><dd>{stats.spans} received · depth {stats.depth}</dd></div>

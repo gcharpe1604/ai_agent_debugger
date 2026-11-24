@@ -2,7 +2,10 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import Icon from '../../components/Icon.jsx'
 import { useSpanRead } from './useTraceRead.js'
 import { durationText, statusText, typeLabel, operationLabel } from './treeModel.js'
-import { exactDuration, wallClock } from '../../app/format.js'
+import { exactDuration } from '../../app/format.js'
+import Timestamp from '../../components/Timestamp.jsx'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/Popover.jsx'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Tabs.jsx'
 import { flagLabels } from '../../data/durableRepository.js'
 import Payload, { JsonValue } from './Payload.jsx'
 import { hasCapturedValue } from './capture.js'
@@ -26,7 +29,7 @@ const metadataFields = [
 function SpanMetadata({ span, data, ui, patch, copy }) {
   const attributes = data.attributes || {}
   const idRow = (label, value) => value ? <div><dt>{label}</dt><dd><code>{value}</code><button className="trace-icon-button" aria-label={`Copy ${label.toLowerCase()}`} title={`Copy ${label.toLowerCase()}`} onClick={() => copy(value)}><Icon name="copy"/></button></dd></div> : null
-  const started = wallClock(attributes['otel.start_time_unix_nano']), ended = wallClock(attributes['otel.end_time_unix_nano'])
+  const started = attributes['otel.start_time_unix_nano'], ended = attributes['otel.end_time_unix_nano']
   const facts = metadataFields.flatMap(([key, label]) => {
     const value = attributes[key]
     return ['string', 'number', 'boolean'].includes(typeof value) && value !== '' ? [[label, String(value)]] : []
@@ -38,8 +41,8 @@ function SpanMetadata({ span, data, ui, patch, copy }) {
       <div><dt>Type</dt><dd>{typeLabel(span.type)}</dd></div>
       <div><dt>Status</dt><dd>{statusText(span.status)}</dd></div>
       <div><dt>Duration</dt><dd className="tabular" title={exactDuration(span.duration)}>{durationText(span.duration)}</dd></div>
-      {started && <div><dt>Started</dt><dd className="tabular">{started}</dd></div>}
-      {ended && <div><dt>Ended</dt><dd className="tabular">{ended}</dd></div>}
+      {typeof started === 'string' && <div><dt>Started</dt><dd><Timestamp value={started}/></dd></div>}
+      {typeof ended === 'string' && <div><dt>Ended</dt><dd><Timestamp value={ended}/></dd></div>}
       {facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       {idRow('Span ID', span.id)}
       {idRow('Parent span ID', span.recordedParentId === undefined ? span.parentId : span.recordedParentId)}
@@ -84,7 +87,7 @@ function SpanContent({ data, span, ui, patch, jump, jumpPayload }) {
       <div>
         <strong>{versions.length} conflicting versions received</strong>
         <p>The same span ID arrived with different content. Version 1 is shown below; none is treated as the correct one.</p>
-        <ol>{versions.map(version => <li key={version.contentHash}><code title={version.contentHash}>{version.contentHash.slice(0, 12)}</code> · {version.name} · {statusText(version.status)} · received {wallClock(version.receivedAt) ?? 'time not recorded'}</li>)}</ol>
+        <ol>{versions.map(version => <li key={version.contentHash}><code title={version.contentHash}>{version.contentHash.slice(0, 12)}</code> · {version.name} · {statusText(version.status)} · received <Timestamp value={version.receivedAt} fallback="time not recorded"/></li>)}</ol>
       </div>
     </div>}
     {structure.length > 0 && <div className="inspector-structure" role="note" aria-label="Structure flags"><Icon name="error"/><div><strong>{structure.map(flag => flagLabels[flag]).join(' · ')}</strong><p>{data.flags.includes('missing_parent') ? <>Recorded parent <code>{data.recordedParentId}</code> is not in this trace, so the span is shown at the top level. </> : null}{data.flags.includes('cycle') ? 'This span is part of a parent cycle. The cycle was cut at one span so the trace can be shown.' : null}</p></div></div>}
@@ -117,9 +120,9 @@ function SpanDetails({ span, data, copy }) {
   const end = inferredEnd && Number.isFinite(span.start) && Number.isFinite(span.duration) && span.duration >= 0 ? span.start + span.duration : span.end
   const startTime = data?.attributes?.['otel.start_time_unix_nano']
   const endTime = data?.attributes?.['otel.end_time_unix_nano']
-  return <details className="trace-menu">
-    <summary>Details</summary>
-    <div className="trace-popover identity-details">
+  return <Popover>
+    <PopoverTrigger><button type="button" className="text-button inspector-details-button">Details</button></PopoverTrigger>
+    <PopoverContent className="trace-popover identity-details" align="start">
       <dl>
         <dt>Operation</dt><dd>{span.name}</dd>
         <dt>Span ID</dt><dd><code>{span.id}</code><button className="trace-icon-button" aria-label="Copy span ID" onClick={() => copy(span.id)}><Icon name="copy"/></button></dd>
@@ -131,8 +134,8 @@ function SpanDetails({ span, data, copy }) {
         {typeof startTime === 'string' && <><dt>Start (Unix ns)</dt><dd><code>{startTime}</code></dd></>}
         {typeof endTime === 'string' && <><dt>End (Unix ns)</dt><dd><code>{endTime}</code></dd></>}
       </dl>
-    </div>
-  </details>
+    </PopoverContent>
+  </Popover>
 }
 
 export default function SpanInspector({ repository, projectId, runId, span, ui, patch, dispatch, mode, width, maxWidth, canPin, pin, close, back, resize, resetWidth, jump, inspectorRef }) {
@@ -175,22 +178,25 @@ export default function SpanInspector({ repository, projectId, runId, span, ui, 
       <div className="inspector-actions">
         {mode !== 'single' && <button className="trace-icon-button" aria-label="Back to execution" title="Back to execution" onClick={back}><Icon name="back"/></button>}
         {canPin && <button className="trace-icon-button" aria-label={ui.mode === 'pinned' ? 'Unpin span inspector' : 'Pin span inspector'} title={ui.mode === 'pinned' ? 'Unpin inspector' : 'Pin inspector'} aria-pressed={ui.mode === 'pinned'} onClick={pin}><Icon name="pin"/></button>}
-        <details className="trace-menu">
-          <summary className="trace-icon-button" aria-label="Inspector options" title="Inspector options">⋯</summary>
-          <div className="trace-popover">
+        <Popover>
+          <PopoverTrigger><button type="button" className="trace-icon-button" aria-label="Inspector options" title="Inspector options"><Icon name="more"/></button></PopoverTrigger>
+          <PopoverContent className="trace-popover">
             <strong>{mode === 'pinned' ? 'Pinned split' : mode === 'single' ? 'Single pane' : 'Overlay'} inspector</strong>
             {mode !== 'single' && <>
               <label>Inspector width<input aria-label="Inspector width" type="range" min="480" max={maxWidth} step="1" value={Math.round(width)} onChange={event => resize(Number(event.target.value))}/><span>{Math.round(width)} px · keyboard splitter steps 16 px</span></label>
               <button className="button small" onClick={resetWidth}>Reset inspector width</button>
             </>}
             <p>Only available captured values are displayed. Raw statuses and recorded relationships are preserved.</p>
-          </div>
-        </details>
+          </PopoverContent>
+        </Popover>
         <button className="trace-icon-button" aria-label="Close span inspector" title="Close inspector" onClick={close}><Icon name="close"/></button>
       </div>
     </header>
-    <div className="inspector-tabs" role="tablist" aria-label="Span detail sections">{tabs.map((tab, index) => <button key={tab} role="tab" id={`inspector-tab-${tab}`} aria-controls="inspector-panel" aria-selected={ui.tab === tab} tabIndex={ui.tab === tab ? 0 : -1} onClick={() => patch({ tab })} onKeyDown={event => { const next = { ArrowRight: (index + 1) % tabs.length, ArrowLeft: (index + tabs.length - 1) % tabs.length, Home: 0, End: tabs.length - 1 }[event.key]; if (next !== undefined) { event.preventDefault(); patch({ tab: tabs[next] }); event.currentTarget.parentElement.children[next].focus() } }}>{tabLabels[tab]}</button>)}</div>
-    <div className="inspector-body" role="tabpanel" id="inspector-panel" aria-labelledby={`inspector-tab-${ui.tab}`} aria-busy={busy} ref={body} onScroll={event => dispatch({ type: 'read-position', key: readingKey, top: event.currentTarget.scrollTop })}>{content()}</div>
+    <Tabs className="inspector-tabs-root" value={ui.tab} onValueChange={tab => patch({ tab })}>
+      <TabsList className="inspector-tabs" aria-label="Span detail sections">{tabs.map(tab => <TabsTrigger key={tab} value={tab}>{tabLabels[tab]}</TabsTrigger>)}</TabsList>
+      {/* One panel element for every tab, so the reading position logic keeps one scroll container. */}
+      <TabsContent value={ui.tab} className="inspector-body" aria-busy={busy} ref={body} onScroll={event => dispatch({ type: 'read-position', key: readingKey, top: event.currentTarget.scrollTop })}>{content()}</TabsContent>
+    </Tabs>
     <span className="sr-only" aria-live="polite">{copyNotice}</span>
   </section>
 }

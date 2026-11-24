@@ -3,6 +3,7 @@ import { render, screen, within, waitFor, fireEvent } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import App from '../../test/FixtureApp.jsx'
 import { traceRepository } from '../../data/traceRepository.js'
+import { chooseOption } from '../../test/ui.js'
 import { flushSync } from 'react-dom'
 
 beforeEach(() => window.history.replaceState(null, '', '/#/projects/agent-examples/runs/R-1040?search=order'))
@@ -52,7 +53,7 @@ describe('Trace Detail interactions', () => {
     const user = await open()
     await user.type(screen.getByRole('searchbox', { name: 'Search loaded spans' }), 'lookup-order')
     await user.click(screen.getByLabelText('Span filters'))
-    await user.selectOptions(screen.getByLabelText('Span status'), 'ERROR')
+    await chooseOption(user, 'Span status', 'ERROR')
     expect(row('order-status-lookup')).toBeTruthy()
     expect(row('support-agent')).toBeTruthy()
     expect(screen.queryByRole('treeitem', { name: /attempt 2/ })).toBeNull()
