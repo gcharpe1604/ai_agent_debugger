@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { agoText, exactDuration, formatDuration, formatSpanDuration, wallClock } from './format.js'
+import { agoText, exactDuration, formatDuration, formatSpanDuration, formatTimestamp, timestampTitle } from './format.js'
 
 describe('formatDuration boundaries', () => {
   it.each([
@@ -19,9 +19,13 @@ describe('formatDuration boundaries', () => {
     [0, '<1 ms'], [0.0004, '<1 µs'], [0.43, '430 µs'], [0.9996, '1.00 ms'], [1, '1.00 ms'], [6.13, '6.13 ms'], [-2, '-2.00 ms'], [NaN, 'Unavailable'],
   ])('span duration %s ms → %s', (value, text) => expect(formatSpanDuration(value)).toBe(text))
 
-  it('renders wall-clock times from nanosecond strings and rejects malformed values', () => {
-    expect(wallClock('1794340388420125900')).toBe('2026-11-10 19:53:08.420 UTC')
-    expect([wallClock('12a'), wallClock(17), wallClock(undefined)]).toEqual([null, null, null])
+  it('formats nanosecond and ISO times one way, in the viewer time zone, with the exact UTC time for titles', () => {
+    expect(formatTimestamp('1794340388420125900', { timeZone: 'UTC' })).toBe('10 Nov, 19:53:08')
+    expect(formatTimestamp('1794340388420125900', { timeZone: 'Asia/Kolkata' })).toBe('11 Nov, 01:23:08')
+    expect(formatTimestamp('2026-11-24T06:11:18.004Z', { timeZone: 'UTC', withSeconds: false })).toBe('24 Nov, 06:11')
+    expect(timestampTitle('1794340388420125900')).toBe('2026-11-10T19:53:08.420125900Z')
+    expect(timestampTitle('2026-11-24T06:11:18Z')).toBe('2026-11-24T06:11:18.000Z')
+    expect([formatTimestamp('12a'), formatTimestamp(17), formatTimestamp(undefined), formatTimestamp(''), timestampTitle('not a date')]).toEqual([null, null, null, null, null])
   })
   it('describes data freshness in coarse steps', () => {
     const t = 1_000_000

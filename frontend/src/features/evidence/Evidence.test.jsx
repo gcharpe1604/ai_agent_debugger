@@ -3,6 +3,7 @@ import { render, screen, within, waitFor, fireEvent } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import App from '../../test/FixtureApp.jsx'
 import { investigationRepository } from '../../data/investigationRepository.js'
+import { chooseOption } from '../../test/ui.js'
 
 const hash = (run = 'R-1042', query = '') => `#/projects/agent-examples/runs/${run}/evidence${query ? '?' + query : ''}`
 async function open(query = '', repository = investigationRepository, run = 'R-1042') {
@@ -83,7 +84,7 @@ describe('Evidence Focus', () => {
     window.history.replaceState(null, '', '/#/projects/sandbox/runs/R-2040/evidence')
     const user = userEvent.setup(); render(<App/>)
     expect(await screen.findByRole('heading', { name: 'Investigation pending' })).toBeTruthy()
-    await user.selectOptions(screen.getByLabelText('Project'), 'agent-examples')
+    await chooseOption(user, 'Project', 'Agent examples')
     await screen.findByRole('searchbox', { name: 'Search traces' })
     window.location.hash = '#/projects/sandbox/runs/R-2041/evidence'
     expect(await screen.findByRole('heading', { name: 'Investigation unavailable' })).toBeTruthy()

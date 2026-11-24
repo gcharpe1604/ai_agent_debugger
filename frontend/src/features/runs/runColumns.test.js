@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { errorTone, executionModeLabel, firstErrorText, firstErrorTitle, formatCost, ioPreview, runColumns } from './runColumns.js'
+import { errorTone, executionModeLabel, firstErrorText, firstErrorTitle, fitRunColumns, formatCost, ioPreview, runColumns } from './runColumns.js'
 
 const run = (completeness, investigation) => ({ completeness, investigation })
 const fields = items => runColumns(items).map(([field]) => field)
@@ -45,5 +45,19 @@ describe('first error and mode labels', () => {
   })
   it('shows Controlled/Live and nothing for null', () => {
     expect([executionModeLabel('controlled'), executionModeLabel('live'), executionModeLabel(null)]).toEqual(['Controlled', 'Live', null])
+  })
+})
+
+describe('fitting columns to the table width', () => {
+  const all = ['startedAt', 'name', 'traceId', 'outcome', 'durationMs', 'spanCount', 'recordedErrorCount']
+  it('keeps every column when they fit or the width is unknown', () => {
+    expect(fitRunColumns(all, 1200)).toEqual(all)
+    expect(fitRunColumns(all, 0)).toEqual(all)
+  })
+  it('drops Trace ID, then Spans, then Errors, keeping Timestamp, Name, Status and Latency', () => {
+    expect(fitRunColumns(all, 760)).toEqual(['startedAt', 'name', 'outcome', 'durationMs', 'spanCount', 'recordedErrorCount'])
+    expect(fitRunColumns(all, 650)).toEqual(['startedAt', 'name', 'outcome', 'durationMs', 'recordedErrorCount'])
+    expect(fitRunColumns(all, 560)).toEqual(['startedAt', 'name', 'outcome', 'durationMs'])
+    expect(fitRunColumns(all, 300)).toEqual(['startedAt', 'name', 'outcome', 'durationMs'])
   })
 })

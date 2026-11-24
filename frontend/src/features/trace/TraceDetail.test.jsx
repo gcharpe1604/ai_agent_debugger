@@ -3,6 +3,7 @@ import { render, screen, within, waitFor, fireEvent } from '@testing-library/rea
 import userEvent from '@testing-library/user-event'
 import App from '../../test/FixtureApp.jsx'
 import { traceRepository } from '../../data/traceRepository.js'
+import { chooseOption } from '../../test/ui.js'
 import { flushSync } from 'react-dom'
 
 beforeEach(() => window.history.replaceState(null, '', '/#/projects/agent-examples/runs/R-1040?search=order'))
@@ -36,8 +37,12 @@ describe('Trace Detail interactions', () => {
     expect(screen.queryByRole('region', { name: 'Span inspector' })).toBeNull()
     expect(row('classify-request').getAttribute('aria-selected')).toBe('true')
     await user.click(row('lookup-order · attempt 1'))
+    // The split inspector is not dismissed by clicks elsewhere; Close removes it.
     await user.click(screen.getByRole('heading', { name: 'Execution' }))
+    expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: 'Close span inspector' }))
     expect(screen.queryByRole('region', { name: 'Span inspector' })).toBeNull()
+    expect(window.location.hash).toContain('panel=closed')
   })
   it('keeps retry inspection open when its clicked button is removed before document bubbling', async () => {
     const user = await open(); await failed(user)
@@ -46,13 +51,14 @@ describe('Trace Detail interactions', () => {
     await user.click(screen.getByRole('button', { name: /Open recorded retry/ }))
     expect(document.querySelector('.trace-row.selected').getAttribute('data-span-id')).toBe('a9e5d27100000007')
     expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
-    expect(window.location.hash).toContain('panel=overlay')
+    expect(window.location.hash).toContain('span=a9e5d27100000007')
+    expect(window.location.hash).not.toContain('panel=')
   })
   it('retains matching ancestors, expands context and reveals selection with Restore filters', async () => {
     const user = await open()
     await user.type(screen.getByRole('searchbox', { name: 'Search loaded spans' }), 'lookup-order')
     await user.click(screen.getByLabelText('Span filters'))
-    await user.selectOptions(screen.getByLabelText('Span status'), 'ERROR')
+    await chooseOption(user, 'Span status', 'ERROR')
     expect(row('order-status-lookup')).toBeTruthy()
     expect(row('support-agent')).toBeTruthy()
     expect(screen.queryByRole('treeitem', { name: /attempt 2/ })).toBeNull()
@@ -66,35 +72,44 @@ describe('Trace Detail interactions', () => {
     expect(window.location.hash).toContain('spanSearch=lookup-order')
     await user.click(screen.getByRole('button', { name: 'Reveal selected span' }))
     expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Focus inspector' }))
+    // Selected path and Focus inspector sit in the tree toolbar.
+    const selection = screen.getByRole('group', { name: 'Selected span' })
+    await user.click(within(selection).getByRole('button', { name: 'Focus inspector' }))
     expect(document.activeElement).toBe(screen.getByRole('region', { name: 'Span inspector' }))
+    await user.click(within(selection).getByRole('button', { name: /^Selected path/ }))
+    const ancestors = await screen.findByRole('list', { name: 'Ancestors of the selected span' })
+    const names = within(ancestors).getAllByRole('button').map(button => button.textContent)
+    expect(names.at(-1)).toBe('lookup-order · attempt 2')
+    expect(names).toContain('order-status-lookup')
   })
-  it('pins, resizes with keys/range, unpins and remembers explicit layout preference', async () => {
+  it('resizes the split with arrow keys, never past the tree and inspector minimums, and keeps the width for the session', async () => {
     const user = await open(); await failed(user)
-    await user.click(screen.getByRole('button', { name: 'Pin span inspector' }))
+    // jsdom measures the workbench as 1208 px: inspector 360..787 (tree keeps 420, divider 1).
     const separator = screen.getByRole('separator', { name: 'Resize span inspector' })
+    expect(separator.getAttribute('aria-valuenow')).toBe('507')
     separator.focus(); await user.keyboard('{Home}')
-    expect(separator.getAttribute('aria-valuenow')).toBe('480')
-    await user.keyboard('{ArrowLeft}')
-    expect(separator.getAttribute('aria-valuenow')).toBe('496')
-    await user.click(screen.getByRole('button', { name: 'Unpin span inspector' }))
-    // The overlay floats over the tree and keeps a drag handle on its left edge.
-    // Using the handle does not dismiss the overlay, and it can widen past the
-    // pinned limit (workbench 1208 px in jsdom, minus a 160 px strip of tree).
-    const overlayHandle = screen.getByRole('separator', { name: 'Resize span inspector' })
-    await user.click(overlayHandle)
-    expect(screen.getByRole('region', { name: 'Span inspector' })).toBeTruthy()
-    overlayHandle.focus(); await user.keyboard('{End}')
-    expect(overlayHandle.getAttribute('aria-valuenow')).toBe('1048')
-    await user.click(screen.getByLabelText('Inspector options'))
-    fireEvent.change(screen.getByLabelText('Inspector width'), { target: { value: '560' } })
-    expect(localStorage.getItem('agent-debugger.frontend.v1.inspector.width')).toBe('560')
+    expect(separator.getAttribute('aria-valuenow')).toBe('360')
+    await user.keyboard('{ArrowRight}')
+    expect(separator.getAttribute('aria-valuenow')).toBe('360')
+    await user.keyboard('{ArrowLeft}{ArrowLeft}')
+    expect(separator.getAttribute('aria-valuenow')).toBe('392')
+    await user.keyboard('{End}{ArrowLeft}')
+    expect(separator.getAttribute('aria-valuenow')).toBe('787')
+    await user.keyboard('{ArrowRight}')
+    expect(separator.getAttribute('aria-valuenow')).toBe('771')
+    await user.click(screen.getByRole('button', { name: 'Close span inspector' }))
+    await user.click(row('classify-request'))
+    expect(screen.getByRole('separator', { name: 'Resize span inspector' }).getAttribute('aria-valuenow')).toBe('771')
+    // Kept in memory for this page only, never in localStorage.
+    expect(Object.keys(localStorage).some(key => key.includes('width'))).toBe(false)
+    screen.getByRole('separator', { name: 'Resize span inspector' }).focus(); await user.keyboard('{Enter}')
+    expect(screen.getByRole('separator', { name: 'Resize span inspector' }).getAttribute('aria-valuenow')).toBe('507')
   })
   it('renders exact payload values, raw statuses and capture markers', async () => {
     window.history.replaceState(null, '', '/#/projects/sandbox/runs/R-2040')
     const user = await open()
     await user.click(row('prepare-request'))
-    await screen.findByText('false'); expect(screen.getByText('0', { selector: '.payload-value' })).toBeTruthy()
+    await screen.findByText('false'); expect(screen.getByText('0', { selector: '.json-number' })).toBeTruthy()
     expect(within(screen.getByRole('region', { name: 'Span inspector' }).querySelector('.inspector-meta')).getAllByText('UNSET').length).toBeGreaterThan(0)
     await user.click(row('lookup-catalog-entry'))
     await screen.findByText('Redacted'); expect(screen.getByText('Truncated')).toBeTruthy()
@@ -124,11 +139,12 @@ describe('Trace Detail interactions', () => {
     await screen.findByText('refund_request')
     release({ name: 'old span', input: { secret: 'STALE_PAYLOAD' }, output: {} })
     await waitFor(() => expect(screen.queryByText('STALE_PAYLOAD')).toBeNull())
+    expect(screen.queryByRole('tab', { name: /Errors/ })).toBeNull()
     await user.click(screen.getByRole('tab', { name: 'Metadata' }))
     await screen.findByText('service.name')
     await user.click(row('lookup-order · attempt 1'))
-    await user.click(screen.getByRole('tab', { name: 'Errors' }))
-    await screen.findByText('Order service did not respond within 1,200 ms.')
+    await user.click(await screen.findByRole('tab', { name: 'Errors1' }))
+    expect(await screen.findByText('Order service did not respond within 1,200 ms.', { selector: '.error-detail' })).toBeTruthy()
   })
   it('windows large fixtures and preserves the loaded anchor when loading more structure', async () => {
     window.history.replaceState(null, '', '/#/projects/agent-examples/runs/R-8100')
@@ -176,14 +192,12 @@ describe('Trace Detail interactions', () => {
     expect(screen.getByRole('tab', { name: 'Metadata' }).getAttribute('aria-selected')).toBe('true')
     expect(window.location.hash).toContain('search=order')
   })
-  it('keeps payload reading position and selection when pinning or unpinning', async () => {
+  it('keeps payload reading position and selection when switching tabs', async () => {
     const user = await open(); await failed(user)
     const body = screen.getByRole('tabpanel')
     body.scrollTop = 160; fireEvent.scroll(body)
-    await user.click(screen.getByRole('button', { name: 'Pin span inspector' }))
-    expect(screen.getByRole('tabpanel')).toBe(body)
-    expect(body.scrollTop).toBe(160)
-    await user.click(screen.getByRole('button', { name: 'Unpin span inspector' }))
+    await user.click(screen.getByRole('tab', { name: 'Metadata' }))
+    await user.click(screen.getByRole('tab', { name: 'Input / Output' }))
     expect(screen.getByRole('tabpanel')).toBe(body)
     expect(body.scrollTop).toBe(160)
     expect(row('lookup-order · attempt 1').getAttribute('aria-selected')).toBe('true')
@@ -202,7 +216,6 @@ describe('Trace Detail interactions', () => {
     const repository = { ...traceRepository, readTrace: vi.fn().mockImplementationOnce(traceRepository.readTrace).mockRejectedValueOnce(new Error('Fixture structure read failed')).mockImplementation(traceRepository.readTrace) }
     const user = await open(repository)
     await user.click(screen.getAllByRole('treeitem')[0])
-    await user.click(screen.getByRole('button', { name: 'Pin span inspector' }))
     await user.click(screen.getByRole('button', { name: 'Load 420 more local spans' }))
     await screen.findByText(/Fixture structure read failed/)
     expect(screen.getByText('840 / 2,100 loaded')).toBeTruthy()

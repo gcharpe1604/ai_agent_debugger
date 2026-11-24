@@ -25,3 +25,6 @@ export function traceStats(spans, index = buildIndex(spans)) {
   }
   return { spans: spans.length, errors, depth, byType: types.filter(type => byType[type]).map(type => [type, byType[type]]) }
 }
+
+// The fixed order of the trace header's stat line.
+export const TRACE_FACTS = ['started', 'duration', 'spans', 'errors', 'depth']

@@ -1,32 +1,35 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react'
-import { usePreference } from '../../app/preferences.js'
 import { parseRoute } from '../../app/routes.jsx'
-import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount, operationLabel, executionPath } from './treeModel.js'
-import ExecutionPath from './ExecutionPath.jsx'
+import { useSessionValue } from '../../app/sessionMemory.js'
+import { ROW_HEIGHT, ancestors, buildIndex, restoreAnchor, visibleTree, knownCount, operationLabel } from './treeModel.js'
 import { autoSelectedSpan, initialTraceState, traceReducer } from './traceState.js'
 import { useElementSize } from './useElementSize.js'
 import ExecutionTree from './ExecutionTree.jsx'
 import TraceToolbar from './TraceToolbar.jsx'
 import SpanInspector from './SpanInspector.jsx'
-import InspectorResize from './InspectorResize.jsx'
+import SplitDivider from '../../components/ui/SplitDivider.jsx'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/Popover.jsx'
 import { buildTimingIndex, normalizeWindow } from './timelineModel.js'
 import TimelineControls from './TimelineControls.jsx'
 import { TimelineAxis } from './TimelineTrack.jsx'
+import { INSPECTOR_MIN_WIDTH, TREE_MIN_WIDTH, treeColumns, treeGridTemplate } from './treeColumns.js'
 import './timeline.css'
 
-const MIN_WIDTH = 480
-const widthValues = ['auto', ...Array.from({ length: 1921 }, (_, index) => String(MIN_WIDTH + index))]
+const DIVIDER = 1
+const columnLabels = { name: 'Name', id: 'Span ID', start: 'Start', type: 'Type', duration: 'Duration' }
+
+// Tree (left) and span inspector (right) side by side with a draggable divider.
+// The inspector width is kept for this browser session only. When the two
+// minimum widths do not fit, the inspector replaces the tree (single pane).
 export default function TraceWorkspace({ data, route, repository, cache, loadMore, busy, error, retryRead, receivedOnly = false }) {
   const scope = `${route.projectId}/${route.runId}`
-  const [modePreference, setModePreference] = usePreference('inspector.mode', ['overlay', 'pinned'], 'overlay')
-  const [widthPreference, setWidthPreference] = usePreference('inspector.width', widthValues, 'auto')
+  const [widthPreference, setWidthPreference] = useSessionValue('trace.inspector.width', null)
   const index = useMemo(() => buildIndex(data.spans), [data.spans])
-  const path = useMemo(() => executionPath(index), [index])
   const timing = useMemo(() => buildTimingIndex(data.spans, data.run.durationMs), [data.spans, data.run.durationMs])
   const total = knownCount(data.knownCount)
   const [ui, dispatch] = useReducer(traceReducer, null, () => {
     const cached = cache.get(scope)
-    const state = initialTraceState(route.search, cached, modePreference)
+    const state = initialTraceState(route.search, cached)
     const firstError = autoSelectedSpan(route.search, cached, data.run)
     if (firstError && index.byId.has(firstError)) Object.assign(state, { selected: firstError, active: firstError, open: new URLSearchParams(route.search).get('panel') !== 'closed' })
     if (state.selected && state.selected !== cached?.selected) {
@@ -40,23 +43,24 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   const root = useRef(null), treeRef = useRef(null), inspectorRef = useRef(null)
   const returnFocus = useRef(false)
   const size = useElementSize(root)
-  const single = size.width < 928
-  const effectiveMode = single ? 'single' : ui.mode
-  // The overlay floats over the execution view and may be dragged wide, keeping
-  // a strip of the tree visible. Pinned keeps room for the execution columns.
-  const executionReserve = ui.mode === 'pinned' ? 530 : 160
-  const maxWidth = Math.max(MIN_WIDTH, Math.floor(size.width - executionReserve))
-  const width = single ? size.width : Math.min(maxWidth, Math.max(MIN_WIDTH, widthPreference === 'auto' ? Math.min(640, size.width / 2) : Number(widthPreference)))
+  const single = size.width < TREE_MIN_WIDTH + INSPECTOR_MIN_WIDTH + DIVIDER
+  const maxWidth = Math.max(INSPECTOR_MIN_WIDTH, Math.floor(size.width - TREE_MIN_WIDTH - DIVIDER))
+  const width = single ? size.width : Math.min(maxWidth, Math.max(INSPECTOR_MIN_WIDTH, widthPreference ?? Math.min(560, Math.round(size.width * 0.42))))
   const expanded = useMemo(() => { const collapsed = new Set(ui.collapsed); return new Set(data.spans.filter(span => !collapsed.has(span.id)).map(span => span.id)) }, [data.spans, ui.collapsed])
   const view = useMemo(() => visibleTree(index, expanded, { search: ui.search, type: ui.type, status: ui.status }), [index, expanded, ui.search, ui.type, ui.status])
   const contextCount = view.rows.filter(row => row.context).length
   const loaded = data.spans.length.toLocaleString('en')
   const span = index.byId.get(ui.selected)
+  const open = !!(ui.open && span)
+  const path = useMemo(() => span ? ancestors(index, span.id) : [], [index, span])
+  const pathIds = useMemo(() => new Set(path.map(parent => parent.id)), [path])
   const explorerSize = useElementSize(treeRef)
+  // Columns follow the tree pane's own width, so the split never hides Duration.
+  const treeWidth = open && !single ? Math.min(explorerSize.width, size.width - width - DIVIDER) : explorerSize.width
+  const columns = treeColumns(treeWidth, { showIds: !!ui.showIds })
   const top = ui.anchor ? restoreAnchor(view.rows, ui.anchor, index) : ui.scrollTop
   const selectedPosition = view.rows.findIndex(row => row.id === ui.selected)
   const selectionHidden = !!span && (selectedPosition < 0 || selectedPosition * ROW_HEIGHT < top || (selectedPosition + 1) * ROW_HEIGHT > top + explorerSize.height)
-  const showIds = ui.view !== 'timeline' && !!ui.showIds && explorerSize.width >= 840
   const timeWindow = ui.timeWindow ? normalizeWindow(ui.timeWindow, timing.navigationExtent) : { start: timing.extent.start, end: timing.extent.end }
   useEffect(() => { cache.set(scope, { ...ui, limit: data.spans.length }) }, [cache, scope, ui, data.spans.length])
   const writeUrl = useCallback(values => {
@@ -75,21 +79,6 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     // The narrow explorer becomes focusable only after the inspector is removed.
     if (!ui.open && returnFocus.current) { treeRef.current?.focus({ preventScroll: true }); returnFocus.current = false }
   }, [ui.open])
-  useEffect(() => {
-    if (!ui.open || effectiveMode !== 'overlay') return
-    function outside(event) {
-      // React may replace the clicked payload control before this event bubbles.
-      // Its original event path still identifies an inspector-origin activation.
-      if (event.composedPath().includes(inspectorRef.current) || inspectorRef.current?.contains(event.target)) return
-      if (event.target.closest('[data-inspector-trigger]')) return
-      if (event.target.closest('a[href], #project')) return
-      if (event.target.closest('[data-span-id]') && !event.target.closest('[data-disclosure]')) return
-      close()
-    }
-    // Dismiss after the activated control's click, before removing adjacent actions.
-    document.addEventListener('click', outside)
-    return () => document.removeEventListener('click', outside)
-  }, [ui.open, effectiveMode, close])
   useEffect(() => { if (single && ui.open && span) inspectorRef.current?.focus({ preventScroll: true }) }, [single, ui.open, span])
   function filter(value) {
     dispatch({ type: 'filter', value })
@@ -98,23 +87,19 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
   }
   function select(id) {
     patch({ selected: id, active: id, open: true, notice: '' })
-    writeUrl({ span: id, panel: ui.mode })
+    writeUrl({ span: id, panel: '' })
   }
   function jump(id) {
     if (!index.byId.has(id)) { patch({ pending: id, notice: `Span ${id} is not in loaded structure.${total === null ? ' Total structure size is unknown; lookup covers loaded spans only.' : data.spans.length < total ? ' Load more local spans to continue.' : ' It is unavailable in the received trace.'}` }); return }
-    const path = ancestors(index, id).map(parent => parent.id)
+    const parents = ancestors(index, id).map(parent => parent.id)
     const currentVisible = view.rows.some(row => row.id === id)
     const reveal = !currentVisible && view.filtered ? { search: ui.search, type: ui.type, status: ui.status } : ui.reveal
-    patch({ selected: id, active: id, open: true, collapsed: ui.collapsed.filter(value => !path.includes(value)), anchor: { id, offset: 0 }, reveal, ...(reveal ? { search: '', type: '', status: '' } : {}), pending: null, notice: '' })
-    writeUrl({ span: id, panel: ui.mode, ...(reveal ? { spanSearch: '', spanType: '', spanStatus: '' } : {}) })
+    patch({ selected: id, active: id, open: true, collapsed: ui.collapsed.filter(value => !parents.includes(value)), anchor: { id, offset: 0 }, reveal, ...(reveal ? { search: '', type: '', status: '' } : {}), pending: null, notice: '' })
+    writeUrl({ span: id, panel: '', ...(reveal ? { spanSearch: '', spanType: '', spanStatus: '' } : {}) })
   }
-  function pin() {
-    const mode = ui.mode === 'pinned' ? 'overlay' : 'pinned'
-    setModePreference(mode); patch({ mode }); writeUrl({ panel: mode })
-  }
-  function resize(value) { setWidthPreference(String(Math.max(MIN_WIDTH, Math.min(maxWidth, Math.round(value))))) }
-  function switchView(view) { patch({ view }); writeUrl({ view }) }
-  function timeWindowChange(timeWindow) { patch({ timeWindow }); writeUrl({ from: timeWindow ? String(timeWindow.start) : '', to: timeWindow ? String(timeWindow.end) : '' }) }
+  function resize(value) { setWidthPreference(Math.max(INSPECTOR_MIN_WIDTH, Math.min(maxWidth, Math.round(value)))) }
+  function switchView(next) { patch({ view: next }); writeUrl({ view: next }) }
+  function timeWindowChange(next) { patch({ timeWindow: next }); writeUrl({ from: next ? String(next.start) : '', to: next ? String(next.end) : '' }) }
   function matchingOperation(direction) {
     const position = view.matches.indexOf(ui.selected)
     const next = position < 0 ? (direction > 0 ? 0 : view.matches.length - 1) : (position + direction + view.matches.length) % view.matches.length
@@ -128,39 +113,36 @@ export default function TraceWorkspace({ data, route, repository, cache, loadMor
     }
     dispatch({ type: 'toggle', id })
   }
-  function exposeKeyboardFocus(event) {
-    // Compact chrome normally fits to the overlay's visible left. If a focus
-    // target/popover is still occluded, expose it by dismissing, never trap it.
-    const target = event.target
-    if (!ui.open || effectiveMode !== 'overlay' || target === treeRef.current || !treeRef.current?.parentElement.contains(target)) return
-    const panel = inspectorRef.current?.getBoundingClientRect(), rect = target.getBoundingClientRect()
-    if (panel && rect.width && rect.height && rect.right > panel.left && rect.left < panel.right && rect.bottom > panel.top && rect.top < panel.bottom) close()
-  }
-  return <div className="trace-workbench" data-mode={ui.open && span ? effectiveMode : 'explore'} data-view={ui.view} data-single={single} data-open={!!(ui.open && span)} data-show-ids={showIds} ref={root} style={{ '--inspector-width': `${width}px`, '--tree-gutter': `${explorerSize.gutter || 0}px`, '--trace-row-height': `${ROW_HEIGHT}px` }} onFocusCapture={exposeKeyboardFocus} onKeyDown={event => {
-    if (event.key === 'Escape' && !document.querySelector('.trace-menu[open]') && ui.open && effectiveMode !== 'pinned') { event.preventDefault(); close(); treeRef.current?.focus({ preventScroll: true }) }
-    if (event.key === 'F6' && ui.open && span) { event.preventDefault(); if (single) close(); else if (inspectorRef.current?.contains(document.activeElement)) treeRef.current.focus({ preventScroll: true }); else inspectorRef.current.focus({ preventScroll: true }) }
+  // "Selected path" lists the selection's ancestors; "Focus inspector" moves focus there.
+  const selection = span && <div className="segmented selection-tools" role="group" aria-label="Selected span">
+    <Popover><PopoverTrigger><button type="button" aria-label={`Selected path: ${span.name}`}>Selected path</button></PopoverTrigger><PopoverContent className="trace-popover path-popover" align="end">
+      <ol aria-label="Ancestors of the selected span">{[...path, span].map(parent => <li key={parent.id}><button type="button" className="text-button" aria-current={parent.id === span.id ? 'true' : undefined} onClick={() => jump(parent.id)} title={`${parent.name} · ${parent.id}`}>{operationLabel(parent)}</button></li>)}</ol>
+    </PopoverContent></Popover>
+    {open && <button type="button" onClick={() => inspectorRef.current?.focus({ preventScroll: true })}>Focus inspector</button>}
+  </div>
+  return <div className="trace-workbench" data-mode={open ? single ? 'single' : 'split' : 'explore'} data-view={ui.view} data-open={open} ref={root} style={{ '--inspector-width': `${width}px`, '--tree-gutter': `${explorerSize.gutter || 0}px`, '--trace-row-height': `${ROW_HEIGHT}px`, '--tree-grid': treeGridTemplate(columns, treeWidth) }} onKeyDown={event => {
+    if (event.defaultPrevented) return
+    if (event.key === 'Escape' && ui.open) { event.preventDefault(); close(); treeRef.current?.focus({ preventScroll: true }) }
+    if (event.key === 'F6' && open) { event.preventDefault(); if (single) close(); else if (inspectorRef.current?.contains(document.activeElement)) treeRef.current.focus({ preventScroll: true }); else inspectorRef.current.focus({ preventScroll: true }) }
   }}>
     <div className="trace-explorer">
-      <ExecutionPath path={path} selected={ui.selected} select={jump}/>
-      <TraceToolbar ui={ui} filter={filter} patch={patch} index={index} jump={jump} projectId={route.projectId} search={route.search} wide={ui.view !== 'timeline' && explorerSize.width >= 840} switchView={switchView} timing={timing} timeWindowChange={timeWindowChange}/>
-      {(!receivedOnly || view.filtered || ui.selected || ui.reveal) && <div className="trace-context">
+      <TraceToolbar ui={ui} filter={filter} patch={patch} index={index} jump={jump} wide={ui.view !== 'timeline' && treeWidth >= 840} switchView={switchView} timing={timing} timeWindowChange={timeWindowChange}>{selection}</TraceToolbar>
+      {(!receivedOnly || view.filtered || selectionHidden || ui.reveal || (ui.selected && !span)) && <div className="trace-context">
         {!receivedOnly && <span className="trace-loaded">{total === null ? `${loaded} loaded` : `${loaded} / ${total.toLocaleString('en')} loaded`}</span>}
         {view.filtered && <span>{view.matches.length} {view.matches.length === 1 ? 'match' : 'matches'}{contextCount > 0 ? ` · ${contextCount} ${contextCount === 1 ? 'ancestor' : 'ancestors'}` : ''}</span>}
-        {span && <details className="trace-menu trace-path"><summary aria-label={`Selected operation path and full name: ${span.name}`}>Selected path</summary><div className="trace-popover">{[...ancestors(index, span.id), span].map(parent => <button key={parent.id} data-inspector-trigger className="text-button" onClick={() => jump(parent.id)} title={`${parent.name} · ${parent.id}`}>{operationLabel(parent)}</button>)}</div></details>}
-        {selectionHidden && <button className="text-button" data-inspector-trigger onClick={() => jump(ui.selected)}>Reveal selected span</button>}
+        {selectionHidden && <button className="text-button" onClick={() => jump(ui.selected)}>Reveal selected span</button>}
         {ui.selected && !span && <span>Selected span is not loaded.</span>}
-        {ui.open && span && <button className="text-button" data-inspector-trigger onClick={() => inspectorRef.current?.focus({ preventScroll: true })}>Focus inspector</button>}
-        {view.filtered && view.matches.length > 0 && <div className="trace-match-navigation" data-inspector-trigger><button className="trace-icon-button" aria-label="Previous matching span" onClick={() => matchingOperation(-1)}>↑</button><button className="trace-icon-button" aria-label="Next matching span" onClick={() => matchingOperation(1)}>↓</button></div>}
+        {view.filtered && view.matches.length > 0 && <div className="trace-match-navigation"><button className="trace-icon-button" aria-label="Previous matching span" onClick={() => matchingOperation(-1)}>↑</button><button className="trace-icon-button" aria-label="Next matching span" onClick={() => matchingOperation(1)}>↓</button></div>}
         {ui.reveal && <><span>Filters temporarily relaxed</span><button className="text-button" onClick={() => { const previous = ui.reveal; patch({ ...previous, reveal: null, anchor: null, scrollTop: 0 }); writeUrl({ spanSearch: previous.search, spanType: previous.type, spanStatus: previous.status }) }}>Restore filters</button></>}
       </div>}
       {ui.notice && <div className="trace-notice" role="status">{ui.notice}{ui.pending && index.byId.has(ui.pending) && <button className="text-button" onClick={() => jump(ui.pending)}>Open loaded requested span</button>}</div>}
       {error && <div className="trace-notice error-text" role="alert">{error} · Previously loaded structure remains visible.<button className="text-button" onClick={retryRead}>Retry structure read</button></div>}
       {ui.view === 'timeline' && <TimelineControls timing={timing} window={timeWindow} selected={timing.byId.get(ui.selected)} change={timeWindowChange}/>}
-      {ui.view === 'timeline' ? <TimelineAxis window={timeWindow} available={timing.extent.available}/> : <div className="trace-columns trace-grid"><span>Operation</span>{showIds && <span className="trace-id-cell">Span ID</span>}<span className="trace-start-cell">Start offset</span><span className="trace-type-cell">Type</span><span>Status</span><span className="trace-duration">Duration</span></div>}
-      <ExecutionTree index={index} rows={view.rows} ui={{ ...ui, scrollTop: top }} treeRef={treeRef} select={select} patch={patch} toggle={toggleBranch} filtered={view.filtered} showIds={showIds} timing={timing} timeWindow={timeWindow} receivedOnly={receivedOnly}/>
+      {ui.view === 'timeline' ? <TimelineAxis window={timeWindow} available={timing.extent.available}/> : <div className="trace-columns trace-grid">{columns.map(column => <span key={column} className={`trace-${column}-cell`}>{columnLabels[column]}</span>)}</div>}
+      <ExecutionTree index={index} rows={view.rows} ui={{ ...ui, scrollTop: top }} treeRef={treeRef} select={select} patch={patch} toggle={toggleBranch} filtered={view.filtered} columns={columns} pathIds={pathIds} timing={timing} timeWindow={timeWindow} receivedOnly={receivedOnly}/>
       <footer className="trace-footer"><span>{view.rows.filter(row => row.span).length.toLocaleString('en')} operations in hierarchy view{busy ? ' · Loading structure…' : ''}</span>{total !== null && data.spans.length < total && <button className="text-button" disabled={busy} onClick={() => loadMore(Math.min(total, data.spans.length + 420))}>Load {Math.min(420, total - data.spans.length)} more local spans</button>}</footer>
     </div>
-    {ui.open && span && effectiveMode !== 'single' && <InspectorResize width={width} min={MIN_WIDTH} max={maxWidth} resize={resize} reset={() => setWidthPreference('auto')}/>}
-    {ui.open && span && <SpanInspector repository={repository} projectId={route.projectId} runId={route.runId} span={span} ui={ui} patch={patch} dispatch={dispatch} mode={effectiveMode} width={width} maxWidth={maxWidth} canPin={!single} pin={pin} close={close} back={() => single ? close() : treeRef.current?.focus({ preventScroll: true })} resize={resize} resetWidth={() => setWidthPreference('auto')} jump={jump} inspectorRef={inspectorRef}/>}
+    {open && !single && <SplitDivider value={width} min={INSPECTOR_MIN_WIDTH} max={maxWidth} onChange={resize} onReset={() => setWidthPreference(null)} label="Resize span inspector" controls="span-inspector"/>}
+    {open && <SpanInspector repository={repository} projectId={route.projectId} runId={route.runId} span={span} path={path} ui={ui} patch={patch} dispatch={dispatch} single={single} close={close} back={() => single ? close() : treeRef.current?.focus({ preventScroll: true })} jump={jump} inspectorRef={inspectorRef}/>}
   </div>
 }

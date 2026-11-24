@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { ROW_HEIGHT, buildIndex, visibleTree, windowRows, restoreAnchor, statusText, executionPath } from './treeModel.js'
+import { ROW_HEIGHT, buildIndex, visibleTree, windowRows, restoreAnchor, statusText } from './treeModel.js'
 
 const spans = [
   { id: 'root', parentId: null, name: 'Run', type: 'run', status: 'OK', duration: 1000 },
@@ -51,35 +51,6 @@ describe('connector guides', () => {
   it('computes last among filtered rows, not hidden siblings', () => {
     const rows = visibleTree(buildIndex(spans), new Set(), { search: 'attempt 1', type: '', status: '' }).rows
     expect(rows.find(r => r.id === 'a1').last).toBe(true)
-  })
-})
-describe('execution path', () => {
-  const graph = [
-    { id: 'r', parentId: null, name: 'langgraph-workflow-agent', type: 'run', status: 'OK', start: 0 },
-    { id: 'w', parentId: 'r', name: 'WorkflowAgent.run', type: 'agent', status: 'OK', start: 1 },
-    { id: 'c', parentId: 'w', name: 'node.classify', type: 'custom', status: 'OK', start: 2 },
-    { id: 'rc', parentId: 'w', name: 'route.classify', type: 'custom', status: 'OK', start: 3 },
-    { id: 'g1', parentId: 'w', name: 'node.gather_context', type: 'custom', status: 'OK', start: 4 },
-    { id: 'tool', parentId: 'g1', name: 'LocalDependencies.gather', type: 'tool', status: 'OK', start: 4 },
-    { id: 'g2', parentId: 'w', name: 'node.gather_context', type: 'custom', status: 'ERROR', start: 6 },
-  ]
-  it('follows single-child wrappers and lists steps in start order with decisions and repeats', () => {
-    const { steps, hidden } = executionPath(buildIndex([...graph].reverse()))
-    expect(steps.map(s => [s.label, s.decision, s.repeat, s.error])).toEqual([
-      ['classify', false, false, false], ['classify', true, false, false], ['gather_context', false, false, false], ['gather_context', false, true, true],
-    ])
-    expect(hidden).toBe(0)
-  })
-  it('returns no path for a trace without a branching operation', () => {
-    expect(executionPath(buildIndex(graph.slice(0, 3))).steps).toEqual([])
-    expect(executionPath(buildIndex([...graph, { id: 'r2', parentId: null, name: 'x', start: 0 }])).steps).toEqual([])
-  })
-  it('keeps received order for steps that share a start time', () => {
-    const tied = graph.map(span => span.parentId === 'w' ? { ...span, start: 2 } : span)
-    expect(executionPath(buildIndex(tied)).steps.map(s => s.id)).toEqual(['c', 'rc', 'g1', 'g2'])
-  })
-  it('caps long paths', () => {
-    expect(executionPath(buildIndex(graph), 2)).toMatchObject({ hidden: 2 })
   })
 })
 describe('bounded row rendering and anchors', () => {

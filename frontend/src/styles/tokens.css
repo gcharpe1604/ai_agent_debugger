@@ -1,0 +1,126 @@
+/* Design tokens. Imported before every other stylesheet; components use these
+   names only, never raw colours, font sizes or spacing values. */
+:root {
+  color-scheme: light;
+
+  /* Type: Inter for the UI, JetBrains Mono only for IDs, code and JSON. */
+  --font-sans: "Inter Variable", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Cascadia Code", Consolas, monospace;
+  --text-xs: 12px;   /* meta */
+  --text-sm: 13px;   /* tables, controls */
+  --text-base: 14px; /* body */
+  --text-lg: 16px;   /* section */
+  --text-xl: 20px;   /* page title */
+  --leading: 1.4;
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+
+  /* 4 px spacing scale. */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --radius-control: 6px;
+  --radius-card: 8px;
+  --control-height: 32px;
+  --topbar-height: 48px;
+  --sidebar-width: 240px;
+  --sidebar-collapsed: 48px;
+
+  /* Colour: neutral surfaces after the Langfuse Cloud theme. */
+  --color-bg: #fff;
+  --color-surface: #fff;
+  --color-sidebar: hsl(0 0% 98.5%);
+  --color-subtle: hsl(240 4.8% 95.9%);
+  --color-hover: hsl(240 4.8% 95.9%);
+  --color-selected: hsl(240 5.2% 93.5%);
+  --color-nav-selected: hsl(240 5.2% 93.5%);
+  --color-text: hsl(240 3.7% 15.9%);
+  --color-text-secondary: hsl(240 5.3% 26.1%);
+  --color-muted: hsl(240 3.8% 46.1%);
+  --color-border: hsl(240 5.9% 90%);
+  --color-border-strong: hsl(240 5.9% 90%);
+  --color-accent: hsl(240 5.9% 10%);
+  --color-accent-hover: hsl(240 5.3% 26.1%);
+  --color-on-accent: hsl(0 0% 98%);
+  --color-focus: hsl(240 5.9% 10%);
+  --color-success: #116549;
+  --color-success-surface: #e8f6ef;
+  --color-danger: #b42318;
+  --color-danger-surface: #fef3f2;
+  --color-danger-border: #fda29b;
+  --color-warning: #824700;
+  --color-warning-surface: #fff4dd;
+  --shadow-lift: 0 1px 2px #00000008, 0 4px 14px #00000006;
+  --shadow-popover: 0 8px 24px #0000001f;
+
+  /* One colour per span type: tree icons, timeline bars, the path strip. */
+  --type-run: #475467;
+  --type-agent: #6d28d9;
+  --type-model: #1d4ed8;
+  --type-tool: #b45309;
+  --type-retrieval: #0f766e;
+  --type-api: #0369a1;
+  --type-state: #4b5563;
+  --type-custom: #be185d;
+  /* Status dots keep the deeper light-mode colours in both themes. */
+  --dot-ok: #16855a;
+  --dot-error: #c0392b;
+  --dot-warning: #b7791f;
+  --scrollbar-thumb: hsl(240 5% 78%);
+  /* Tree connector guides: a border-strength grey at about 60 %. */
+  --color-guide: hsl(240 4% 46% / .35);
+  /* JSON viewer values. */
+  --json-string: #067d17;
+  --json-number: #1d4ed8;
+  --json-boolean: #9a3412;
+  --json-null: hsl(240 3.8% 46.1%);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-bg: hsl(0 0% 5.5%);
+  --color-surface: hsl(0 0% 5.5%);
+  --color-sidebar: hsl(0 0% 4%);
+  --color-subtle: hsl(0 0% 10%);
+  --color-hover: hsl(0 0% 10%);
+  --color-selected: hsl(0 0% 14.5%);
+  --color-nav-selected: hsl(0 0% 12.5%);
+  --color-text: hsl(0 0% 94%);
+  --color-text-secondary: hsl(0 0% 70%);
+  --color-muted: hsl(0 0% 52%);
+  --color-border: hsl(0 0% 14.5%);
+  --color-border-strong: hsl(0 0% 20%);
+  --color-accent: hsl(0 0% 90%);
+  --color-accent-hover: hsl(0 0% 98%);
+  --color-on-accent: hsl(0 0% 3.5%);
+  --color-focus: hsl(0 0% 90%);
+  --color-success: #93dec1;
+  --color-success-surface: #17352f;
+  --color-danger: #fca5a5;
+  --color-danger-surface: #2c1b1b;
+  --color-danger-border: #69404e;
+  --color-warning: #f5c779;
+  --color-warning-surface: #332614;
+  --shadow-lift: 0 1px 2px #0005, 0 4px 14px #0002;
+  --shadow-popover: 0 8px 24px #0006;
+  --type-run: #98a2b3;
+  --type-agent: #8b5cf6;
+  --type-model: #3b82f6;
+  --type-tool: #d97706;
+  --type-retrieval: #0d9488;
+  --type-api: #0284c7;
+  --type-state: #94a3b8;
+  --type-custom: #db2777;
+  --color-guide: hsl(0 0% 60% / .32);
+  --scrollbar-thumb: hsl(0 0% 30%);
+  --json-string: #a5d6a7;
+  --json-number: #93c5fd;
+  --json-boolean: #fdba74;
+  --json-null: hsl(0 0% 58%);
+}

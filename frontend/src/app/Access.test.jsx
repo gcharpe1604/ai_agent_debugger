@@ -3,6 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../test/FixtureApp.jsx'
 import { fixtureRepository } from '../test/fixtureRepository.js'
+import { chooseOption, selectedOption } from '../test/ui.js'
 
 const at = path => window.history.replaceState(null, '', '/#' + path)
 
@@ -122,7 +123,7 @@ describe('Milestone 4A access and projects', () => {
     await user.type(screen.getByLabelText('Project name'), 'Research lab')
     await user.click(screen.getByRole('button', { name: 'Create project' }))
     await screen.findByRole('heading', { name: 'No traces yet' })
-    expect(screen.getByLabelText('Project').selectedOptions[0].textContent).toBe('Research lab')
+    expect(selectedOption('Project')).toBe('Research lab')
     expect(screen.queryByText('Sample data')).toBeNull()
     expect(localStorage.getItem('projects')).toBeNull()
   })
@@ -135,7 +136,7 @@ describe('Milestone 4A access and projects', () => {
     expect(await screen.findByRole('status')).toHaveProperty('textContent', expect.stringContaining('Saved'))
     window.location.hash = '/projects/agent-examples/runs/R-1042?span=compose&view=timeline'
     await screen.findByRole('tree', { name: 'Execution spans' })
-    await user.selectOptions(screen.getByLabelText('Project'), 'sandbox')
+    await chooseOption(user, 'Project', 'Sandbox')
     await screen.findByRole('link', { name: 'sandbox-policy-check R-2042' })
     expect(window.location.hash).toBe('#/projects/sandbox/runs')
     expect(screen.queryByRole('tree')).toBeNull()

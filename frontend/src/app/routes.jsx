@@ -9,6 +9,8 @@ export function parseRoute(hash) {
   if (path === '/projects' || path === '/projects/new') return { projectsPage: path.endsWith('/new') ? 'new' : 'list', projectId: null, runId: null, search, path }
   const settings = /^\/projects\/([a-z0-9-]+)\/settings$/.exec(path)
   if (settings) return { settings: true, projectId: settings[1], runId: null, search, path }
+  const profile = /^\/projects\/([a-z0-9-]+)\/profile$/.exec(path)
+  if (profile) return { profile: true, projectId: profile[1], runId: null, search, path }
   // Project home. The former /setup page now lives on Home; old links still land there.
   const home = /^\/projects\/([a-z0-9-]+)(?:\/(?:home|setup))?$/.exec(path)
   if (home && home[1] !== 'new') return { home: true, projectId: home[1], runId: null, search, path }
@@ -16,6 +18,7 @@ export function parseRoute(hash) {
   return match ? { projectId: match[1], runId: match[2] || null, evidence: !!match[3], search, path } : { projectId: null, runId: null, search: '', path }
 }
 export const settingsHref = id => `#/projects/${encodeURIComponent(id)}/settings`
+export const profileHref = id => `#/projects/${encodeURIComponent(id)}/profile`
 export const homeHref = id => `#/projects/${encodeURIComponent(id)}`
 // Navigation allowlist only. A return target never proves session validity or access.
 export function safeReturn(value) {

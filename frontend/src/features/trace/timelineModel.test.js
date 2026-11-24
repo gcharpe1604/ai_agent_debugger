@@ -54,8 +54,8 @@ describe('Recorded interval and shared timeline scale', () => {
   })
   it('restores validated view/window deep links and excludes timing query from Runs navigation', () => {
     const query = 'search=order&view=timeline&from=100&to=500&span=abc'
-    expect(initialTraceState(query, null, 'overlay')).toMatchObject({ view: 'timeline', timeWindow: { start: 100, end: 500 } })
+    expect(initialTraceState(query, null)).toMatchObject({ view: 'timeline', timeWindow: { start: 100, end: 500 } })
     expect(returnQuery(query)).toBe('search=order')
-    expect(initialTraceState('view=garbage&from=bad&to=0', null, 'overlay')).toMatchObject({ view: 'tree', timeWindow: null })
+    expect(initialTraceState('view=garbage&from=bad&to=0', null)).toMatchObject({ view: 'tree', timeWindow: null })
   })
 })

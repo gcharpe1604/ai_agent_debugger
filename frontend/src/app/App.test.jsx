@@ -3,6 +3,17 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../test/FixtureApp.jsx'
 import { fixtureRepository } from '../test/fixtureRepository.js'
+import { chooseOption } from '../test/ui.js'
+
+async function theme(user, choice) {
+  await user.click(screen.getByRole('button', { name: /^Account menu/ }))
+  const group = within(await screen.findByRole('group', { name: 'Appearance' }))
+  if (choice) await user.click(group.getByRole('menuitemradio', { name: choice }))
+  const checked = group.getAllByRole('menuitemradio').find(item => item.getAttribute('aria-checked') === 'true').textContent
+  await user.keyboard('{Escape}')
+  await waitFor(() => expect(screen.queryByRole('menu')).toBeNull())
+  return checked
+}
 
 async function open(repository = fixtureRepository) {
   const user = userEvent.setup()
@@ -16,7 +27,7 @@ describe('Milestone 1 Run Explorer', () => {
     const sort = screen.getByRole('button', { name: 'Sort by latency' })
     await user.click(sort)
     await waitFor(() => expect(document.activeElement).toBe(sort))
-    await user.selectOptions(screen.getByLabelText('Rows per page'), '5')
+    await chooseOption(user, 'Rows per page', '5')
     const next = screen.getByRole('button', { name: 'Next page' })
     await user.click(next)
     await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(3))
@@ -52,12 +63,12 @@ describe('Milestone 1 Run Explorer', () => {
     expect(screen.getByRole('link', { name: 'inventory-availability-check R-1038' })).toBeTruthy()
     await user.click(screen.getByRole('button', { name: 'Clear filters' }))
     await screen.findByRole('link', { name: 'refund-policy-review R-1042' })
-    await user.selectOptions(screen.getByLabelText('Execution outcome'), 'Failed')
+    await chooseOption(user, 'Execution outcome', 'Failed')
     await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(1))
   })
   it('sorts and paginates the actual table', async () => {
     const user = await open()
-    await user.selectOptions(screen.getByLabelText('Rows per page'), '5')
+    await chooseOption(user, 'Rows per page', '5')
     await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(5))
     await user.click(screen.getByRole('button', { name: 'Next page' }))
     await screen.findByRole('link', { name: 'field-station-research-brief R-1036' })
@@ -67,10 +78,10 @@ describe('Milestone 1 Run Explorer', () => {
   })
   it('changes projects without cross-project data and presents a first-use empty state', async () => {
     const user = await open()
-    await user.selectOptions(screen.getByLabelText('Project'), 'sandbox')
+    await chooseOption(user, 'Project', 'Sandbox')
     await screen.findByRole('link', { name: 'sandbox-policy-check R-2042' })
     expect(screen.queryByRole('link', { name: /R-1042/ })).toBeNull()
-    await user.selectOptions(screen.getByLabelText('Project'), 'new-integration')
+    await chooseOption(user, 'Project', 'New integration')
     await screen.findByRole('heading', { name: 'No traces yet' })
   })
   it('opens a scoped trace and restores the Runs query on return', async () => {
@@ -84,11 +95,11 @@ describe('Milestone 1 Run Explorer', () => {
   })
   it('persists appearance and sidebar choices across remounts', async () => {
     const user = userEvent.setup(); const { unmount } = render(<App />)
-    await user.selectOptions(screen.getByLabelText('Appearance'), 'dark')
+    expect(await theme(user, 'Dark')).toBe('Dark')
     await user.click(screen.getByRole('button', { name: 'Collapse sidebar' }))
     expect(document.documentElement.dataset.theme).toBe('dark')
     unmount(); render(<App />)
-    expect(screen.getByLabelText('Appearance').value).toBe('dark')
+    expect(await theme(user)).toBe('Dark')
     expect(screen.getByRole('button', { name: 'Expand sidebar' }).getAttribute('aria-expanded')).toBe('false')
   })
   it('follows system appearance changes while respecting an explicit override', async () => {
@@ -96,10 +107,10 @@ describe('Milestone 1 Run Explorer', () => {
     const listeners = new Set()
     window.matchMedia.mockImplementation(() => ({ get matches() { return dark }, addEventListener(_, listener) { listeners.add(listener) }, removeEventListener(_, listener) { listeners.delete(listener) } }))
     const user = await open()
-    expect(screen.getByLabelText('Appearance').value).toBe('system')
+    expect(await theme(user)).toBe('System')
     dark = true; listeners.forEach(listener => listener())
     await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'))
-    await user.selectOptions(screen.getByLabelText('Appearance'), 'light')
+    await theme(user, 'Light')
     dark = false; listeners.forEach(listener => listener())
     dark = true; listeners.forEach(listener => listener())
     expect(document.documentElement.dataset.theme).toBe('light')
@@ -108,7 +119,7 @@ describe('Milestone 1 Run Explorer', () => {
     let release
     const repository = { ...fixtureRepository, listRuns: ({ projectId, ...request }) => projectId === 'agent-examples' ? new Promise(resolve => { release = resolve }) : fixtureRepository.listRuns({ projectId, ...request }) }
     const user = userEvent.setup(); render(<App repository={repository} />)
-    await user.selectOptions(screen.getByLabelText('Project'), 'sandbox')
+    await chooseOption(user, 'Project', 'Sandbox')
     await screen.findByRole('link', { name: 'sandbox-policy-check R-2042' })
     release({ items: [{ id: 'R-9000', name: 'wrong project' }], total: 1, page: 1, pageSize: 25 })
     await waitFor(() => expect(screen.queryByText('wrong project')).toBeNull())
