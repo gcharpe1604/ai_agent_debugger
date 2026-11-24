@@ -283,15 +283,20 @@
 .json-more:hover { color: var(--color-text); }
 /* Formatted payloads (ReadableView): a field/value table in the UI font. Open
    objects and lists drop below their field name, indented on a guide line. */
-.readable-view { padding: var(--space-1) var(--space-3) var(--space-2); font-size: var(--text-sm); line-height: 1.5; }
-.readable-fields { display: grid; grid-template-columns: minmax(88px, 28%) minmax(0, 1fr); column-gap: var(--space-3); margin: 0; }
-.readable-row { display: contents; }
-.readable-row > dt, .readable-row > dd { min-width: 0; padding: 6px 0; border-top: 1px solid var(--color-border); overflow-wrap: anywhere; }
-.readable-row:first-child > dt, .readable-row:first-child > dd { border-top: 0; }
-.readable-row > dt { color: var(--color-text-secondary); font-size: var(--text-xs); line-height: 20px; }
+.readable-view { padding: var(--space-2) var(--space-3) var(--space-3); font-size: var(--text-sm); line-height: 1.5; }
+/* A bordered two-column table: shaded field names on the left, values on the
+   right. */
+.readable-fields { margin: 0; border: 1px solid var(--color-border); border-radius: var(--radius-control); overflow: hidden; }
+.readable-row { display: grid; grid-template-columns: minmax(96px, 30%) minmax(0, 1fr); border-top: 1px solid var(--color-border); }
+.readable-row:first-child { border-top: 0; }
+.readable-row > dt, .readable-row > dd { min-width: 0; padding: 6px var(--space-3); overflow-wrap: anywhere; }
+.readable-row > dt { border-right: 1px solid var(--color-border); background: var(--color-subtle); color: var(--color-text-secondary); font-size: var(--text-xs); line-height: 20px; }
 .readable-row > dd { margin: 0; white-space: pre-wrap; }
-.readable-branch[data-open] > dt { grid-column: 1 / -1; }
-.readable-branch[data-open] > dd { grid-column: 1 / -1; margin-left: 7px; padding: 0 0 var(--space-1) var(--space-3); border-top: 0; border-left: 1px solid var(--color-guide); }
+/* An open object or list: its name spans the row, and its own table sits
+   below it, indented, so deep values keep the full width. */
+.readable-branch[data-open] { grid-template-columns: minmax(0, 1fr); }
+.readable-branch[data-open] > dt { border-right: 0; border-bottom: 1px solid var(--color-border); }
+.readable-branch[data-open] > dd { padding: var(--space-2) var(--space-2) var(--space-2) var(--space-5); }
 .readable-toggle { display: inline-flex; align-items: center; gap: var(--space-1); max-width: 100%; margin-left: -2px; padding: 0 var(--space-1) 0 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
 .readable-toggle:hover { color: var(--color-text); }
 .readable-toggle .icon { flex: none; width: 12px; height: 12px; transition: transform .1s; }
