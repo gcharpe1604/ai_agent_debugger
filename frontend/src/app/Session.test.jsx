@@ -71,8 +71,15 @@ describe('durable session gate', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }))
     expect(await screen.findByRole('heading', { name: 'No traces yet' })).toBeTruthy()
     expect(window.location.hash).toBe('#/projects/default/runs')
-    expect(screen.getByText('Ada Lovelace', { selector: '.topbar-user' })).toBeTruthy()
-    await user.click(screen.getByRole('button', { name: 'Sign out' }))
+    // The user, appearance and Sign out live in the sidebar footer menu, not the top bar.
+    const topbar = within(document.querySelector('.topbar'))
+    expect(topbar.queryByText('Ada Lovelace')).toBeNull()
+    expect(topbar.queryByRole('button', { name: 'Sign out' })).toBeNull()
+    await user.click(screen.getByLabelText('Account menu: Ada Lovelace'))
+    const menu = within(document.querySelector('.user-menu-popover'))
+    expect(menu.getByText(ADA.email)).toBeTruthy()
+    expect(menu.getByLabelText('Appearance')).toBeTruthy()
+    await user.click(menu.getByRole('button', { name: 'Sign out' }))
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy()
     expect(window.location.hash).toBe('#/account/login?returnTo=%2Fprojects%2Fdefault')
     expect(calls(fetcher)).toContain('POST /api/v1/auth/logout')
@@ -126,7 +133,7 @@ describe('registration', () => {
     expect(await screen.findByRole('heading', { name: 'No traces yet' })).toBeTruthy()
     expect(window.location.hash).toBe('#/projects/default/runs')
     expect(screen.queryByText(KEY_1)).toBeNull()
-    expect(screen.getByText('Ada Lovelace', { selector: '.topbar-user' })).toBeTruthy()
+    expect(screen.getByLabelText('Account menu: Ada Lovelace')).toBeTruthy()
   })
 
   it.each([
@@ -181,14 +188,30 @@ describe('settings', () => {
     expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0)
   })
 
-  it('hides project create and rename in durable mode', async () => {
-    const { user } = start('/projects', { signedIn: true })
-    expect(await screen.findByRole('list', { name: 'Available projects' })).toBeTruthy()
-    expect(screen.queryByRole('link', { name: 'Create project' })).toBeNull()
-    expect(screen.queryByRole('link', { name: /Settings for/ })).toBeNull()
+  it('has no Projects nav or Projects page in durable mode: project URLs go to Home', async () => {
+    start('/projects', { signedIn: true })
+    expect(await screen.findByRole('heading', { name: 'Home' })).toBeTruthy()
+    expect(window.location.hash).toBe('#/projects/default')
+    const sidebar = within(screen.getByRole('complementary', { name: 'Project navigation' }))
+    expect(sidebar.getByRole('link', { name: 'Tracing' })).toBeTruthy()
+    expect(sidebar.queryByRole('link', { name: 'Projects' })).toBeNull()
+    expect(screen.queryByRole('list', { name: 'Available projects' })).toBeNull()
     window.location.hash = '#/projects/new'
-    expect(await screen.findByRole('heading', { name: 'Project service unavailable' })).toBeTruthy()
+    await waitFor(() => expect(window.location.hash).toBe('#/projects/default'))
     expect(screen.queryByRole('button', { name: 'Create project' })).toBeNull()
-    void user
+    expect(screen.queryByRole('heading', { name: 'Create project' })).toBeNull()
+  })
+})
+
+describe('signed-in shell', () => {
+  it.each(['/projects/default', '/projects/default/runs', '/projects/default/settings'])('never offers Sign in in the sidebar on %s', async path => {
+    start(path, { signedIn: true })
+    const sidebar = await screen.findByRole('complementary', { name: 'Project navigation' })
+    await screen.findByLabelText('Account menu: Ada Lovelace')
+    expect(within(sidebar).queryByRole('link', { name: /Sign in/ })).toBeNull()
+    expect(within(sidebar).queryByText('Sign in')).toBeNull()
+    // Name, theme and Sign out are in the footer menu only.
+    expect(within(document.querySelector('.topbar')).queryByLabelText('Appearance')).toBeNull()
+    expect(within(sidebar).getByRole('button', { name: 'Sign out', hidden: true })).toBeTruthy()
   })
 })

@@ -41,7 +41,7 @@ export default function RunDetailPage({ repository, investigationRepository, rou
             {outcome && <span className="badge" data-state={outcome}>{outcome}</span>}
           </div>
           <div className="trace-metadata">
-            <span className="trace-fact"><Icon name="clock"/><span>Duration</span><strong className="mono">{durationText(data.run.durationMs)}</strong></span>
+            <span className="trace-fact"><Icon name="clock"/><span>Duration</span><span className="tabular">{durationText(data.run.durationMs)}</span></span>
             <span className="trace-fact"><span>Started</span><strong>{data.run.startedAt.replace('T', ' ').replace('Z', ' UTC')}</strong></span>
             {live ? <span className="trace-loaded">{data.spans.length.toLocaleString('en')} {data.spans.length === 1 ? 'span' : 'spans'} received · completeness unknown</span>
               : <span className="badge" data-state={data.run.completeness}>Capture {data.run.completeness}</span>}

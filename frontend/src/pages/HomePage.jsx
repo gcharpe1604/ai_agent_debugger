@@ -50,13 +50,13 @@ function Overview({ project, result }) {
             <span className="home-count">{summary.status[label]}</span>
           </li>)}
         </ul>
-        <p className="home-note">{summary.withErrorSpans} with error spans{summary.recovered ? ` · ${summary.recovered} recovered after a retry` : ''}. A recovered retry is not a failed trace.</p>
+        <p className="home-note">{summary.withErrorSpans} with error spans{summary.recovered ? ` · ${summary.recovered} recovered after a retry` : ''}</p>
       </section>
       <section className="home-tile" aria-labelledby="tile-latency">
         <header><h2 id="tile-latency">Latency by agent</h2></header>
         <table className="home-table">
           <thead><tr><th scope="col">Agent</th><th scope="col" className="numeric">p50</th><th scope="col" className="numeric">p95</th><th scope="col" className="numeric">Max</th></tr></thead>
-          <tbody>{shownAgents.map(agent => <tr key={agent.name}><th scope="row">{agent.name}</th><td className="numeric mono">{durationLabel(agent.p50)}</td><td className="numeric mono">{durationLabel(agent.p95)}</td><td className="numeric mono">{durationLabel(agent.max)}</td></tr>)}</tbody>
+          <tbody>{shownAgents.map(agent => <tr key={agent.name}><th scope="row">{agent.name}</th><td className="numeric">{durationLabel(agent.p50)}</td><td className="numeric">{durationLabel(agent.p95)}</td><td className="numeric">{durationLabel(agent.max)}</td></tr>)}</tbody>
         </table>
       </section>
     </div>
@@ -84,7 +84,6 @@ function ProjectHome(props) {
 function HomeLayout({ project, projects, route, local, runs, traceRepository, checking, checkConnection }) {
   const result = runs?.result
   const empty = !result || result.projectTotal === 0
-  const retention = project?.retentionSeconds ? `${+(project.retentionSeconds / 3600).toFixed(1)} h` : null
   const actions = runs && <>
     {!runs.busy && <UpdatedAgo at={runs.loadedAt}/>}
     <button className="button small" onClick={runs.refresh} disabled={runs.busy} title="Read the latest captured traces"><Icon name="refresh"/><span className="button-label">{runs.busy && result ? 'Refreshing…' : 'Refresh'}</span></button>
@@ -94,7 +93,6 @@ function HomeLayout({ project, projects, route, local, runs, traceRepository, ch
     <section className="home-page" aria-labelledby="home-heading">
       <div className="view-heading">
         <h1 id="home-heading">Home</h1>
-        {result && <span className="secondary">{result.projectTotal} {result.projectTotal === 1 ? 'trace' : 'traces'} held{local ? ` in backend memory${retention ? ` · kept ${retention}` : ''}` : ''}</span>}
       </div>
       {empty && setup}
       {runs?.error && <div className="read-error" role="alert"><Icon name="error"/><div><strong>Could not load the overview</strong><p>{runs.error}</p></div><button className="button small" onClick={runs.refresh}>Retry</button></div>}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, within } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../app/App.jsx'
 import { parseQuery } from '../features/runs/query.js'
@@ -91,7 +91,8 @@ describe('source switch', () => {
     const durable = durableFetcher()
     const adapters = createApiAdapters(durable, { source: 'durable' })
     const [project] = await adapters.projectAdapter.listProjects()
-    expect(project).toMatchObject({ id: 'default', name: 'Durable traces', storage: 'durable', dataSource: 'local' })
+    // The UI names the account's one project itself; the backend's name is not shown.
+    expect(project).toMatchObject({ id: 'default', name: 'Default project', storage: 'durable', dataSource: 'local' })
     expect(adapters.accountAdapter.mode).toBe('durable')
     expect(adapters.projectAdapter.createProject).toBeUndefined()
     expect(adapters.projectAdapter.updateProject).toBeUndefined()
@@ -106,7 +107,7 @@ describe('durable run list', () => {
     const { repository } = await connected(durableFetcher({ '/runs?': ok({ project: 'default', runs: [listRow, rootless], next_cursor: null }) }))
     const result = await repository.listRuns({ projectId: 'default', query: parseQuery('') })
     const byId = Object.fromEntries(result.items.map(item => [item.id, item]))
-    expect(byId[traceId]).toMatchObject({ name: 'rag.run', outcome: 'Failed', durationMs: 250, service: 'rag_agent', executionMode: 'controlled', recordedErrorCount: 2, startedAt: '2026-10-21T12:00:00.000Z', missingRoot: false })
+    expect(byId[traceId]).toMatchObject({ name: 'rag.run', outcome: 'Failed', durationMs: 250, service: 'rag_agent', executionMode: 'controlled', recordedErrorCount: 2, spanCount: 3, startedAt: '2026-10-21T12:00:00.000Z', missingRoot: false })
     // No root span: the status is unknown, never guessed from the other spans.
     expect(byId['f'.repeat(32)]).toMatchObject({ name: 'Root span not received', outcome: 'Unknown', service: 'Not recorded', missingRoot: true })
     expect(result.partialAt).toBeUndefined()
@@ -239,6 +240,46 @@ describe('durable source in the app', () => {
     const structure = await screen.findByRole('note', { name: 'Structure flags' })
     expect(structure.textContent).toContain(GONE)
     expect(fetcher.mock.calls.every(([url]) => url.startsWith('/api/v1/projects') || url === '/api/v1/auth/me')).toBe(true)
+  })
+
+  it('lists one line per trace: short trace ID, status dot, spans, and errors red only for a failed run', async () => {
+    const clean = { ...listRow, trace_id: 'a'.repeat(32), name: 'clean.run', status: 'OK', start_time_unix_nano: '1792584001000000000', end_time_unix_nano: '1792584001100000000', span_count: 4, error_span_count: 0 }
+    const recovered = { ...listRow, trace_id: 'b'.repeat(32), name: 'recovered.run', status: 'OK', start_time_unix_nano: '1792584002000000000', end_time_unix_nano: '1792584002100000000', span_count: 5, error_span_count: 1, recorded_recovered_retry: true }
+    window.history.replaceState(null, '', '/#/projects/default/runs')
+    render(<App {...createApiAdapters(durableFetcher({ '/runs?': ok({ project: 'default', runs: [listRow, clean, recovered], next_cursor: null }) }), { source: 'durable' })}/>)
+    const rowOf = async name => (await screen.findByRole('link', { name: new RegExp(`^${name}`) })).closest('tr')
+    const failed = await rowOf('rag.run'), ok0 = await rowOf('clean.run'), retried = await rowOf('recovered.run')
+    const headers = within(screen.getByRole('table')).getAllByRole('columnheader').map(header => header.textContent)
+    expect(headers).toEqual(['Timestamp↓', 'Name', 'Trace ID', 'Status', 'Latency', 'Spans', 'Errors'])
+    const cells = row => within(row).getAllByRole('cell')
+    expect(cells(failed).map(cell => cell.textContent).slice(2)).toEqual(['12345678', 'Failed', '250.0 ms', '3', '2'])
+    expect(cells(failed)[0].querySelector('time').getAttribute('title')).toBe('2026-10-21 12:00:00.000 UTC')
+    expect(cells(failed)[0].textContent).toMatch(/^\d{2} Oct, \d{2}:\d{2}:\d{2}$/)
+    const errors = row => row.querySelector('.error-count')
+    expect(errors(failed).dataset.tone).toBe('error')
+    expect(errors(ok0).textContent).toBe('0')
+    expect(errors(ok0).dataset.tone).toBe('muted')
+    expect(errors(retried).dataset.tone).toBe('plain')
+    expect(within(failed).getByRole('button', { name: `Copy trace ID for ${traceId}` })).toBeTruthy()
+    // Execution mode is a filter, not a per-row badge.
+    expect(within(failed).queryByText('Controlled')).toBeNull()
+    expect(within(screen.getByRole('group', { name: 'Execution mode' })).getByText('Controlled')).toBeTruthy()
+  })
+
+  it('names the project "Default project" in the breadcrumb and has no project switcher or Projects page', async () => {
+    window.history.replaceState(null, '', '/#/projects/default/runs')
+    render(<App {...createApiAdapters(durableFetcher(), { source: 'durable' })}/>)
+    await screen.findByRole('link', { name: `rag.run ${traceId}` })
+    const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }))
+    expect(crumbs.getByRole('link', { name: 'Default project' }).getAttribute('href')).toBe('#/projects/default')
+    expect(crumbs.getByText('Tracing')).toBeTruthy()
+    expect(screen.queryByLabelText('Project')).toBeNull()
+    expect(screen.queryByRole('link', { name: 'Projects' })).toBeNull()
+    expect(document.querySelector('.topbar').textContent).not.toMatch(/Durable|ClickHouse|SDK telemetry/)
+    window.location.hash = '#/projects'
+    await waitFor(() => expect(window.location.hash).toBe('#/projects/default'))
+    expect(screen.queryByRole('list', { name: 'Available projects' })).toBeNull()
+    expect(document.body.textContent).not.toMatch(/Project management is not connected|temporary SDK captures/)
   })
 
   it('shows a store failure as an error with a retry, not as an empty list', async () => {

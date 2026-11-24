@@ -1,4 +1,4 @@
-export const sortFields = ['name', 'startedAt', 'outcome', 'durationMs', 'model', 'totalTokens', 'costUsd', 'completeness', 'recordedErrorCount', 'investigation']
+export const sortFields = ['name', 'startedAt', 'outcome', 'durationMs', 'spanCount', 'model', 'totalTokens', 'costUsd', 'completeness', 'recordedErrorCount', 'investigation']
 export const outcomeOptions = ['Completed', 'Failed', 'Unknown']
 export const completenessOptions = ['Complete', 'Partial', 'Unknown']
 export const investigationOptions = ['Not requested', 'Pending', 'Running', 'Completed', 'Failed', 'Skipped']

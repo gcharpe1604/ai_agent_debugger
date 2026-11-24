@@ -8,7 +8,7 @@ function Search({ value, onSearch }) {
   // The draft stays native/uncommitted. URL changes update it without remounting
   // the focused field; unrelated filters do not erase unfinished typing.
   useEffect(() => { if (input.current.value !== value) input.current.value = value }, [value])
-  return <form className="search-form" role="search" onSubmit={event => { event.preventDefault(); onSearch(input.current.value.trim()) }}><div className="search-field"><Icon name="search"/><input ref={input} type="search" aria-label="Search traces" aria-keyshortcuts="/" data-shortcut="search" placeholder="Search by agent name or trace ID…" defaultValue={value} maxLength={256}/><kbd className="search-hint" aria-hidden="true" title="Press / to search">/</kbd><button className="search-submit" type="submit" aria-label="Search">↵</button></div></form>
+  return <form className="search-form" role="search" onSubmit={event => { event.preventDefault(); onSearch(input.current.value.trim()) }}><div className="search-field"><Icon name="search"/><input ref={input} type="search" aria-label="Search traces" aria-keyshortcuts="/" data-shortcut="search" placeholder="Search by agent name or trace ID…" defaultValue={value} maxLength={256} enterKeyHint="search"/></div></form>
 }
 function AdvancedFilters({ query, onChange, live }) {
   const details = useRef(null)

@@ -7,6 +7,7 @@ import { selectRuns } from './runRepository.js'
 const BASE = '/api/v1/projects'
 // The signed-in user's only project, as the read API names it.
 export const DURABLE_PROJECT = 'default'
+export const DURABLE_PROJECT_NAME = 'Default project'
 const PAGE = 200
 // The run list is filtered and sorted in the browser, so it is read in full,
 // newest first, up to this many runs. Beyond it the list says it is partial.
@@ -34,7 +35,7 @@ function runView(run) {
     // First span start to last span end: the root may be missing or may not be the last to end.
     durationMs: elapsed(run.end_time_unix_nano, run.start_time_unix_nano),
     outcome: run.status === 'OK' ? 'Completed' : run.status === 'ERROR' ? 'Failed' : 'Unknown',
-    completeness: 'Unknown', recordedErrorCount: run.error_span_count, executionMode: run.execution_mode ?? undefined,
+    completeness: 'Unknown', recordedErrorCount: run.error_span_count, spanCount: run.span_count ?? null, executionMode: run.execution_mode ?? undefined,
     recovered: run.recorded_recovered_retry === true, investigation: 'Unavailable', findingCount: null,
     firstError: firstErrorView(run.first_error),
     missingRoot: run.missing_root === true, conflicted: run.conflicted === true,
@@ -168,7 +169,8 @@ export function createDurableAdapters(fetcher = fetch, { onUnauthorized } = {}) 
       const project = Array.isArray(body) ? body.find(item => item?.id === DURABLE_PROJECT) : null
       if (!project || typeof project.name !== 'string') throw new Error('Unexpected workspace response')
       // dataSource 'local' = real captured telemetry (not fixtures); storage says where it lives.
-      workspace = { id: DURABLE_PROJECT, name: project.name, initial: (project.name.trim()[0] || 'D').toLocaleUpperCase(), environment: 'SDK telemetry · ClickHouse storage', dataSource: 'local', storage: 'durable', retentionSeconds: null }
+      // Each account has one project; the UI names it "Default project" whatever the backend calls it.
+      workspace = { id: DURABLE_PROJECT, name: DURABLE_PROJECT_NAME, initial: 'D', dataSource: 'local', storage: 'durable', retentionSeconds: null }
       return [workspace]
     } },
   }

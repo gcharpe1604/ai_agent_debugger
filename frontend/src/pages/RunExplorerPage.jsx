@@ -6,10 +6,10 @@ import RunTable from '../features/runs/RunTable.jsx'
 import RunToolbar from '../features/runs/RunToolbar.jsx'
 import FacetSidebar from '../features/runs/FacetSidebar.jsx'
 import TracePeek from '../features/runs/TracePeek.jsx'
-import { ColumnMenu, DensityMenu } from '../features/runs/TableControls.jsx'
+import { ColumnMenu } from '../features/runs/TableControls.jsx'
 import { useRuns } from '../features/runs/useRuns.js'
 import { changeQuery, parseQuery, queryString } from '../features/runs/query.js'
-import { densityValues, isHiddenColumnList, runColumns } from '../features/runs/runColumns.js'
+import { isHiddenColumnList, runColumns } from '../features/runs/runColumns.js'
 import { useElementSize } from '../features/trace/useElementSize.js'
 import { downloadTraceList } from '../features/trace/download.js'
 import { homeHref, replaceQuery } from '../app/routes.jsx'
@@ -25,7 +25,6 @@ export default function RunExplorerPage({ project, projects, route, repository, 
   const live = project.dataSource === 'local'
   // Open by default on wide screens; on phones the table comes first. A saved choice wins.
   const [filters, setFilters] = usePreference('traces.filters', ['open', 'closed'], narrowScreen() ? 'closed' : 'open')
-  const [density, setDensity] = usePreference('traces.density', densityValues, 'medium')
   const [hiddenPreference, setHiddenPreference] = usePreference('traces.columns.hidden', isHiddenColumnList, '')
   const [peekWidthPreference, setPeekWidth] = usePreference('peek.width', isPeekWidth, 'auto')
   const hidden = useMemo(() => hiddenPreference ? hiddenPreference.split(',') : [], [hiddenPreference])
@@ -90,11 +89,9 @@ export default function RunExplorerPage({ project, projects, route, repository, 
     <section className="explorer" data-source={live ? 'local' : undefined} aria-labelledby="runs-heading">
       <div className="view-heading">
         <h1 id="runs-heading">Tracing</h1>
-        <span className="heading-info" title="Each trace is one agent run. Click a row to preview it; open it for the full span view."><Icon name="info"/><span className="sr-only">Each trace is one agent run. Click a row to preview it; open it for the full span view.</span></span>
       </div>
       <RunToolbar live={live} query={query} onChange={change} onReset={() => replaceQuery(project.id, '')} filtersOpen={showFilters} toggleFilters={toggleFilters}>
         <ColumnMenu columns={runColumns(items)} hidden={hidden} onChange={list => setHiddenPreference(list.join(','))}/>
-        <DensityMenu density={density} onChange={setDensity}/>
       </RunToolbar>
       <div className={`traces-layout${showFilters ? ' with-filters' : ''}`} ref={layout}>
         {showFilters && <div id="trace-filters"><FacetSidebar query={query} facets={result?.facets} onChange={change} onClose={toggleFilters}/></div>}
@@ -102,7 +99,7 @@ export default function RunExplorerPage({ project, projects, route, repository, 
           {error && <div className="read-error" role="alert"><Icon name="error"/><div><strong>Could not load traces</strong><p>{error}{result ? ' Previously loaded data is shown.' : ''}</p></div><button className="button small" onClick={refresh}>Retry</button></div>}
           {result?.partialAt && <div className="read-error" role="status"><Icon name="info"/><div><strong>Showing the newest {result.partialAt.toLocaleString('en')} traces</strong><p>Older traces exist in storage and were not read. Counts, filters and sorting cover the traces shown.</p></div></div>}
           <div className="sr-only" role="status" aria-live="polite">{busy ? result ? 'Refreshing traces' : 'Loading traces' : error ? 'Trace read failed' : `${result?.total || 0} captured traces. Page ${result?.page || 1} of ${totalPages}.`}</div>
-          <RunTable live={live} items={items} projectId={project.id} search={key} query={query} onSort={sort => change({ sort, direction: query.sort === sort && query.direction === 'asc' ? 'desc' : 'asc' })} busy={busy} hidden={hidden} density={density} peek={peek} onPeek={traceRepository ? openPeek : undefined}>
+          <RunTable live={live} items={items} projectId={project.id} search={key} query={query} onSort={sort => change({ sort, direction: query.sort === sort && query.direction === 'asc' ? 'desc' : 'asc' })} busy={busy} hidden={hidden} peek={peek} onPeek={traceRepository ? openPeek : undefined}>
             {!result ? <div className="state-region">{busy ? <><span className="secondary">Loading traces…</span><div className="loading-rows" aria-hidden="true">{[0, 1, 2, 3, 4].map(i => <div key={i}/>)}</div></> : <p className="secondary">Trace data is unavailable. Retry the read above.</p>}</div>
               : !result.items.length && <div className="empty-state">
                 <span className="empty-symbol"><Icon name={result.projectTotal === 0 ? 'runs' : 'search'}/></span>

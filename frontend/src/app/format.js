@@ -31,6 +31,16 @@ export function wallClock(nanos) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString().replace('T', ' ').replace('Z', ' UTC')
 }
 
+// Table timestamps: "24 Nov, 11:41:18" in the viewer's time zone (timeZone only
+// for tests), with the full UTC time for the title. null/'Unknown' when unusable.
+export function shortTimestamp(iso, timeZone) {
+  const date = new Date(iso)
+  if (typeof iso !== 'string' || Number.isNaN(date.getTime())) return null
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(date).map(part => [part.type, part.value]))
+  return `${parts.day} ${parts.month}, ${parts.hour}:${parts.minute}:${parts.second}`
+}
+export const utcTimestamp = iso => { const date = new Date(iso); return Number.isNaN(date.getTime()) ? 'Unknown' : `${date.toISOString().slice(0, 23).replace('T', ' ')} UTC` }
+
 // Freshness label for the last data read.
 export function agoText(then, now) {
   const seconds = Math.max(0, Math.round((now - then) / 1000))

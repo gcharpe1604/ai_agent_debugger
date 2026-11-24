@@ -57,7 +57,7 @@ export default function TracePeek({ repository, projectId, runId, listSearch, po
       <div className="peek-body">
         {!data ? <div className="peek-state" aria-busy={busy}>{busy ? <p role="status">Loading trace…</p> : <><p role="alert">{error}</p><button className="button small" onClick={retry}>Retry</button></>}</div> : <>
           <dl className="peek-facts">
-            <div><dt>Duration</dt><dd className="mono" title={exactDuration(run.durationMs)}>{durationText(run.durationMs)}</dd></div>
+            <div><dt>Duration</dt><dd className="tabular" title={exactDuration(run.durationMs)}>{durationText(run.durationMs)}</dd></div>
             <div><dt>Started</dt><dd>{run.startedAt.replace('T', ' ').replace(/(\.\d+)?Z$/, ' UTC')}</dd></div>
             <div><dt>Trace ID</dt><dd><button type="button" className="trace-copy mono" onClick={copy} title={runId} aria-label="Copy trace ID">{runId.slice(0, 8)}…{runId.slice(-4)}<Icon name="copy"/></button></dd></div>
             {executionModeLabel(run.executionMode) && <div><dt>Mode</dt><dd>{executionModeLabel(run.executionMode)}</dd></div>}
@@ -80,7 +80,7 @@ export default function TracePeek({ repository, projectId, runId, listSearch, po
                     <span className="trace-operation-name">{operationLabel(row.span)}</span>
                   </span>
                   <span className="status-dot" role="img" data-state={row.span.status} aria-label={statusText(row.span.status)}/>
-                  <span className="mono latency-bar" style={{ '--share': share(row.span) }}>{durationText(row.span.duration)}</span>
+                  <span className="tabular latency-bar" style={{ '--share': share(row.span) }}>{durationText(row.span.duration)}</span>
                 </a>
               </li>
             })}

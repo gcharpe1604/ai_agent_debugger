@@ -60,7 +60,7 @@ export default function SettingsPage({ project }) {
   const retention = hours(project.retentionSeconds)
   const durable = project.storage === 'durable'
   return <section className="settings-page" aria-labelledby="settings-heading">
-    <header className="view-heading"><h1 id="settings-heading">Settings</h1><span className="secondary">{durable ? 'Your account, its project and the key agents use to send traces.' : 'Project details and how agents send traces to it.'}</span></header>
+    <header className="view-heading"><h1 id="settings-heading">Settings</h1></header>
     {durable && account?.user && <section className="settings-card" aria-labelledby="settings-account">
       <h2 id="settings-account"><Icon name="user"/>Account</h2>
       <dl className="settings-facts">

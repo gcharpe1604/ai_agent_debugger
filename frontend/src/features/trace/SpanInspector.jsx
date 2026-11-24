@@ -37,9 +37,9 @@ function SpanMetadata({ span, data, ui, patch, copy }) {
       <div><dt>Operation</dt><dd>{span.name}</dd></div>
       <div><dt>Type</dt><dd>{typeLabel(span.type)}</dd></div>
       <div><dt>Status</dt><dd>{statusText(span.status)}</dd></div>
-      <div><dt>Duration</dt><dd className="mono" title={exactDuration(span.duration)}>{durationText(span.duration)}</dd></div>
-      {started && <div><dt>Started</dt><dd className="mono">{started}</dd></div>}
-      {ended && <div><dt>Ended</dt><dd className="mono">{ended}</dd></div>}
+      <div><dt>Duration</dt><dd className="tabular" title={exactDuration(span.duration)}>{durationText(span.duration)}</dd></div>
+      {started && <div><dt>Started</dt><dd className="tabular">{started}</dd></div>}
+      {ended && <div><dt>Ended</dt><dd className="tabular">{ended}</dd></div>}
       {facts.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
       {idRow('Span ID', span.id)}
       {idRow('Parent span ID', span.recordedParentId === undefined ? span.parentId : span.recordedParentId)}
@@ -168,7 +168,7 @@ export default function SpanInspector({ repository, projectId, runId, span, ui, 
         <div className="inspector-meta">
           <span>{typeLabel(span.type)}</span>
           <span className="badge" data-state={span.status}>{statusText(span.status)}</span>
-          <span className="mono">{durationText(span.duration)}</span>
+          <span className="tabular">{durationText(span.duration)}</span>
           <SpanDetails span={span} data={data} copy={copy}/>
         </div>
       </div>

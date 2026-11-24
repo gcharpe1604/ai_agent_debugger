@@ -4,7 +4,7 @@
 .execution-path li { display: flex; align-items: center; flex: none; }
 .execution-path .icon { width: 12px; height: 12px; }
 .path-arrow { color: var(--muted); }
-.path-step { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 2px 8px; border: 1px solid var(--border); border-left: 3px solid var(--type-color, var(--control)); border-radius: 5px; background: var(--panel); color: var(--text); font: 12px/18px "Cascadia Code",Consolas,monospace; }
+.path-step { display: inline-flex; align-items: center; gap: 4px; min-height: 26px; padding: 2px 8px; border: 1px solid var(--border); border-left: 3px solid var(--type-color, var(--control)); border-radius: 5px; background: var(--panel); color: var(--text); font-size: 12px; line-height: 18px; }
 .path-step:hover { background: var(--hover); }
 .path-step[aria-pressed="true"] { background: var(--selected); border-color: var(--interactive); border-left-color: var(--type-color, var(--interactive)); }
 .path-step[data-error] { border-color: var(--error-border); color: var(--error); background: var(--error-surface); }

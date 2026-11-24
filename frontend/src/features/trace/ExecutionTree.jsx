@@ -90,10 +90,10 @@ export default function ExecutionTree({ index, rows, ui, treeRef, select, patch,
         </div>
         {timeline ? <><TimelineTrack timing={timing.byId.get(row.id)} window={timeWindow} status={row.span.status} type={type} label={durationText(row.span.duration)}/><span className="sr-only">{timing.byId.get(row.id)?.state === 'valid' ? `Recorded interval ${timeLabel(timing.byId.get(row.id).start)} to ${timeLabel(timing.byId.get(row.id).end)}` : timing.byId.get(row.id)?.reason}</span></> : <>
           {showIds && <span className="trace-id-cell mono" title={row.id}>{row.id}</span>}
-          <span className="trace-start-cell mono" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
+          <span className="trace-start-cell tabular" title={`Recorded offset from run start: ${exactDuration(row.span.start)}`}>{Number.isFinite(row.span.start) && row.span.start >= 0 ? '+' : ''}{timeLabel(row.span.start)}</span>
           <span className="trace-type-cell">{typeLabel(row.span.type)}</span>
-          <span className={`trace-status-cell ${row.span.status === 'ERROR' ? 'badge' : 'mono'}`} data-state={row.span.status} title={statusText(row.span.status)}>{statusText(row.span.status)}</span>
-          <span className="trace-duration mono latency-bar" style={{ '--share': share(row.span) }} title={`${exactDuration(row.span.duration)}${extent > 0 ? ` · ${(share(row.span) * 100).toFixed(1)}% of the trace` : ''}`}>{durationText(row.span.duration)}</span>
+          <span className={`trace-status-cell ${row.span.status === 'ERROR' ? 'badge' : 'status-text'}`} data-state={row.span.status} title={statusText(row.span.status)}>{statusText(row.span.status)}</span>
+          <span className="trace-duration tabular latency-bar" style={{ '--share': share(row.span) }} title={`${exactDuration(row.span.duration)}${extent > 0 ? ` · ${(share(row.span) * 100).toFixed(1)}% of the trace` : ''}`}>{durationText(row.span.duration)}</span>
         </>}
       </div>})}
     </div>

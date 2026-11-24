@@ -138,23 +138,24 @@ describe('failed local run: first error surfacing', () => {
   })
   const selectedRow = async () => (await screen.findAllByRole('treeitem')).find(row => row.getAttribute('aria-selected') === 'true')
 
-  it('reads the first error from the list without opening the run, and hides all-unknown columns', async () => {
+  it('lists each run on one line with no first-error line or mode badge, and hides all-unknown columns', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     render(<App {...createApiAdapters(fetcher)}/> )
     const link = await screen.findByRole('link', { name: `tool-task-agent ${failedId}` })
-    const cell = link.closest('td')
-    expect(within(cell).getByRole('link', { name: /First recorded error/ }).getAttribute('href')).toContain('span=a000000000000002')
-    expect(within(cell).getByText('ToolTimeout · LocalTools.invoke (+1)')).toBeTruthy()
-    expect(within(cell).getByText('Controlled')).toBeTruthy()
+    const row = link.closest('tr')
+    expect(within(row).queryByRole('link', { name: /First recorded error/ })).toBeNull()
+    expect(within(row).queryByText('Controlled')).toBeNull()
+    expect(row.querySelector('.error-count').textContent).toBe('3')
+    expect(row.querySelector('.error-count').dataset.tone).toBe('error')
+    const clean = screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('tr')
+    expect(clean.querySelector('.error-count').dataset.tone).toBe('muted')
     expect(screen.queryByText(/root cause|cause:/i)).toBeNull()
-    // The completed run has no first-error line or mode badge (execution_mode is null).
-    expect(within(screen.getByRole('link', { name: `Captured run ${traceId}` }).closest('td')).queryByText('First recorded error')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Sort by error spans' }).title).toMatch(/including parents that carry a child's error/)
+    expect(screen.getByRole('button', { name: 'Sort by errors' }).title).toMatch(/including parents that carry a child's error/)
     expect(screen.queryByRole('columnheader', { name: /Completeness/ })).toBeNull()
     expect(screen.queryByRole('columnheader', { name: /Investigation/ })).toBeNull()
   })
 
-  it('keeps recovered runs in Has span errors and preserves that filter after following a first error', async () => {
+  it('keeps recovered runs in Has span errors and preserves that filter after opening a failed run at its first error', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher)}/> )
@@ -166,7 +167,7 @@ describe('failed local run: first error surfacing', () => {
     await user.click(within(filters).getByRole('checkbox', { name: /^Has error spans/ }))
     await screen.findByRole('link', { name: /Recovered run/ })
     await waitFor(() => expect(screen.queryByRole('link', { name: /Captured run/ })).toBeNull())
-    await user.click(screen.getByRole('link', { name: /First recorded error/ }))
+    await user.click(screen.getByRole('link', { name: `tool-task-agent ${failedId}` }))
     expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000002')
     const inspector = await screen.findByRole('region', { name: 'Span inspector' })
     expect(within(inspector).getByRole('heading', { name: 'Pay · attempt 1' })).toBeTruthy()
@@ -251,22 +252,20 @@ describe('failed local run: first error surfacing', () => {
     await waitFor(() => expect(document.activeElement).toBe(screen.getByRole('button', { name: `Preview Captured run ${traceId}` })))
   })
 
-  it('focuses search with /, hides columns and changes row height like Langfuse table controls', async () => {
+  it('focuses search with / and hides columns like Langfuse table controls', async () => {
     window.history.replaceState(null, '', '/#/projects/local/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher)}/> )
     await screen.findByRole('link', { name: /Recovered run/ })
     await user.keyboard('/')
     expect(document.activeElement).toBe(screen.getByRole('searchbox', { name: 'Search traces' }))
-    await user.click(screen.getByLabelText('Columns, 5 of 5 shown'))
-    await user.click(screen.getByRole('checkbox', { name: 'Started' }))
-    expect(screen.queryByRole('columnheader', { name: /Started/ })).toBeNull()
+    // No "/" or "↵" hints in the field.
+    expect(document.querySelector('.search-field').textContent).toBe('')
+    await user.click(screen.getByLabelText('Columns, 6 of 6 shown'))
+    await user.click(screen.getByRole('checkbox', { name: 'Timestamp' }))
+    expect(screen.queryByRole('columnheader', { name: /Timestamp/ })).toBeNull()
     expect(localStorage.getItem('agent-debugger.frontend.v1.traces.columns.hidden')).toBe('startedAt')
-    expect(screen.getByLabelText('Columns, 4 of 5 shown')).toBeTruthy()
-    expect(screen.getByRole('link', { name: /First recorded error/ })).toBeTruthy()
-    await user.click(screen.getByLabelText('Row height: Medium'))
-    await user.click(screen.getByRole('radio', { name: /Small/ }))
-    expect(screen.queryByRole('link', { name: /First recorded error/ })).toBeNull()
-    expect(localStorage.getItem('agent-debugger.frontend.v1.traces.density')).toBe('small')
+    expect(screen.getByLabelText('Columns, 5 of 6 shown')).toBeTruthy()
+    expect(screen.queryByLabelText(/Row height/)).toBeNull()
   })
 })

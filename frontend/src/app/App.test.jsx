@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+﻿import { describe, it, expect, vi } from 'vitest'
 import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../test/FixtureApp.jsx'
@@ -13,7 +13,7 @@ async function open(repository = fixtureRepository) {
 describe('Milestone 1 Run Explorer', () => {
   it('retains keyboard focus while sorting and when Next reaches the last page', async () => {
     const user = await open()
-    const sort = screen.getByRole('button', { name: 'Sort by duration' })
+    const sort = screen.getByRole('button', { name: 'Sort by latency' })
     await user.click(sort)
     await waitFor(() => expect(document.activeElement).toBe(sort))
     await user.selectOptions(screen.getByLabelText('Rows per page'), '5')
@@ -62,7 +62,7 @@ describe('Milestone 1 Run Explorer', () => {
     await user.click(screen.getByRole('button', { name: 'Next page' }))
     await screen.findByRole('link', { name: 'field-station-research-brief R-1036' })
     expect(screen.getAllByRole('link', { name: /R-10/ })).toHaveLength(3)
-    await user.click(screen.getByRole('button', { name: 'Sort by duration' }))
+    await user.click(screen.getByRole('button', { name: 'Sort by latency' }))
     await waitFor(() => expect(screen.getAllByRole('link', { name: /R-10/ })[0].textContent).toContain('inventory-availability-check'))
   })
   it('changes projects without cross-project data and presents a first-use empty state', async () => {

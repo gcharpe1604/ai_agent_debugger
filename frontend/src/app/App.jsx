@@ -6,7 +6,7 @@ import { disconnectedRuns, disconnectedTraces, disconnectedInvestigations, disco
 import EvidencePage from '../features/evidence/EvidencePage.jsx'
 import ReadBoundary from '../components/ReadBoundary.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
-import { accountHref, replaceHash, runsHref, useRoute } from './routes.jsx'
+import { accountHref, homeHref, replaceHash, runsHref, useRoute } from './routes.jsx'
 import { disconnectedAccount } from '../data/accessAdapters.js'
 import useProjects from '../features/access/useProjects.js'
 import ProjectsPage from '../features/access/ProjectsPage.jsx'
@@ -16,6 +16,12 @@ import HomePage from '../pages/HomePage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
 import { AccountContext } from '../features/access/session.js'
 import { DURABLE_PROJECT } from '../data/durableRepository.js'
+
+// Replaces the current history entry, so Back does not loop through the redirect.
+function Redirect({ href }) {
+  useEffect(() => { replaceHash(href) }, [href])
+  return null
+}
 
 function ProjectWorkspace({ repository, traceRepository, investigationRepository, route, project, projects }) {
   const [traceViews] = useState(() => new Map())
@@ -34,8 +40,11 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   const projects = state.projects
   const project = projects.find(item => item.id === route.projectId)
   const local = adapter.mode === 'local'
-  const fallbackProjectId = project?.id || projects[0]?.id || (local ? 'local' : null)
+  // The durable source has one project per account: no project list or switcher.
+  const durable = adapter.mode === 'durable'
+  const fallbackProjectId = project?.id || projects[0]?.id || (local ? 'local' : durable ? DURABLE_PROJECT : null)
   const protect = children => <ReadBoundary key={route.path} back={fallbackProjectId ? runsHref(fallbackProjectId, returnQuery(route.search)) : '#/projects'}>{children}</ReadBoundary>
+  if (durable && !route.account && (route.projectsPage || !route.projectId)) return <Redirect href={homeHref(DURABLE_PROJECT)}/>
   // Local Home stays usable while the backend is offline: its setup steps are
   // how the user gets it running.
   if (route.home && local && route.projectId === 'local') return protect(<HomePage project={project} projects={projects} route={route} local repository={repository} traceRepository={traceRepository} checking={state.busy} checkConnection={state.retry}/>)
@@ -47,6 +56,9 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   // Disconnected authentication never fabricates or blocks captured local telemetry.
   if (route.account) return protect(<AccountPage key={route.path} route={route} adapter={accountAdapter}/> )
   if (project && !route.settings && !state.error) return <ProjectWorkspace key={project.id} repository={repository} traceRepository={traceRepository} investigationRepository={investigationRepository} route={route} project={project} projects={projects}/>
+  if (durable) return protect(<AppShell projects={projects} project={project} route={route}>
+    {state.error ? <AccessState kind={state.error} retry={state.retry} target={route.path}/> : state.busy ? <p role="status">Loading projects…</p> : <AccessState kind="unavailable"/>}
+  </AppShell>)
   return protect(<AppShell projects={projects} project={project} route={route} local={local}>
     {route.projectsPage || route.settings ? <ProjectsPage route={route} project={project} state={state} adapter={adapter}/>
       : state.error ? <AccessState kind={state.error} retry={state.retry} target={route.path}/>
