@@ -24,7 +24,7 @@
 .trace-workbench { display: grid; grid-template-columns: minmax(0,1fr); position: relative; flex: 1; min-width: 0; min-height: 0; border-top: 1px solid var(--color-border); overflow: hidden; background: var(--color-bg); }
 .trace-explorer { display: flex; flex-direction: column; min-width: 0; min-height: 0; overflow: hidden; container-type: inline-size; }
 .trace-toolbar { position: relative; z-index: 12; display: flex; align-items: center; flex-shrink: 0; gap: var(--space-2); height: 48px; padding: var(--space-2) var(--space-6); }
-.trace-search { flex: 1; min-width: 140px; }
+.trace-search { flex: 1; min-width: 200px; }
 .trace-icon-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 var(--control-height); width: var(--control-height); height: var(--control-height); padding: 0; border: 1px solid transparent; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); }
 .trace-icon-button:hover { background: var(--color-hover); color: var(--color-text); }
 .trace-icon-button[aria-pressed="true"] { background: var(--color-selected); color: var(--color-accent); }
@@ -287,5 +287,4 @@
 /* A narrow tree pane: the toolbar wraps instead of hiding controls off the edge. */
 @container (max-width: 640px) {
   .trace-toolbar { flex-wrap: wrap; height: auto; min-height: 48px; padding-block: var(--space-2); }
-  .trace-toolbar .trace-search { min-width: 120px; }
 }

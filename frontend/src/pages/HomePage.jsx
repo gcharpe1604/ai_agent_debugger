@@ -8,6 +8,7 @@ import { runsHref } from '../app/routes.jsx'
 import { exactDuration, formatSpanDuration } from '../app/format.js'
 import { useRuns } from '../features/runs/useRuns.js'
 import { parseQuery } from '../features/runs/query.js'
+import { firstErrorText } from '../features/runs/runColumns.js'
 import { DASHBOARD_RANGES, DEFAULT_RANGE, agentLatency, buckets, kpis, percentText, recentFailures } from '../features/home/dashboardModel.js'
 import TracesChart from '../features/home/TracesChart.jsx'
 import SetupGuide from '../features/home/SetupGuide.jsx'
@@ -60,7 +61,8 @@ function Dashboard({ project, result, range, now }) {
           <tbody>{failures.map(run => <tr key={run.id}>
             <td className="tabular secondary"><Timestamp value={run.startedAt}/></td>
             <td><a href={runsHref(project.id, run.firstError ? `span=${encodeURIComponent(run.firstError.spanId)}` : '', run.id)} title={`Open ${run.name} ${run.id}`}>{run.name}</a></td>
-            <td className="error-text">{run.firstError?.exceptionType || '—'}</td>
+            {/* The durable summary records no exception type; the span name stands in. */}
+            <td className={run.firstError ? 'error-text' : 'secondary'} title={run.firstError ? firstErrorText(run.firstError) : 'Not in the run summary; open the trace'}>{run.firstError?.exceptionType || run.firstError?.spanName || '—'}</td>
           </tr>)}</tbody>
         </table> : <p className="dashboard-empty">No failed traces in this time range.</p>}
       </section>
