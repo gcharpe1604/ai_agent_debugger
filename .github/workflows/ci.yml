@@ -30,10 +30,23 @@ jobs:
   integration:
     name: Backend + SDK integration
     runs-on: ubuntu-latest
-    # Same images as compose.yaml. tests/clickhouse uses throwaway scratch
-    # databases; tests/ingest creates and deletes its own scratch topics, so
-    # Kafka needs no kafka-init step here.
+    # Same images as compose.yaml. tests/clickhouse and tests/postgres use
+    # throwaway scratch databases; tests/ingest creates and deletes its own
+    # scratch topics, so Kafka needs no kafka-init step here.
     services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: agent_debugger
+          POSTGRES_USER: agent_debugger
+          POSTGRES_PASSWORD: agent_debugger
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U agent_debugger -d agent_debugger"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
       clickhouse:
         image: clickhouse/clickhouse-server:26.8
         env:
@@ -89,12 +102,14 @@ jobs:
           python -B -m unittest tests/integration/test_telemetry.py
           tests/integration/test_durable_payloads.py
           tests/integration/test_agent_payloads.py
-      - name: Backend unit tests (ClickHouse and Kafka tests required, not skipped)
+      - name: Backend unit tests (ClickHouse, Kafka and PostgreSQL tests required, not skipped)
         working-directory: backend
         env:
           CLICKHOUSE_REQUIRED: "1"
           KAFKA_REQUIRED: "1"
           KAFKA_BOOTSTRAP_SERVERS: localhost:9092
+          POSTGRES_REQUIRED: "1"
+          DATABASE_URL: postgresql+asyncpg://agent_debugger:agent_debugger@localhost:5433/agent_debugger
         run: uv run --locked python -B -m unittest discover -s tests -t . -v
 
   frontend:

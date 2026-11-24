@@ -7,6 +7,7 @@ const states = {
   forbidden: ['Access denied', 'You don’t have access to this workspace. Choose another project or contact its owner.'],
   unavailable: ['Project unavailable', 'The requested project could not be opened. Choose an available project.'],
   failure: ['Could not load projects', 'The project request failed. Retry the request.'],
+  session: ['Could not check your session', 'The backend did not answer. Check that it is running on 127.0.0.1:8008, then retry.'],
   disconnected: ['Project service unavailable', 'Project management is not connected. Start the backend and frontend to inspect SDK executions captured by the local backend.'],
 }
 export default function AccessState({ kind, target, retry }) {
@@ -19,7 +20,7 @@ export default function AccessState({ kind, target, retry }) {
     <div className="form-actions">
       {kind === 'expired' ? <a className="button solid" href={accountHref('login', target)}>Sign in</a>
         : retry && <button className="button solid" onClick={retry}>Retry</button>}
-      <a className={`button ${kind !== 'expired' && !retry ? 'solid' : ''}`} href="#/projects">Choose project</a>
+      {kind !== 'session' && <a className={`button ${kind !== 'expired' && !retry ? 'solid' : ''}`} href="#/projects">Choose project</a>}
     </div>
   </section>
 }

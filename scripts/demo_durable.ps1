@@ -4,15 +4,20 @@
 
 .DESCRIPTION
   1. docker compose up -d (Kafka, ClickHouse, Postgres) and wait until healthy.
-  2. Start the backend (durable route) and the trace writer in the background.
-  3. POST one trace: root run, LLM span, tool span with an ERROR, and its retry.
-  4. POST the same batch again (simulated redelivery).
-  5. Query ClickHouse: physical rows vs ClickHouseTraceStore.get_trace, get_conflicts, list_runs.
-  6. Stop the writer and backend this script started.
+  2. Apply the Postgres migrations and create a demo user (scripts/create_user.py); its API key
+     authenticates the POSTs below.
+  3. Start the backend (durable route) and the trace writer in the background.
+  4. POST one trace with the key: root run, LLM span, tool span with an ERROR, and its retry.
+  5. POST the same batch again (simulated redelivery).
+  6. Query ClickHouse in the demo user's project: physical rows vs ClickHouseTraceStore.get_trace,
+     get_conflicts, list_runs.
+  7. Stop the writer and backend this script started.
 
   Run from anywhere:  powershell -ExecutionPolicy Bypass -File scripts\demo_durable.ps1
   -NoPause skips the "press Enter" pauses (for unattended runs).
   If the backend is already listening on 8008 it is reused and left running.
+  A backend started here gets a random SESSION_SECRET unless one is set in the environment.
+  Each run creates a new demo user (demo-<random>@example.com); its email and password are printed.
   Logs go to %TEMP%\agentdbg-demo\.
 #>
 param([switch]$NoPause)
@@ -24,6 +29,11 @@ $Uv = (Get-Command uv).Source
 $Backend = 'http://127.0.0.1:8008'
 $Check = @('run', '--project', 'backend', '--locked', 'python', '-B', 'scripts/demo_durable_check.py')
 $Started = @{}
+# Restored at the end: this script may run inside the caller's PowerShell session.
+$SavedEnv = @{}
+foreach ($name in @('AGENT_DEBUGGER_API_KEY', 'SESSION_SECRET', 'CREATE_USER_PASSWORD')) {
+    $SavedEnv[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+}
 New-Item -ItemType Directory -Force $Logs | Out-Null
 Set-Location $Repo
 
@@ -73,10 +83,23 @@ function New-Hex([int]$length) {
     -join (1..$length | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
 }
 
+function Restore-Env {
+    foreach ($name in $SavedEnv.Keys) {
+        [Environment]::SetEnvironmentVariable($name, $SavedEnv[$name], 'Process')
+    }
+}
+
+function New-Secret {
+    $bytes = New-Object byte[] 32
+    [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+    return [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+}
+
 function Post-Batch([string]$body, [string]$label) {
     $bytes = [System.Text.Encoding]::UTF8.GetBytes($body)
     $r = Invoke-WebRequest -UseBasicParsing -Method Post -Uri "$Backend/api/v1/traces" `
-        -ContentType 'application/json' -Body $bytes
+        -ContentType 'application/json' -Body $bytes `
+        -Headers @{ Authorization = "Bearer $env:AGENT_DEBUGGER_API_KEY" }
     Write-Host ("  {0}: HTTP {1} {2}" -f $label, $r.StatusCode, $r.Content)
     if ($r.StatusCode -ne 202) { Fail "$label was not accepted" }
 }
@@ -107,10 +130,24 @@ try {
     Pause-Demo
 
     # ------------------------------------------------------------------
-    Step 2 'Start the backend (POST /api/v1/traces) and the trace writer'
+    Step 2 'Apply the Postgres migrations and create a demo user'
+    & $Uv run --project backend --locked alembic -c backend/alembic.ini upgrade head
+    if ($LASTEXITCODE -ne 0) { Fail 'alembic upgrade head failed' }
+    $email = "demo-$(New-Hex 8)@example.com"
+    $env:CREATE_USER_PASSWORD = New-Secret
+    $key = & $Uv run --project backend --locked python -B scripts/create_user.py --email $email --name 'Demo user'
+    if ($LASTEXITCODE -ne 0) { Fail 'scripts/create_user.py failed' }
+    $env:AGENT_DEBUGGER_API_KEY = "$key".Trim()
+    Write-Host "  user $email, password $env:CREATE_USER_PASSWORD (demo only)"
+    Write-Host ("  API key {0}... (create_user.py shows it once; kept in this script's environment)" -f $env:AGENT_DEBUGGER_API_KEY.Substring(0, 12))
+    Pause-Demo
+
+    # ------------------------------------------------------------------
+    Step 3 'Start the backend (POST /api/v1/traces) and the trace writer'
     if (Test-Backend) {
         Write-Host "  backend already running at ${Backend}: reusing it (it will be left running)"
     } else {
+        if (-not $env:SESSION_SECRET) { $env:SESSION_SECRET = New-Secret }
         $Started['backend'] = Start-Process -FilePath $Uv -PassThru -WindowStyle Hidden -WorkingDirectory $Repo `
             -ArgumentList @('run', '--project', 'backend', '--locked', 'uvicorn', 'agent_debugger_api.main:app',
                             '--host', '127.0.0.1', '--port', '8008', '--workers', '1', '--no-proxy-headers') `
@@ -131,7 +168,7 @@ try {
     Pause-Demo
 
     # ------------------------------------------------------------------
-    Step 3 'POST one trace: run -> LLM call -> tool call (ERROR) -> retried tool call (OK)'
+    Step 4 'POST one trace with the API key: run -> LLM call -> tool call (ERROR) -> retried tool call (OK)'
     $traceId = New-Hex 32
     $root = New-Hex 16; $llm = New-Hex 16; $tool1 = New-Hex 16; $tool2 = New-Hex 16
     $t0 = [int64][DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() * 1000000
@@ -168,20 +205,20 @@ try {
     Pause-Demo
 
     # ------------------------------------------------------------------
-    Step 4 'POST the same batch again (simulated redelivery: client retry after a lost 202)'
+    Step 5 'POST the same batch again (simulated redelivery: client retry after a lost 202)'
     Post-Batch $body 'second delivery'
     Write-Host '  Kafka now holds every span twice; the writer inserts both copies.'
     Pause-Demo
 
     # ------------------------------------------------------------------
-    Step 5 'Query ClickHouse: physical rows vs logical spans, conflicts, run list'
+    Step 6 "Query ClickHouse in the demo user's project: physical rows vs logical spans, conflicts, run list"
     if ((Invoke-Check @('wait-caught-up', '60')) -ne 0) { Fail "writer did not catch up; see $Logs\writer.err.log" }
     if ((Invoke-Check @('report', $traceId)) -ne 0) { Fail 'unexpected ClickHouse result (see report above)' }
     Pause-Demo
 
     # ------------------------------------------------------------------
-    Step 6 'Stop the trace writer and backend'
-    # The writer has committed every message (step 5), so stopping it loses nothing.
+    Step 7 'Stop the trace writer and backend'
+    # The writer has committed every message (step 6), so stopping it loses nothing.
     Stop-Started
     if (-not (Test-Backend)) { Write-Host "  $Backend no longer answers" }
     Write-Host ''
@@ -189,4 +226,5 @@ try {
     exit 0
 } finally {
     Stop-Started   # also on Ctrl+C or an unexpected error
+    Restore-Env
 }

@@ -4,6 +4,7 @@ Spans come from a real provider. HTTP goes to a stub server on loopback only.
 """
 
 import json
+import logging
 import threading
 import time
 from contextlib import contextmanager
@@ -20,6 +21,13 @@ from opentelemetry.sdk.trace.export.in_memory_span_exporter import InMemorySpanE
 
 SECRET = "sk-synthetic-secret-value"
 KAFKA_RECORD_LIMIT = 1_048_576
+API_KEY = "adbg_sk_" + "k" * 43
+
+
+@pytest.fixture(autouse=True)
+def no_api_key_from_the_shell(monkeypatch):
+    # A developer's own AGENT_DEBUGGER_API_KEY must not change these tests.
+    monkeypatch.delenv("AGENT_DEBUGGER_API_KEY", raising=False)
 
 
 class Hostile:
@@ -399,6 +407,85 @@ def test_other_rejections_are_dropped_at_once_and_never_retried(collector, fast_
     time.sleep(0.3)
     assert len(collector.requests) == 1
     assert (exporter.failures, exporter.dropped_spans, exporter.retries) == (1, 2, 0)
+
+
+# --- API key and 401 ------------------------------------------------------
+
+
+def sdk_warnings(caplog):
+    return [r for r in caplog.records if r.name == "ai_agent_debugger_sdk.durable"]
+
+
+def test_api_key_from_the_environment_is_sent_as_a_bearer_token(collector, monkeypatch):
+    monkeypatch.setenv("AGENT_DEBUGGER_API_KEY", f"  {API_KEY}\n")  # pasted with whitespace
+    exporter = DurableSpanExporter(endpoint(collector))
+    assert exporter.export(finished_spans(1)) is SpanExportResult.SUCCESS
+    (_, headers, _), = collector.requests
+    assert headers["Authorization"] == f"Bearer {API_KEY}"
+
+
+def test_api_key_argument_is_used_instead_of_the_environment(collector, monkeypatch):
+    monkeypatch.setenv("AGENT_DEBUGGER_API_KEY", "adbg_sk_from_the_environment")
+    DurableSpanExporter(endpoint(collector), api_key=API_KEY).export(finished_spans(1))
+    assert collector.requests[0][1]["Authorization"] == f"Bearer {API_KEY}"
+
+
+@pytest.mark.parametrize("value", [None, "", "   "], ids=["unset", "empty", "blank"])
+def test_no_key_sends_no_authorization_header(collector, monkeypatch, value):
+    if value is not None:
+        monkeypatch.setenv("AGENT_DEBUGGER_API_KEY", value)
+    DurableSpanExporter(endpoint(collector)).export(finished_spans(1))
+    assert "Authorization" not in collector.requests[0][1]
+
+
+def test_trace_session_passes_the_key_from_the_environment(collector, monkeypatch):
+    monkeypatch.setenv("AGENT_DEBUGGER_API_KEY", API_KEY)
+    with TraceSession("keyed", endpoint=endpoint(collector)) as session:
+        pass
+    assert collector.requests and all(h["Authorization"] == f"Bearer {API_KEY}" for _, h, _ in collector.requests)
+    assert session.exporter.exported_spans >= 1
+
+
+def test_401_drops_the_batch_with_one_warning_and_is_never_retried(collector, fast_retries, caplog, monkeypatch):
+    monkeypatch.setenv("AGENT_DEBUGGER_API_KEY", API_KEY)
+    collector.status = 401
+    exporter = DurableSpanExporter(endpoint(collector))
+    with caplog.at_level(logging.WARNING, logger="ai_agent_debugger_sdk.durable"):
+        assert exporter.export(finished_spans(2)) is SpanExportResult.FAILURE
+        assert exporter.export(finished_spans(3)) is SpanExportResult.FAILURE
+        assert exporter.force_flush(timeout_millis=1000) is True
+        time.sleep(0.3)
+    assert len(collector.requests) == 2  # one request per batch, no retries
+    assert (exporter.exported_spans, exporter.failures, exporter.dropped_spans, exporter.retries) == (0, 2, 5, 0)
+    [warning] = sdk_warnings(caplog)  # one warning per exporter, not per batch
+    assert warning.levelno == logging.WARNING and "401" in warning.getMessage()
+
+
+def test_401_while_retrying_a_503_stops_the_retries(collector, fast_retries, caplog):
+    collector.script = [503, 401]
+    exporter = DurableSpanExporter(endpoint(collector), api_key=API_KEY)
+    with caplog.at_level(logging.WARNING, logger="ai_agent_debugger_sdk.durable"):
+        assert exporter.export(finished_spans(2)) is SpanExportResult.FAILURE
+        assert exporter.force_flush(timeout_millis=5000) is True
+        time.sleep(0.4)
+    assert len(collector.requests) == 2
+    assert (exporter.exported_spans, exporter.failures, exporter.dropped_spans, exporter.retries) == (0, 1, 2, 1)
+    assert len(sdk_warnings(caplog)) == 1
+
+
+def test_api_key_is_never_logged(collector, fast_retries, caplog, monkeypatch):
+    monkeypatch.setenv("AGENT_DEBUGGER_API_KEY", API_KEY)
+    caplog.set_level(logging.DEBUG)
+    for status in (202, 401, 413, 503):
+        collector.status = status
+        exporter = DurableSpanExporter(endpoint(collector))
+        exporter.export(finished_spans(1))
+        exporter.force_flush(timeout_millis=5000)
+        assert API_KEY not in repr(exporter)
+    unreachable = DurableSpanExporter("http://127.0.0.1:9/api/v1/traces")
+    unreachable.export(finished_spans(1))
+    assert caplog.records  # the 401 warning, at least
+    assert API_KEY not in caplog.text and API_KEY[8:20] not in caplog.text
 
 
 def test_export_returns_without_waiting_for_the_backoff(collector, monkeypatch):

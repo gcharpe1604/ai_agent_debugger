@@ -1,26 +1,28 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
 import { accountHref, homeHref, runsHref, settingsHref } from '../app/routes.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
 import { usePreference, useTheme } from '../app/preferences.js'
 import { hasModifier, isTyping } from '../app/keyboard.js'
+import { useAccount } from '../features/access/session.js'
 
 const DOCS_URL = 'https://github.com/gcharpe1604/ai_agent_debugger/tree/main/docs'
 
 // Local mode serves exactly one in-memory project, so its switcher is a menu
 // that names it rather than a choice. Other modes use a real project select.
 function ProjectSwitcher({ projects, project, local, projectName }) {
+  const durable = project?.storage === 'durable'
   if (local) return <details className="project-menu">
-    <summary title={`${projectName} · temporary storage`}>
+    <summary title={`${projectName} · ${durable ? 'ClickHouse storage' : 'temporary storage'}`}>
       <span className="project-avatar" aria-hidden="true">{project?.initial || 'L'}</span>
       <span className="project-name">{projectName}</span>
-      <span className="env-tag">Local</span>
+      <span className="env-tag">{durable ? 'Durable' : 'Local'}</span>
       <Icon name="chevron-down"/>
     </summary>
     <div className="menu-popover">
       <p className="menu-label">Project</p>
       <span className="menu-item" aria-current="true">{projectName}<Icon name="check"/></span>
-      <p className="menu-note">Local mode has one project, held in backend memory. Projects arrive with durable ingestion.</p>
+      <p className="menu-note">{durable ? 'Each account has one project. Its traces are stored in ClickHouse.' : 'Local mode has one project, held in backend memory. Projects arrive with durable ingestion.'}</p>
     </div>
   </details>
   return <div className="project-select">
@@ -37,7 +39,22 @@ function ProjectSwitcher({ projects, project, local, projectName }) {
 // crumbs: the page trail after the project, e.g. [<a>Tracing</a>, 'abc…'].
 // actions: the page's own controls (Refresh, Download JSON).
 // header: an extra page header rendered under the top bar (evidence pages).
+// Signed-in user (durable source): name and Sign out in the top bar.
+function AccountControl({ account }) {
+  const [state, setState] = useState('idle')
+  async function signOut() {
+    setState('busy')
+    try { await account.signOut() } catch { setState('failed') }
+  }
+  return <div className="topbar-account">
+    <span className="topbar-user" title={account.user.email}>{account.user.name}</span>
+    <button type="button" className="button small" disabled={state === 'busy'} onClick={signOut}>{state === 'busy' ? 'Signing out…' : 'Sign out'}</button>
+    {state === 'failed' && <span className="topbar-error" role="alert">Sign-out failed. Retry.</span>}
+  </div>
+}
+
 export default function AppShell({ projects, project, route, children, header, crumbs, actions, local = project?.dataSource === 'local' }) {
+  const account = useAccount()
   const [sidebar, setSidebar] = usePreference('sidebar', ['expanded', 'collapsed'], 'expanded')
   const theme = useTheme()
   const projectName = project?.name || (local ? 'Local captures' : null)
@@ -94,7 +111,8 @@ export default function AppShell({ projects, project, route, children, header, c
         {navItem('Docs', DOCS_URL, 'docs', false, { ariaLabel: 'Docs (opens in a new tab)', title: 'Documentation (opens in a new tab)', link: { target: '_blank', rel: 'noreferrer' }, after: <span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span> })}
         {!local && navItem('Sign in', accountHref('login', route.path + (route.search ? '?' + route.search : '')), 'arrow', false, { ariaLabel: 'Sign in — authentication not connected', title: 'Sign in — authentication not connected' })}
         <div className="sidebar-divider"/>
-        {local && <div className="profile-row" title="Local mode has no accounts or sign-in"><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>Local developer</strong><span>Local mode · no sign-in</span></span></div>}
+        {account?.user ? <div className="profile-row" title={account.user.email}><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>{account.user.name}</strong><span>{account.user.email}</span></span></div>
+          : local && <div className="profile-row" title="Local mode has no accounts or sign-in"><span className="profile-avatar" aria-hidden="true"><Icon name="user"/></span><span className="nav-text profile-text"><strong>Local developer</strong><span>Local mode · no sign-in</span></span></div>}
         <div className="appearance-control" title={`Appearance: ${theme.preference}`}><Icon name="theme"/><label className="sr-only" htmlFor="appearance">Appearance</label><select id="appearance" value={theme.preference} onChange={event => theme.setPreference(event.target.value)}><option value="light">Light appearance</option><option value="dark">Dark appearance</option><option value="system">System appearance</option></select></div>
       </div>
     </aside>
@@ -106,6 +124,7 @@ export default function AppShell({ projects, project, route, children, header, c
           {trail.map((crumb, index) => <span key={index} className="crumb" aria-current={index === trail.length - 1 && typeof crumb === 'string' ? 'page' : undefined}><span className="crumb-separator" aria-hidden="true">/</span>{crumb}</span>)}
         </nav>}
         {actions && <div className="topbar-actions">{actions}</div>}
+        {account?.user && <AccountControl account={account}/>}
       </header>
       {header}
       <main className="page" id="main-content" tabIndex="-1" ref={main}>{children}</main>

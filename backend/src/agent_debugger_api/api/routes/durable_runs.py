@@ -8,9 +8,10 @@
 Separate from the local profile (`/api/v1/local/*`): no loopback, origin or
 header gating here, and no in-memory repository.
 
-No authentication yet (handoff action 6). The only project is `local`, which
-maps to resolve_project_id() (clickhouse-span-record.md §8.5); ClickHouse is
-never queried with the string `local`. Any other project is 404.
+Every route needs a session (auth/deps.py current_user; 401 without one). A
+user has one project, `default` in URLs, which maps to the user's project_id;
+ClickHouse is never queried with the string `default`. Any other project is
+404, and so is another project's run or span: it is not found in the user's.
 
 The store is synchronous, so every call goes through run_in_threadpool. A
 store failure is 503: the API never answers with empty or sample data instead.
@@ -24,9 +25,10 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.concurrency import run_in_threadpool
 
+from agent_debugger_api.auth.deps import current_user
 from agent_debugger_api.contracts import TraceStore
 from agent_debugger_api.contracts.span_record import SpanId, TraceId
-from agent_debugger_api.ingest.settings import resolve_project_id
+from agent_debugger_api.db.models import User
 from agent_debugger_api.traces.read_store import TraceStoreUnavailable
 from agent_debugger_api.traces.read_views import (
     run_from_summary,
@@ -39,7 +41,7 @@ from agent_debugger_api.traces.reconstruction import reconstruct
 
 router = APIRouter(tags=["durable read"])
 
-PROJECT = "local"
+PROJECT = "default"
 MAX_NANOS = 2**63 - 1
 MAX_PAGE = 200
 _CURSOR = re.compile(r"^(\d{1,19}):([0-9a-f]{32})$")
@@ -49,10 +51,10 @@ def get_trace_store(request: Request) -> TraceStore:
     return request.app.state.trace_store
 
 
-def project_id(project: str) -> UUID:
+def project_id(project: str, user: User = Depends(current_user)) -> UUID:
     if project != PROJECT:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Project not found")
-    return resolve_project_id()
+    return user.project_id
 
 
 async def _read(call, *args):
@@ -74,12 +76,8 @@ async def _tree(store: TraceStore, project: UUID, trace_id: str):
 
 
 @router.get("/projects")
-def projects():
-    return {
-        "projects": [
-            {"id": PROJECT, "name": "Durable traces", "storage": "clickhouse", "authentication": "none"}
-        ]
-    }
+def projects(user: User = Depends(current_user)):
+    return [{"id": PROJECT, "name": user.name}]
 
 
 @router.get("/projects/{project}/runs")

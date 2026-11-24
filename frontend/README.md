@@ -1,6 +1,6 @@
 # Agent Debugger frontend
 
-The normal application reads captured SDK executions through `src/data/apiRepository.js` and the FastAPI `/api/v1/local/` profile. Start with `npm.cmd run dev` from this directory, then open http://127.0.0.1:5175/. No source flag, special mode or seeded telemetry is used.
+The normal application reads captured SDK executions from the durable read API (`/api/v1/projects/default/…`, `src/data/durableRepository.js`) and needs a signed-in account (`src/data/accountRepository.js`, `/api/v1/auth`). Start with `npm.cmd run dev` from this directory, then open http://127.0.0.1:5175/. `?source=local` reads the in-memory `/api/v1/local/` profile instead (`src/data/apiRepository.js`), with no accounts. No seeded telemetry is used.
 
 [Backend and all four live-agent commands](../docs/local-development.md). The server must explicitly enable loopback capture. Its memory storage is temporary; authenticated projects, Kafka/ClickHouse persistence, authentication and investigation remain separate integration work. A disconnected/failed backend never falls back to authored records.
 

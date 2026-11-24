@@ -353,6 +353,12 @@ input::placeholder {
 .breadcrumbs a { color: var(--secondary); }
 .breadcrumbs a:hover { color: var(--text); }
 .topbar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex: none; }
+/* Signed-in user, after the page actions. */
+.topbar-account { display: flex; align-items: center; gap: 8px; margin-left: auto; padding-left: 8px; flex: none; }
+.topbar-actions + .topbar-account { margin-left: 0; border-left: 1px solid var(--border); }
+.topbar-user { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--secondary); }
+.topbar-error { color: var(--error); font-size: 12px; }
+.session-check { margin: 48px auto; text-align: center; color: var(--secondary); }
 /* Optional page sub-header under the top bar (evidence pages). */
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 50px; flex: 0 0 50px; padding: 0 var(--page-inset); border-bottom: 1px solid var(--border); font-size: 13px; background: var(--canvas); }
 .app-header .breadcrumbs > .icon { width: 12px; height: 12px; flex-basis: 12px; color: var(--muted); }
@@ -995,6 +1001,7 @@ input::placeholder {
   /* Icon-only actions; the label stays for screen readers. */
   .topbar-actions .button-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .topbar-actions .updated-ago { display: none; }
+  .topbar-user { display: none; }
   .topbar-actions .button { min-width: 44px; padding-inline: 8px; }
   .app-header { padding: 0 12px; }
 
