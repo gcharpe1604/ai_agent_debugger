@@ -31,7 +31,7 @@ for directory in [
         sys.path.insert(0, str(ROOT / directory))
 
 # Importing the app requires SESSION_SECRET; this in-process app serves no sessions.
-os.environ.setdefault("SESSION_SECRET", "show-payload-states-only")
+os.environ.setdefault("SESSION_SECRET", "show-payload-states-only-0123456789abcdef")
 
 import uvicorn
 

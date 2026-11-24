@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 for directory in ["backend/src", "sdk/python/src"]:
     sys.path.insert(0, str(ROOT / directory))
 # Importing the app requires SESSION_SECRET; this test-only value signs nothing real.
-os.environ.setdefault("SESSION_SECRET", "test-only-session-secret")
+os.environ.setdefault("SESSION_SECRET", "test-only-session-secret-0123456789abcdef")
 
 from fastapi import HTTPException, Request
 from fastapi.testclient import TestClient

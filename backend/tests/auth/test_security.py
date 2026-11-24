@@ -70,21 +70,24 @@ class AuthSettingsTests(unittest.TestCase):
                     os.environ.pop(name, None)
             return AuthSettings(_env_file=None)
 
-    def test_session_secret_is_required_and_not_empty(self):
+    def test_session_secret_is_required_and_at_least_32_characters(self):
         with self.assertRaises(ValidationError):
             self.settings()
-        with self.assertRaises(ValidationError):
-            self.settings(SESSION_SECRET="")
+        for short in ("", "s" * 31):
+            with self.assertRaises(ValidationError):
+                self.settings(SESSION_SECRET=short)
+        self.assertEqual(len(self.settings(SESSION_SECRET="s" * 32).session_secret.get_secret_value()), 32)
 
     def test_defaults_insecure_cookie_and_signup_allowed(self):
-        settings = self.settings(SESSION_SECRET="s3cret")
-        self.assertEqual(settings.session_secret.get_secret_value(), "s3cret")
-        self.assertNotIn("s3cret", repr(settings))
+        secret = "s3cret-" * 5
+        settings = self.settings(SESSION_SECRET=secret)
+        self.assertEqual(settings.session_secret.get_secret_value(), secret)
+        self.assertNotIn(secret, repr(settings))
         self.assertIs(settings.session_cookie_secure, False)
         self.assertIs(settings.allow_signup, True)
 
     def test_flags_are_read_from_the_environment(self):
-        settings = self.settings(SESSION_SECRET="x", SESSION_COOKIE_SECURE="true", ALLOW_SIGNUP="false")
+        settings = self.settings(SESSION_SECRET="x" * 32, SESSION_COOKIE_SECURE="true", ALLOW_SIGNUP="false")
         self.assertIs(settings.session_cookie_secure, True)
         self.assertIs(settings.allow_signup, False)
 

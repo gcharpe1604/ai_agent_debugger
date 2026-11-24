@@ -123,7 +123,7 @@ class RegisterTests(AuthApiCase):
 
     def test_signup_disabled_is_403_and_creates_nothing(self):
         app.dependency_overrides[get_auth_settings] = lambda: AuthSettings(
-            _env_file=None, session_secret="x", allow_signup=False
+            _env_file=None, session_secret="x" * 32, allow_signup=False
         )
         for body in ({}, {"password": "short"}):  # 403 even before the body is validated
             response = self.register(**body)
