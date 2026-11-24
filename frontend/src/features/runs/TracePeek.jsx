@@ -15,7 +15,7 @@ import '../trace/trace.css'
 import './peek.css'
 
 const everything = { search: '', type: '', status: '' }
-const PEEK_ROW_HEIGHT = 32
+const PEEK_ROW_HEIGHT = 40
 export const PEEK_SHORTCUTS = 'J next trace · K previous trace · Esc close'
 
 // Langfuse-style trace preview beside the list: read-only, opened from a row,
@@ -72,7 +72,7 @@ export default function TracePeek({ repository, projectId, runId, listSearch, po
             return <li key={row.id}>
               <a className="peek-row" href={fullTrace(row.id)} title={`${row.span.name} · ${typeLabel(row.span.type)} · ${statusText(row.span.status)} · ${exactDuration(row.span.duration)}`}>
                 <span className="trace-operation" data-type={type} data-error={row.span.status === 'ERROR' || undefined} style={{ '--span-depth': Math.min(row.depth, 8) }}>
-                  {row.depth <= 8 && <TreeGuides row={row} leaf/>}
+                  {row.depth <= 8 && <TreeGuides row={{ ...row, expanded: row.childLoaded > 0 }} capped={row.depth >= 8}/>}
                   <span className="tree-disclosure"/>
                   <span className="status-dot" role="img" data-state={row.span.status ?? 'unknown'} aria-label={statusText(row.span.status)}/>
                   <Icon name={type}/>

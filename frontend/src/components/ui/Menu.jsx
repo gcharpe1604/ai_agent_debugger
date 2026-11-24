@@ -23,9 +23,10 @@ export function MenuCheckboxItem({ className, children, ...props }) {
   </RadixMenu.CheckboxItem>
 }
 export const MenuRadioGroup = props => <RadixMenu.RadioGroup {...props}/>
-export function MenuRadioItem({ className, children, ...props }) {
+// indicator={false} drops the check mark, for segmented radio groups.
+export function MenuRadioItem({ className, children, indicator = true, ...props }) {
   return <RadixMenu.RadioItem className={cx('menu-item', className)} {...props}>
-    <span className="menu-indicator-slot"><RadixMenu.ItemIndicator className="menu-indicator"><Icon name="check"/></RadixMenu.ItemIndicator></span>
+    {indicator && <span className="menu-indicator-slot"><RadixMenu.ItemIndicator className="menu-indicator"><Icon name="check"/></RadixMenu.ItemIndicator></span>}
     {children}
   </RadixMenu.RadioItem>
 }

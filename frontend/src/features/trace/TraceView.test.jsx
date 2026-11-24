@@ -165,10 +165,10 @@ describe('tree connector guides', () => {
     const expanded = new Set(spans.map(item => item.id).filter(id => !collapsed.includes(id)))
     return Object.fromEntries(visibleTree(index, expanded, all).rows.map(row => [row.id, treeGuides(row)]))
   }
-  it('gives the root no guide and a single child a └ in the root column', () => {
+  it('gives the root no elbow but a stub to its child, and a single child a └ in the root column', () => {
     const guides = rowsFor([span('r', null), span('a', 'r')])
-    expect(guides.r).toEqual({ lines: [], elbow: null })
-    expect(guides.a).toEqual({ lines: [], elbow: { column: 0, kind: 'end' } })
+    expect(guides.r).toEqual({ lines: [], elbow: null, stub: true })
+    expect(guides.a).toEqual({ lines: [], elbow: { column: 0, kind: 'end' }, stub: false })
   })
   it('draws ├ for every sibling but the last, which gets └', () => {
     const guides = rowsFor([span('r', null), span('a', 'r'), span('b', 'r'), span('c', 'r')])
@@ -178,21 +178,23 @@ describe('tree connector guides', () => {
     // r ├ a ─ a1 ─ a2   (a has a later sibling b, so column 0 runs through a's subtree)
     //   └ b ─ b1 ─ b2   (b is last, so nothing runs below it)
     const guides = rowsFor([span('r', null), span('a', 'r'), span('a1', 'a'), span('a2', 'a1'), span('b', 'r'), span('b1', 'b'), span('b2', 'b1')])
-    expect(guides.a1).toEqual({ lines: [0], elbow: { column: 1, kind: 'end' } })
-    expect(guides.a2).toEqual({ lines: [0], elbow: { column: 2, kind: 'end' } })
-    expect(guides.b1).toEqual({ lines: [], elbow: { column: 1, kind: 'end' } })
-    expect(guides.b2).toEqual({ lines: [], elbow: { column: 2, kind: 'end' } })
+    expect(guides.a1).toEqual({ lines: [0], elbow: { column: 1, kind: 'end' }, stub: true })
+    expect(guides.a2).toEqual({ lines: [0], elbow: { column: 2, kind: 'end' }, stub: false })
+    expect(guides.b1).toEqual({ lines: [], elbow: { column: 1, kind: 'end' }, stub: true })
+    expect(guides.b2).toEqual({ lines: [], elbow: { column: 2, kind: 'end' }, stub: false })
   })
   it('handles a deep chain of last children with no lines at all', () => {
     const chain = [span('d0', null), ...Array.from({ length: 5 }, (_, i) => span(`d${i + 1}`, `d${i}`))]
     const guides = rowsFor(chain)
-    expect(guides.d5).toEqual({ lines: [], elbow: { column: 4, kind: 'end' } })
+    expect(guides.d5).toEqual({ lines: [], elbow: { column: 4, kind: 'end' }, stub: false })
   })
   it('hides a collapsed subtree and its guides; siblings keep theirs', () => {
     const spans = [span('r', null), span('a', 'r'), span('a1', 'a'), span('b', 'r')]
     const guides = rowsFor(spans, ['a'])
     expect(Object.keys(guides)).toEqual(['r', 'a', 'b'])
     expect(guides.a.elbow.kind).toBe('tee')
+    // Collapsed: no line leaves its dot, since its children are not shown.
+    expect(guides.a.stub).toBe(false)
     expect(guides.b.elbow.kind).toBe('end')
   })
 })

@@ -66,9 +66,14 @@
 .trace-row.selected { background: var(--color-selected); border-left-color: var(--color-accent); }
 /* Ancestors of the selected span: a lighter tint and a thin marker. */
 .trace-row[data-on-path] { background: color-mix(in srgb, var(--color-selected) 55%, transparent); }
-.trace-operation > .status-dot { flex: none; margin: 0; }
+.trace-operation > .status-dot { position: relative; z-index: 1; flex: none; margin: 0 2px 0 0; }
+/* An expanded row's chevron shows on hover or keyboard focus; otherwise the
+   row looks like a leaf and its elbow runs into the dot. Collapsed rows keep
+   the chevron so hidden children stay discoverable. */
+.trace-row .tree-disclosure.expanded { opacity: 0; }
+.trace-row:hover .tree-disclosure.expanded, .trace-tree:focus-visible .trace-row.keyboard-active .tree-disclosure.expanded, .tree-disclosure.expanded:focus-visible { opacity: 1; }
 .trace-tree:focus-visible .trace-row.keyboard-active { outline: 2px solid var(--color-focus); outline-offset: -2px; z-index: 1; }
-.trace-operation { --tree-indent: 20px; position: relative; min-width: 0; display: flex; gap: var(--space-1); align-items: center; height: var(--trace-row-height); padding-left: calc(var(--span-depth) * var(--tree-indent)); }
+.trace-operation { --tree-indent: 28px; position: relative; min-width: 0; display: flex; gap: var(--space-1); align-items: center; height: var(--trace-row-height); padding-left: calc(var(--span-depth) * var(--tree-indent)); }
 .trace-operation > .icon { color: var(--color-accent); }
 .trace-operation[data-type] > .icon { color: var(--type-color); }
 [data-type="run"] { --type-color: var(--type-run); }
@@ -80,18 +85,16 @@
 [data-type="state"] { --type-color: var(--type-state); }
 [data-type="custom"] { --type-color: var(--type-custom); }
 /* Connector lines: one column per ancestor level, centred under its disclosure. */
-/* Connector guides (treeGuides): column c is centred at c * 20 + 10 px, the
-   parent's chevron column. A line per open ancestor; the elbow is ├ (full
-   height) or └ (top half), then 10 px across to the child's chevron column,
-   or on to 4 px before the status dot when the row has no chevron. */
+/* Connector guides (treeGuides). Each row: a 16 px chevron slot, then the
+   status dot (centre 19.5 px in), so guide column c runs through the dot of
+   the ancestor at depth c (c * 28 px + 19 px). Elbows are rounded and run into
+   the child's dot; while a chevron shows they stop 1 px before it. */
 .tree-guides { position: absolute; inset: 0 auto 0 0; width: 0; pointer-events: none; }
-.tree-line, .tree-elbow { position: absolute; top: 0; bottom: 0; left: calc(var(--guide-column) * var(--tree-indent) + var(--tree-indent) / 2); width: 1px; background: var(--color-guide); }
-.tree-elbow[data-kind="end"] { bottom: 50%; }
-.tree-elbow::after { content: ''; position: absolute; top: 100%; left: 0; width: calc(var(--tree-indent) / 2); height: 1px; background: var(--color-guide); }
-.tree-elbow[data-kind="tee"]::after { top: 50%; }
-.tree-elbow[data-leaf]::after { width: calc(var(--tree-indent) / 2 + var(--tree-indent)); }
-.trace-operation[data-error] > .icon { color: var(--color-danger); }
-.tree-disclosure { display: inline-flex; align-items: center; justify-content: center; width: var(--tree-indent); height: 24px; flex: 0 0 var(--tree-indent); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); }
+.tree-line, .tree-stub { position: absolute; top: 0; bottom: 0; left: calc(var(--guide-column) * var(--tree-indent) + 19px); width: 1px; background: var(--color-guide); }
+.tree-stub { top: 50%; }
+.tree-elbow { position: absolute; top: 0; height: calc(50% + 0.5px); left: calc(var(--guide-column) * var(--tree-indent) + 19px); width: calc(var(--tree-indent) - 3px); box-sizing: border-box; border-left: 1px solid var(--color-guide); border-bottom: 1px solid var(--color-guide); border-bottom-left-radius: 6px; }
+.trace-row:hover .tree-elbow[data-branch], .trace-tree:focus-visible .trace-row.keyboard-active .tree-elbow[data-branch], .tree-elbow[data-collapsed] { width: calc(var(--tree-indent) - 18px); }
+.tree-disclosure { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 24px; flex: 0 0 16px; margin-right: calc(var(--space-1) * -1); padding: 0; border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); }
 .tree-disclosure .icon { width: 12px; height: 12px; }
 .tree-disclosure.expanded .icon { transform: rotate(90deg); }
 .tree-disclosure:hover { background: var(--color-hover); }
@@ -237,8 +240,8 @@
 /* Status as a dot plus the raw value: green OK, red ERROR, grey UNSET/unknown. */
 /* Span status as a dot before the name: green OK, red ERROR, grey UNSET/unknown. */
 .trace-operation .status-dot, .peek-row .status-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-muted); }
-:is(.trace-operation, .peek-row) .status-dot[data-state="OK"] { background: var(--color-success); }
-:is(.trace-operation, .peek-row) .status-dot[data-state="ERROR"] { background: var(--color-danger); }
+:is(.trace-operation, .peek-row) .status-dot[data-state="OK"] { background: var(--dot-ok); }
+:is(.trace-operation, .peek-row) .status-dot[data-state="ERROR"] { background: var(--dot-error); }
 
 /* Trace header line 2: Started · Duration · Spans · Errors · Depth, then Types. */
 .trace-facts { display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-1) var(--space-4); margin-top: var(--space-2); }

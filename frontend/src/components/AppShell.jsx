@@ -10,7 +10,7 @@ import { hasModifier, isTyping } from '../app/keyboard.js'
 import { useAccount } from '../features/access/session.js'
 
 const DOCS_URL = 'https://github.com/gcharpe1604/ai_agent_debugger/tree/main/docs'
-const themes = [['light', 'Light', 'sun'], ['dark', 'Dark', 'moon'], ['system', 'System', 'theme']]
+const themes = [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]
 
 // Fixture/preview mode only: several projects to choose from. The local and
 // durable sources each have exactly one project, named in the breadcrumb.
@@ -45,8 +45,9 @@ function UserMenu({ account, local, collapsed }) {
         <MenuLabel className="user-menu-identity"><strong>{name}</strong>{detail && <span>{detail}</span>}</MenuLabel>
         <MenuSeparator/>
         <MenuLabel>Theme</MenuLabel>
-        <MenuRadioGroup aria-label="Theme" value={theme.preference} onValueChange={theme.setPreference}>
-          {themes.map(([value, label, icon]) => <MenuRadioItem key={value} value={value} onSelect={event => event.preventDefault()}><Icon name={icon}/>{label}</MenuRadioItem>)}
+        {/* One segmented control: Light | Dark | System. Arrow keys still move between them. */}
+        <MenuRadioGroup aria-label="Theme" value={theme.preference} onValueChange={theme.setPreference} className="segmented theme-segmented">
+          {themes.map(([value, label]) => <MenuRadioItem key={value} value={value} indicator={false} className="theme-segment" onSelect={event => event.preventDefault()}>{label}</MenuRadioItem>)}
         </MenuRadioGroup>
         {user && <><MenuSeparator/><MenuItem disabled={state === 'busy'} onSelect={signOut}><Icon name="sign-out"/>{state === 'busy' ? 'Signing out…' : 'Sign out'}</MenuItem></>}
       </MenuContent>

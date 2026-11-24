@@ -68,6 +68,9 @@
   --type-api: #0369a1;
   --type-state: #4b5563;
   --type-custom: #be185d;
+  /* Status dots keep the deeper light-mode colours in both themes. */
+  --dot-ok: #16855a;
+  --dot-error: #c0392b;
   /* Tree connector guides: a border-strength grey at about 60 %. */
   --color-guide: hsl(240 4% 46% / .35);
   /* JSON viewer values. */
@@ -104,14 +107,14 @@
   --color-warning-surface: #332614;
   --shadow-lift: 0 1px 2px #0005, 0 4px 14px #0002;
   --shadow-popover: 0 8px 24px #0006;
-  --type-run: #d0d5dd;
-  --type-agent: #c4b5fd;
-  --type-model: #93c5fd;
-  --type-tool: #fdba74;
-  --type-retrieval: #5eead4;
-  --type-api: #7dd3fc;
-  --type-state: #cbd5e1;
-  --type-custom: #f9a8d4;
+  --type-run: #98a2b3;
+  --type-agent: #8b5cf6;
+  --type-model: #3b82f6;
+  --type-tool: #d97706;
+  --type-retrieval: #0d9488;
+  --type-api: #0284c7;
+  --type-state: #94a3b8;
+  --type-custom: #db2777;
   --color-guide: hsl(0 0% 60% / .32);
   --json-string: #a5d6a7;
   --json-number: #93c5fd;

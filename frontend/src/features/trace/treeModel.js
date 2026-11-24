@@ -1,8 +1,9 @@
 import { formatSpanDuration } from '../../app/format.js'
 
-export const ROW_HEIGHT = 32
-// Horizontal step per depth level, in px. Guide column c is centred at c * TREE_INDENT + TREE_INDENT / 2.
-export const TREE_INDENT = 20
+export const ROW_HEIGHT = 40
+// Horizontal step per depth level, in px. Guide column c runs through the
+// status dot of the ancestor at depth c.
+export const TREE_INDENT = 28
 export const types = ['run', 'agent', 'model', 'tool', 'retrieval', 'api', 'state', 'custom']
 export const typeLabel = type => ({ run: 'Run', agent: 'Agent', model: 'Model', tool: 'Tool', retrieval: 'Retrieval', api: 'API', state: 'State', custom: 'Custom' }[type] || `Custom · ${type || 'unknown'}`)
 export const statusText = status => ['OK', 'ERROR', 'UNSET'].includes(status) ? status : status === null || status === undefined || status === '' ? 'Unknown' : `Unknown · ${status}`
@@ -84,16 +85,20 @@ export function visibleTree(index, expanded, query) {
 
 // Connector guides for one visible row, from visibleTree's guides/last flags.
 // lines: guide columns that carry a vertical line through this row, one per
-// ancestor (below the root) that still has a later visible sibling; column c is
-// the chevron column of the ancestor at depth c. elbow: this row's own
-// connector in its parent's column, "tee" (├) when a later sibling follows and
-// "end" (└) for the last child, so no line runs below the last child. Rows
-// that are not shown (collapsed subtrees) have no guides; roots have none.
+// ancestor (below the root) that still has a later visible sibling; column c
+// runs through the status dot of the ancestor at depth c. elbow: this row's
+// own connector from its parent's column into its status dot, "tee" (├) when
+// a later sibling follows and "end" (└) for the last child, so no line runs
+// below the last child. stub: the row shows children, so a line leaves its own
+// dot downwards to meet them. Collapsed subtrees are not rows and draw nothing;
+// roots have no elbow.
 export function treeGuides(row) {
-  if (!row || row.group || !(row.depth > 0)) return { lines: [], elbow: null }
+  if (!row || row.group) return { lines: [], elbow: null, stub: false }
+  const stub = !!row.expanded
+  if (!(row.depth > 0)) return { lines: [], elbow: null, stub }
   const lines = []
   for (let level = 1; level < row.depth; level++) if (row.guides?.[level]) lines.push(level - 1)
-  return { lines, elbow: { column: row.depth - 1, kind: row.last ? 'end' : 'tee' } }
+  return { lines, elbow: { column: row.depth - 1, kind: row.last ? 'end' : 'tee' }, stub }
 }
 export function windowRows(rows, scrollTop, height, activeId) {
   const start = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5)
