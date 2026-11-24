@@ -1,6 +1,8 @@
 import argparse
 import sys
 
+from dotenv import find_dotenv, load_dotenv
+
 
 def _ask(request):
     import httpx
@@ -23,6 +25,10 @@ def _ask(request):
 
 
 def main(argv=None):
+    # First, before any TraceSession: the nearest .env (searched from the current
+    # directory up) fills AGENT_DEBUGGER_ENDPOINT, AGENT_DEBUGGER_API_KEY and the
+    # model settings. override=False: a variable already set in the shell wins.
+    load_dotenv(find_dotenv(usecwd=True), override=False, encoding="utf-8")
     parser = argparse.ArgumentParser(
         description="Controlled and live Meridian field-station research"
     )

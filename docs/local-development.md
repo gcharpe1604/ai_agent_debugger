@@ -38,7 +38,7 @@ uv run --directory examples/langgraph_workflow_agent --locked python -m langgrap
 
 Run any one command, then **Refresh** Runs. Each execution creates new SDK trace/span IDs. The CLI prints the trace ID and acknowledged span count to stderr; the normal result remains on stdout. Export failures are reported and never silently replaced with fixtures. The SDK is a local editable dependency declared in each agent's uv configuration. `uv run` prepares required dependencies; no separate instrumentation launcher is needed.
 
-The agents load their existing ignored `.env` files from their own directories. Keep provider credentials there; do not paste them into commands, telemetry or browser storage. `--directory` is intentional: it selects the correct agent directory and configuration. Existing shell values take precedence. Live runs incur the configured provider's normal usage.
+Each agent's CLI loads the nearest `.env` (searched from the current directory upwards) as the first thing it does, before any trace session starts, for both `run` and `ask`. With `--directory examples/<agent>` that is the agent's own ignored `.env`. It can hold the provider settings and `AGENT_DEBUGGER_ENDPOINT` / `AGENT_DEBUGGER_API_KEY`. Keep credentials there; do not paste them into commands, telemetry or browser storage. `--directory` is intentional: it selects the correct agent directory and configuration. A variable already set in the shell wins over the `.env` value, including an empty one (`AGENT_DEBUGGER_ENDPOINT=''` turns export off). Live runs incur the configured provider's normal usage.
 
 No telemetry environment variable is required for these four CLIs. Both `ask` and `run SCENARIO` export actual executed operations to the loopback backend by default. `ask` uses the configured live model. The existing scenario commands below execute deterministic controlled agents without a provider call; their root explicitly records `debugger.execution.mode=controlled` and their deterministic planner functions are custom operations, never model/API calls. No spans are reconstructed from saved domain logs.
 
@@ -128,6 +128,8 @@ Each PowerShell window keeps its own `$env:` variables, so set them in the windo
    $env:AGENT_DEBUGGER_API_KEY = '<key printed by create_user.py>'
    uv run --directory examples/rag_agent --locked python -m rag_agent run RAG-04
    ```
+
+   Or put the same two lines (without `$env:` and quotes) in `examples/<agent>/.env` and leave them unset in the shell; a shell value still wins over the file.
 
 6. UI, window 4: `cd frontend; npm.cmd run dev`, then open `http://127.0.0.1:5175/`. Without a session it shows Sign in; Register creates an account and shows its API key once, with the two `.env` lines for step 5. Settings shows the account and key prefix and rotates the key (the old key stops working at once). The top bar has Sign out. A 401 on any read goes to "Session expired" with a link back. `?source=local` switches to the local profile. Read failures show as errors; there is no fallback to sample or local data.
 

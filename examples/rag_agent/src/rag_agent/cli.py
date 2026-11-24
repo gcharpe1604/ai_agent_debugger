@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import yaml
+from dotenv import find_dotenv, load_dotenv
 
 from .live_model import LiveModelError
 
@@ -34,6 +35,10 @@ async def _ask(question: str):
 
 
 def main(argv: list[str] | None = None) -> int:
+    # First, before any TraceSession: the nearest .env (searched from the current
+    # directory up) fills AGENT_DEBUGGER_ENDPOINT, AGENT_DEBUGGER_API_KEY and the
+    # model settings. override=False: a variable already set in the shell wins.
+    load_dotenv(find_dotenv(usecwd=True), override=False, encoding="utf-8")
     parser = argparse.ArgumentParser(description="NovaCloud RAG support agent")
     subparsers = parser.add_subparsers(dest="command", required=True)
     run = subparsers.add_parser("run", help="Execute a controlled scenario")
