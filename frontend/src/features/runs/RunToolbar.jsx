@@ -38,8 +38,7 @@ function AdvancedFilters({ query, onChange, live }) {
     <button type="submit" className="button solid">Apply filters</button>
   </form></PopoverContent></Popover>
 }
-export default function RunToolbar({ query, onChange, onReset, live = false, filtersOpen = false, filtersDrawer = false, toggleFilters, children }) {
-  const resettableView = query.sort !== 'startedAt' || query.direction !== 'desc' || query.pageSize !== 25 || query.time !== (live ? 'all' : 'window')
+export default function RunToolbar({ query, onChange, live = false, filtersOpen = false, filtersDrawer = false, toggleFilters, children }) {
   const modes = query.modes || [], agents = query.agents || []
   const chips = [
     ...(query.search ? [{ label: `Search: ${query.search}`, patch: { search: '' } }] : []),
@@ -54,16 +53,15 @@ export default function RunToolbar({ query, onChange, onReset, live = false, fil
   ]
   const sidebarFilters = query.outcomes.length + modes.length + agents.length + Number(query.hasErrors) + Number(query.minMs !== null || query.maxMs !== null)
   return <><div className={`query-toolbar${live ? ' local-toolbar' : ''}`}>
-    {live && (filtersDrawer || !filtersOpen) && <button type="button" id="show-filters" className="button" aria-expanded={filtersOpen} aria-controls={filtersOpen ? 'trace-filters' : undefined} onClick={toggleFilters} title={filtersDrawer ? 'Open the filter drawer' : 'Show the filter panel'}><Icon name={filtersDrawer ? 'filter' : 'panel-left'}/>{filtersDrawer ? 'Filters' : 'Show filters'}{sidebarFilters > 0 && <span className="count">{sidebarFilters}</span>}</button>}
+    {live && (filtersDrawer || !filtersOpen) && <button type="button" id="show-filters" className="button" aria-expanded={filtersOpen} aria-controls={filtersOpen ? 'trace-filters' : undefined} onClick={toggleFilters} title={filtersDrawer ? 'Open the filter drawer' : 'Show the filter panel'}><Icon name="filter"/>Filters{sidebarFilters > 0 && <span className="count">{sidebarFilters}</span>}</button>}
     <Search value={query.search} onSearch={search => onChange({ search })}/>
     {live && <Select aria-label="Time range" value={query.range || ''} onValueChange={range => onChange({ range })} options={rangeOptions.map(([value, label]) => ({ value, label }))}/>}
     {!live && <Select aria-label="Execution outcome" value={query.outcomes.length > 1 ? 'multiple' : query.outcomes[0] || ''} onValueChange={value => onChange({ outcomes: value ? [value] : [] })} options={choice('All outcomes', 'Multiple outcomes', ['Completed', 'Failed', 'Unknown'], query.outcomes)}/>}
     {!live && <Select aria-label="Telemetry completeness" value={query.completeness.length > 1 ? 'multiple' : query.completeness[0] || ''} onValueChange={value => onChange({ completeness: value ? [value] : [] })} options={choice('All completeness', 'Multiple capture states', ['Complete', 'Partial', 'Unknown'], query.completeness)}/>}
     {!live && <AdvancedFilters live={live} query={query} onChange={onChange}/>}
     {children && <div className="toolbar-end">{children}</div>}
-  </div>{(chips.length > 0 || resettableView) && <div className="active-filters" aria-label="Active trace filters">
+  </div>{chips.length > 0 && <div className="active-filters" aria-label="Active trace filters">
     {chips.map(chip => <button className="filter-chip" key={chip.label} aria-label={`Remove ${chip.label}`} onClick={() => onChange(chip.patch)}>{chip.label}<span aria-hidden="true">×</span></button>)}
     {chips.length > (live ? 1 : 0) && <button className="text-button" onClick={() => onChange({ search: '', range: '', outcomes: [], completeness: [], investigations: [], modes: [], agents: [], minMs: null, maxMs: null, hasErrors: false })}>Clear filters</button>}
-    {resettableView && <button className="text-button" onClick={onReset}>Reset view</button>}
   </div>}</>
 }

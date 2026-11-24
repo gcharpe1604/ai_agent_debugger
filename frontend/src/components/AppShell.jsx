@@ -44,9 +44,9 @@ function UserMenu({ account, local, collapsed }) {
       <MenuContent className="user-menu" side="top" align="start">
         <MenuLabel className="user-menu-identity"><strong>{name}</strong>{detail && <span>{detail}</span>}</MenuLabel>
         <MenuSeparator/>
-        <MenuLabel>Theme</MenuLabel>
+        <MenuLabel>Appearance</MenuLabel>
         {/* One segmented control: Light | Dark | System. Arrow keys still move between them. */}
-        <MenuRadioGroup aria-label="Theme" value={theme.preference} onValueChange={theme.setPreference} className="segmented theme-segmented">
+        <MenuRadioGroup aria-label="Appearance" value={theme.preference} onValueChange={theme.setPreference} className="segmented theme-segmented">
           {themes.map(([value, label]) => <MenuRadioItem key={value} value={value} indicator={false} className="theme-segment" onSelect={event => event.preventDefault()}>{label}</MenuRadioItem>)}
         </MenuRadioGroup>
         {user && <><MenuSeparator/><MenuItem disabled={state === 'busy'} onSelect={signOut}><Icon name="sign-out"/>{state === 'busy' ? 'Signing out…' : 'Sign out'}</MenuItem></>}

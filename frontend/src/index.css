@@ -98,6 +98,13 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 .select-chevron { display: inline-flex; color: var(--color-muted); }
 
 /* Layers: menus, selects, popovers and tooltips (Radix, portalled to <body>). */
+/* Scrollbars: thin, rounded, in the border colours; darker on hover. */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { border: 3px solid transparent; border-radius: 999px; background: var(--scrollbar-thumb) padding-box; }
+::-webkit-scrollbar-thumb:hover { background-color: var(--color-muted); }
+::-webkit-scrollbar-corner { background: transparent; }
 .ui-layer { z-index: 80; border: 1px solid var(--color-border-strong); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text); box-shadow: var(--shadow-popover); font-size: var(--text-sm); }
 .menu-content { min-width: 180px; max-height: var(--radix-dropdown-menu-content-available-height, var(--radix-select-content-available-height, 60dvh)); overflow-y: auto; padding: var(--space-1); }
 .select-content { min-width: var(--radix-select-trigger-width); }
@@ -125,7 +132,7 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 .segmented > button[aria-pressed="true"] { background: var(--color-bg); color: var(--color-text); box-shadow: 0 1px 2px #0000001a; }
 .segmented.small { height: 28px; }
 /* Theme switch (account menu and sign-in pages): Light | Dark | System as one pill. */
-.theme-segmented { display: flex; height: var(--control-height); padding: 3px; gap: 2px; border: 0; border-radius: var(--radius-card); background: var(--color-subtle); }
+.theme-segmented { display: flex; height: 28px; padding: 2px; gap: 2px; border: 0; border-radius: var(--radius-card); background: var(--color-subtle); }
 .menu-content .theme-segmented { margin: 0 var(--space-1) var(--space-1); }
 .theme-segmented > :is(button, .theme-segment) { display: inline-flex; flex: 1; align-items: center; justify-content: center; min-height: 0; height: 100%; padding: 0 var(--space-3); border: 0; border-radius: var(--radius-control); background: transparent; color: var(--color-text-secondary); font-size: var(--text-sm); font-weight: var(--weight-medium); white-space: nowrap; cursor: pointer; }
 .theme-segmented > :is(button, .theme-segment):hover { color: var(--color-text); }
@@ -317,9 +324,10 @@ input::placeholder { color: var(--color-muted); opacity: 1; }
 /* Status: coloured dot and text. */
 .run-status { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--color-text); }
 .status-dot { width: 8px; height: 8px; flex: none; border-radius: 50%; background: var(--color-muted); }
-.run-status[data-state="Completed"] .status-dot { background: var(--color-success); }
-.run-status[data-state="Failed"] .status-dot { background: var(--color-danger); }
-.run-status[data-state="Partial"] .status-dot { background: var(--color-warning); }
+/* Status dots keep the deeper light-mode colours in both themes. */
+.run-status[data-state="Completed"] .status-dot { background: var(--dot-ok); }
+.run-status[data-state="Failed"] .status-dot { background: var(--dot-error); }
+.run-status[data-state="Partial"] .status-dot { background: var(--dot-warning); }
 .error-count[data-tone="muted"] { color: var(--color-muted); }
 .error-count[data-tone="error"] { color: var(--color-danger); }
 

@@ -71,6 +71,8 @@
   /* Status dots keep the deeper light-mode colours in both themes. */
   --dot-ok: #16855a;
   --dot-error: #c0392b;
+  --dot-warning: #b7791f;
+  --scrollbar-thumb: hsl(240 5% 78%);
   /* Tree connector guides: a border-strength grey at about 60 %. */
   --color-guide: hsl(240 4% 46% / .35);
   /* JSON viewer values. */
@@ -116,6 +118,7 @@
   --type-state: #94a3b8;
   --type-custom: #db2777;
   --color-guide: hsl(0 0% 60% / .32);
+  --scrollbar-thumb: hsl(0 0% 30%);
   --json-string: #a5d6a7;
   --json-number: #93c5fd;
   --json-boolean: #fdba74;

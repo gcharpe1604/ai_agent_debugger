@@ -107,7 +107,7 @@ export default function RunExplorerPage({ project, projects, route, repository, 
       <div className="view-heading">
         <h1 id="runs-heading">Tracing</h1>
       </div>
-      <RunToolbar live={live} query={query} onChange={change} onReset={() => replaceQuery(project.id, '')} filtersOpen={showFilters} filtersDrawer={drawer} toggleFilters={toggleFilters}>
+      <RunToolbar live={live} query={query} onChange={change} filtersOpen={showFilters} filtersDrawer={drawer} toggleFilters={toggleFilters}>
         <ColumnMenu columns={runColumns(items)} hidden={hidden} onChange={list => setHiddenPreference(list.join(','))}/>
       </RunToolbar>
       <div className={`traces-layout${showFilters ? ' with-filters' : ''}`} data-drawer={drawer || undefined} ref={layout} style={{ '--peek-width': `${peekWidth}px` }}>

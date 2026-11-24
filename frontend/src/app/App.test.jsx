@@ -7,7 +7,7 @@ import { chooseOption } from '../test/ui.js'
 
 async function theme(user, choice) {
   await user.click(screen.getByRole('button', { name: /^Account menu/ }))
-  const group = within(await screen.findByRole('group', { name: 'Theme' }))
+  const group = within(await screen.findByRole('group', { name: 'Appearance' }))
   if (choice) await user.click(group.getByRole('menuitemradio', { name: choice }))
   const checked = group.getAllByRole('menuitemradio').find(item => item.getAttribute('aria-checked') === 'true').textContent
   await user.keyboard('{Escape}')
