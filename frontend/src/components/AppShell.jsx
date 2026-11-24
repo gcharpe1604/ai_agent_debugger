@@ -74,7 +74,7 @@ function Shell({ projects, project, route, children, header, crumbs, actions, lo
   const runsLink = projectId ? runsHref(projectId, returnQuery(route.search)) : undefined
   const tracingActive = !!projectId && route.projectId === projectId && !route.settings && !route.home
   const settingsProjectId = project?.id || (local ? 'local' : null)
-  const pageName = route.home ? 'Home' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
+  const pageName = route.home ? 'Dashboard' : route.settings ? 'Settings' : route.projectsPage ? 'Projects' : route.runId || 'Tracing'
   const trail = crumbs ?? [pageName]
   const main = useRef(null)
   const previousPath = useRef(null)
@@ -105,7 +105,7 @@ function Shell({ projects, project, route, children, header, crumbs, actions, lo
         <strong className="nav-text">Agent Debugger</strong>
       </div>
       <nav className="sidebar-nav" aria-label="Project workspaces">
-        {navItem('Home', projectId ? homeHref(projectId) : undefined, 'home', !!route.home)}
+        {navItem('Dashboard', projectId ? homeHref(projectId) : undefined, 'dashboard', !!route.home)}
         {navItem('Tracing', runsLink, 'runs', tracingActive, { current: route.runId ? 'location' : 'page' })}
         {!singleProject && navItem('Projects', '#/projects', 'branch', !!route.projectsPage)}
         {settingsProjectId && navItem('Settings', settingsHref(settingsProjectId), 'settings', !!route.settings, { ariaLabel: 'Project settings', tooltip: 'Project settings' })}

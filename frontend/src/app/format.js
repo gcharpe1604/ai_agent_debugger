@@ -40,10 +40,12 @@ function parseTimestamp(value) {
 
 // "24 Nov, 11:41:18" (or "24 Nov, 11:41" without seconds) in the viewer's time
 // zone; timeZone is for tests only. null when the value is unusable.
-export function formatTimestamp(value, { withSeconds = true, timeZone } = {}) {
+// time: false gives the date only ("24 Nov"), for daily chart labels.
+export function formatTimestamp(value, { withSeconds = true, time = true, timeZone } = {}) {
   const parsed = parseTimestamp(value)
   if (!parsed) return null
   const parts = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone, day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', ...(withSeconds && { second: '2-digit' }), hourCycle: 'h23' }).formatToParts(parsed.date).map(part => [part.type, part.value]))
+  if (!time) return `${parts.day} ${parts.month}`
   return `${parts.day} ${parts.month}, ${parts.hour}:${parts.minute}${withSeconds ? `:${parts.second}` : ''}`
 }
 

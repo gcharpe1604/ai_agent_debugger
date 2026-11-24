@@ -1,87 +1,81 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import Icon from '../components/Icon.jsx'
+import Select from '../components/ui/Select.jsx'
 import Timestamp from '../components/Timestamp.jsx'
 import UpdatedAgo from '../components/UpdatedAgo.jsx'
 import { runsHref } from '../app/routes.jsx'
-import { formatSpanDuration } from '../app/format.js'
+import { exactDuration, formatSpanDuration } from '../app/format.js'
 import { useRuns } from '../features/runs/useRuns.js'
 import { parseQuery } from '../features/runs/query.js'
-import { firstErrorText } from '../features/runs/runColumns.js'
-import { overview } from '../features/home/overview.js'
+import { DASHBOARD_RANGES, DEFAULT_RANGE, agentLatency, buckets, kpis, percentText, recentFailures } from '../features/home/dashboardModel.js'
+import TracesChart from '../features/home/TracesChart.jsx'
 import SetupGuide from '../features/home/SetupGuide.jsx'
 import '../features/home/home.css'
 
-// Every trace the project holds, newest first, for the summary. The local store
-// keeps at most 100 traces, so one read covers it.
-const allTraces = { ...parseQuery(''), time: 'all', pageSize: 10000 }
 const durationLabel = value => value === null ? '—' : formatSpanDuration(value)
+// Every run in the range, newest first. The repository reads at most 1,000
+// runs (newest first) and says so with partialAt.
+const rangeQuery = range => ({ ...parseQuery(''), time: 'all', range, pageSize: 100000 })
 
-function Bar({ value, total, tone }) {
-  const share = total ? Math.round((value / total) * 100) : 0
-  return <span className="home-bar" data-tone={tone} aria-hidden="true"><span style={{ width: `${share}%` }}/></span>
+function Tile({ label, value, title }) {
+  return <section className="kpi-tile" aria-label={label}><span className="kpi-label">{label}</span><span className="kpi-value tabular" title={title}>{value}</span></section>
 }
 
-function Overview({ project, result }) {
-  const summary = useMemo(() => overview(result.items), [result.items])
-  const tracing = runsHref(project.id)
-  const shownAgents = summary.agents.slice(0, 6)
-  const statusRows = [['Completed', 'success'], ['Failed', 'error'], ['Unknown', undefined]]
+function Dashboard({ project, result, range, now }) {
+  const runs = result.items
+  const figures = useMemo(() => kpis(runs), [runs])
+  const series = useMemo(() => buckets(runs, range, now), [runs, range, now])
+  const agents = useMemo(() => agentLatency(runs), [runs])
+  const failures = useMemo(() => recentFailures(runs), [runs])
   return <>
-    <div className="home-grid">
-      <section className="home-tile" aria-labelledby="tile-traces">
-        <header><h2 id="tile-traces">Traces</h2><a href={tracing}>Open Tracing<Icon name="arrow"/></a></header>
-        <p className="home-figure"><strong>{summary.total.toLocaleString('en')}</strong><span>{summary.agents.length === 1 ? '1 agent' : `${summary.agents.length} agents`}</span></p>
-        <ul className="home-rows" aria-label="Traces by agent">
-          {shownAgents.map(agent => <li key={agent.name}>
-            <a href={runsHref(project.id, new URLSearchParams([['agent', agent.name]]).toString())} title={`Show ${agent.name} traces`}>{agent.name}</a>
-            <Bar value={agent.count} total={summary.total}/>
-            <span className="home-count">{agent.count}</span>
-          </li>)}
-        </ul>
-        {summary.agents.length > shownAgents.length && <p className="home-note">+{summary.agents.length - shownAgents.length} more in Tracing</p>}
+    <div className="kpi-row">
+      <Tile label="Traces" value={figures.traces.toLocaleString('en')}/>
+      <Tile label="Error rate" value={percentText(figures.errorRate)} title={`${figures.failed} failed of ${figures.traces}`}/>
+      <Tile label="p50 latency" value={durationLabel(figures.p50)} title={figures.p50 === null ? undefined : exactDuration(figures.p50)}/>
+      <Tile label="p95 latency" value={durationLabel(figures.p95)} title={figures.p95 === null ? undefined : exactDuration(figures.p95)}/>
+    </div>
+    <section className="dashboard-card" aria-labelledby="chart-title">
+      <h2 id="chart-title">Traces over time</h2>
+      <TracesChart buckets={series}/>
+    </section>
+    <div className="dashboard-tables">
+      <section className="dashboard-card" aria-labelledby="latency-title">
+        <h2 id="latency-title">Latency by agent</h2>
+        {agents.length ? <table className="dashboard-table">
+          <thead><tr><th scope="col">Agent</th><th scope="col" className="numeric">Runs</th><th scope="col" className="numeric">p50</th><th scope="col" className="numeric">p95</th><th scope="col" className="numeric">Error rate</th></tr></thead>
+          <tbody>{agents.map(agent => <tr key={agent.name}>
+            <th scope="row"><a href={runsHref(project.id, new URLSearchParams([['agent', agent.name]]).toString())} title={`Show ${agent.name} traces`}>{agent.name}</a></th>
+            <td className="numeric">{agent.runs.toLocaleString('en')}</td>
+            <td className="numeric">{durationLabel(agent.p50)}</td>
+            <td className="numeric">{durationLabel(agent.p95)}</td>
+            <td className="numeric" data-tone={agent.errorRate > 0 ? 'error' : undefined}>{percentText(agent.errorRate)}</td>
+          </tr>)}</tbody>
+        </table> : <p className="dashboard-empty">No traces in this time range.</p>}
       </section>
-      <section className="home-tile" aria-labelledby="tile-status">
-        <header><h2 id="tile-status">Execution status</h2></header>
-        <ul className="home-rows" aria-label="Traces by recorded status">
-          {statusRows.map(([label, tone]) => <li key={label}>
-            <a href={runsHref(project.id, `outcome=${label}`)}>{label}</a>
-            <Bar value={summary.status[label]} total={summary.total} tone={tone}/>
-            <span className="home-count">{summary.status[label]}</span>
-          </li>)}
-        </ul>
-        <p className="home-note">{summary.withErrorSpans} with error spans{summary.recovered ? ` · ${summary.recovered} recovered after a retry` : ''}</p>
-      </section>
-      <section className="home-tile" aria-labelledby="tile-latency">
-        <header><h2 id="tile-latency">Latency by agent</h2></header>
-        <table className="home-table">
-          <thead><tr><th scope="col">Agent</th><th scope="col" className="numeric">p50</th><th scope="col" className="numeric">p95</th><th scope="col" className="numeric">Max</th></tr></thead>
-          <tbody>{shownAgents.map(agent => <tr key={agent.name}><th scope="row">{agent.name}</th><td className="numeric">{durationLabel(agent.p50)}</td><td className="numeric">{durationLabel(agent.p95)}</td><td className="numeric">{durationLabel(agent.max)}</td></tr>)}</tbody>
-        </table>
+      <section className="dashboard-card" aria-labelledby="failures-title">
+        <h2 id="failures-title">Recent failures</h2>
+        {failures.length ? <table className="dashboard-table">
+          <thead><tr><th scope="col" className="col-time">Timestamp</th><th scope="col">Name</th><th scope="col">First error</th></tr></thead>
+          <tbody>{failures.map(run => <tr key={run.id}>
+            <td className="tabular secondary"><Timestamp value={run.startedAt}/></td>
+            <td><a href={runsHref(project.id, run.firstError ? `span=${encodeURIComponent(run.firstError.spanId)}` : '', run.id)} title={`Open ${run.name} ${run.id}`}>{run.name}</a></td>
+            <td className="error-text">{run.firstError?.exceptionType || '—'}</td>
+          </tr>)}</tbody>
+        </table> : <p className="dashboard-empty">No failed traces in this time range.</p>}
       </section>
     </div>
-    <section className="home-section" aria-labelledby="recent-failures">
-      <header className="home-section-heading"><h2 id="recent-failures">Recent failed traces</h2></header>
-      {summary.failures.length ? <ul className="home-failures">
-        {summary.failures.map(run => {
-          const href = runsHref(project.id, run.firstError ? `span=${encodeURIComponent(run.firstError.spanId)}` : '', run.id)
-          return <li key={run.id}>
-            <a href={href}>{run.name}</a>
-            <span className="error-text">{firstErrorText(run.firstError) || 'Failed'}</span>
-            <Timestamp className="secondary" value={run.startedAt}/>
-          </li>
-        })}
-      </ul> : <p className="home-note">No failed traces.</p>}
-    </section>
   </>
 }
 
 function ProjectHome(props) {
-  const runs = useRuns(props.repository, props.project.id, allTraces, 'home')
-  return <HomeLayout {...props} runs={runs}/>
+  const [range, setRange] = useState(DEFAULT_RANGE)
+  const query = useMemo(() => rangeQuery(range), [range])
+  const runs = useRuns(props.repository, props.project.id, query, `dashboard:${range}`)
+  return <HomeLayout {...props} runs={runs} range={range} setRange={setRange}/>
 }
 
-function HomeLayout({ project, projects, route, local, runs, traceRepository, checking, checkConnection }) {
+function HomeLayout({ project, projects, route, local, runs, range, setRange, traceRepository, checking, checkConnection }) {
   const result = runs?.result
   const empty = !result || result.projectTotal === 0
   const actions = runs && <>
@@ -92,12 +86,14 @@ function HomeLayout({ project, projects, route, local, runs, traceRepository, ch
   return <AppShell projects={projects} project={project} route={route} local={local} actions={actions}>
     <section className="home-page" aria-labelledby="home-heading">
       <div className="view-heading">
-        <h1 id="home-heading">Home</h1>
+        <h1 id="home-heading">Dashboard</h1>
+        {runs && <div className="view-heading-actions"><Select aria-label="Time range" value={range} onValueChange={setRange} align="end" options={DASHBOARD_RANGES.map(([value, label]) => ({ value, label }))}/></div>}
       </div>
+      {result?.partialAt && <p className="dashboard-cap">Based on the latest {result.partialAt.toLocaleString('en')} runs</p>}
       {empty && setup}
-      {runs?.error && <div className="read-error" role="alert"><Icon name="error"/><div><strong>Could not load the overview</strong><p>{runs.error}</p></div><button className="button small" onClick={runs.refresh}>Retry</button></div>}
-      {!result && runs?.busy && <p className="secondary home-loading">Loading overview…</p>}
-      {result && result.projectTotal > 0 && <Overview project={project} result={result}/>}
+      {runs?.error && <div className="read-error" role="alert"><Icon name="error"/><div><strong>Could not load the dashboard</strong><p>{runs.error}</p></div><button className="button small" onClick={runs.refresh}>Retry</button></div>}
+      {!result && runs?.busy && <p className="secondary home-loading">Loading dashboard…</p>}
+      {result && result.projectTotal > 0 && <Dashboard project={project} result={result} range={range} now={runs.loadedAt}/>}
       {!empty && setup}
     </section>
   </AppShell>

@@ -188,9 +188,9 @@ describe('settings', () => {
     expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0)
   })
 
-  it('has no Projects nav or Projects page in durable mode: project URLs go to Home', async () => {
+  it('has no Projects nav or Projects page in durable mode: project URLs go to the Dashboard', async () => {
     start('/projects', { signedIn: true })
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeTruthy()
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy()
     expect(window.location.hash).toBe('#/projects/default')
     const sidebar = within(screen.getByRole('complementary', { name: 'Project navigation' }))
     expect(sidebar.getByRole('link', { name: 'Tracing' })).toBeTruthy()

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import App from '../app/App.jsx'
 import { parseQuery } from '../features/runs/query.js'
 import { createApiAdapters } from './apiRepository.js'
+import { chooseOption, selectedOption } from '../test/ui.js'
 
 const workspace = { id: "local", name: "Local captures", initial: "L", environment: "SDK telemetry · memory storage", dataSource: "local" }
 const status = { mode: "local", workspace }
@@ -83,8 +84,8 @@ it('keeps the Home setup steps available offline and verifies only the requested
   window.history.replaceState(null, '', '/#/projects/local/runs')
   const user = userEvent.setup()
   render(<App {...adapters}/> )
-  await user.click(await screen.findByRole('link', { name: 'Home' }))
-  expect(await screen.findByRole('heading', { name: 'Home' })).toBeTruthy()
+  await user.click(await screen.findByRole('link', { name: 'Dashboard' }))
+  expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy()
   expect(await screen.findByText('Backend unavailable')).toBeTruthy()
   expect(screen.queryByRole('combobox', { name: 'Project' })).toBeNull()
   reachable = true
@@ -195,21 +196,45 @@ describe('failed local run: first error surfacing', () => {
     expect((await selectedRow()).getAttribute('data-span-id')).toBe('a000000000000003')
   })
 
-  it('summarises the project on Home and links failures to their first error', async () => {
+  it('shows the Dashboard: KPI tiles, traces over time and the two tables for the chosen range', async () => {
     window.history.replaceState(null, '', '/#/projects/local')
+    const user = userEvent.setup()
     render(<App {...createApiAdapters(fetcher)}/> )
-    expect(await screen.findByRole('heading', { name: 'Home' })).toBeTruthy()
-    const traces = await screen.findByRole('region', { name: 'Traces' })
-    expect(within(traces).getByText('3')).toBeTruthy()
-    const status = screen.getByRole('region', { name: 'Execution status' })
-    expect(within(status).getByText(/1 recovered after a retry/)).toBeTruthy()
-    const failures = screen.getByRole('region', { name: 'Recent failed traces' })
-    expect(within(failures).getByRole('link', { name: 'tool-task-agent' }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?span=a000000000000002`)
-    expect(within(failures).getByText('ToolTimeout · LocalTools.invoke (+1)')).toBeTruthy()
-    // Traces exist, so the setup steps move below the summary instead of leading the page.
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeTruthy()
+    expect(screen.getByRole('link', { name: 'Dashboard' }).getAttribute('aria-current')).toBe('page')
+    // Default range is the last 7 days; these fixture runs are older.
+    expect(selectedOption('Time range')).toBe('Last 7 days')
+    expect((await screen.findAllByText('No traces in this time range.')).length).toBe(2)
+    expect(screen.getByRole('region', { name: 'Traces' }).querySelector('.kpi-value').textContent).toBe('0')
+    await chooseOption(user, 'Time range', 'All time')
+    const tile = label => screen.getByRole('region', { name: label }).querySelector('.kpi-value').textContent
+    await waitFor(() => expect(tile('Traces')).toBe('3'))
+    expect(tile('Error rate')).toBe('33%')
+    expect(tile('p50 latency')).toMatch(/ms$/)
+    expect(tile('p95 latency')).toMatch(/ms$/)
+    // One day of runs: one stacked bar with its counts in the tooltip label.
+    const chart = screen.getByRole('region', { name: 'Traces over time' })
+    expect(within(chart).getByRole('img', { name: /Traces over time: 3 traces/ })).toBeTruthy()
+    expect(chart.querySelectorAll('.chart-failed')).toHaveLength(1)
+    expect(chart.querySelector('[aria-label*="1 failed"]').getAttribute('aria-label')).toMatch(/2 completed, 1 failed$/)
+    const latency = within(screen.getByRole('region', { name: 'Latency by agent' }))
+    expect(latency.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Agent', 'Runs', 'p50', 'p95', 'Error rate'])
+    expect(latency.getByRole('row', { name: /tool-task-agent/ }).textContent).toContain('100%')
+    const failures = within(screen.getByRole('region', { name: 'Recent failures' }))
+    expect(failures.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Timestamp', 'Name', 'First error'])
+    expect(failures.getByRole('link', { name: 'tool-task-agent' }).getAttribute('href')).toBe(`#/projects/local/runs/${failedId}?span=a000000000000002`)
+    expect(failures.getByText('ToolTimeout')).toBeTruthy()
+    expect(screen.queryByText(/Based on the latest/)).toBeNull()
+    // The local Dashboard keeps the setup steps below the figures.
     expect(screen.getByRole('region', { name: 'Send your first trace' })).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Refresh' })).toBeTruthy()
-    expect(screen.getByRole('link', { name: 'Home' }).getAttribute('aria-current')).toBe('page')
+  })
+
+  it('says when the Dashboard is based on a capped read', async () => {
+    window.history.replaceState(null, '', '/#/projects/local')
+    const adapters = createApiAdapters(fetcher)
+    const repository = { ...adapters.repository, listRuns: async args => ({ ...await adapters.repository.listRuns(args), partialAt: 1000 }) }
+    render(<App {...adapters} repository={repository}/> )
+    expect(await screen.findByText('Based on the latest 1,000 runs')).toBeTruthy()
   })
 
   it('turns the filter panel into a drawer on a narrow layout: Filters opens it, Esc closes it', async () => {
