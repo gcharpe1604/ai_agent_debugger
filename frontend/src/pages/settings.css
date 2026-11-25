@@ -23,7 +23,7 @@
 .settings-card h3 { margin: 0; font-size: var(--text-base); }
 /* Tabs: General and API key. */
 .settings-tabs { padding: 0 var(--space-6) var(--space-6); }
-.settings-panel { display: flex; flex-direction: column; gap: var(--space-3); max-width: 880px; padding-top: var(--space-4); outline: none; }
+.settings-panel { display: flex; flex-direction: column; gap: var(--space-4); max-width: 880px; padding-top: var(--space-4); outline: none; }
 .settings-panel .settings-card-heading { flex-wrap: nowrap; align-items: flex-start; }
 .settings-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--color-border); border-radius: var(--radius-card); font-size: var(--text-sm); }
 .settings-table th, .settings-table td { height: 40px; padding: 0 var(--space-3); text-align: left; font-weight: var(--weight-regular); }
@@ -33,10 +33,11 @@
 .settings-table code { font-family: var(--font-mono); font-size: var(--text-xs); }
 .settings-actions-cell { width: 1%; text-align: right; white-space: nowrap; }
 @media (max-width: 767px) { .settings-tabs { padding: 0 var(--space-3) var(--space-4); } }
-/* Profile. */
-.profile-identity { display: flex; align-items: center; gap: var(--space-3); }
-.profile-identity p { margin: 0; }
-.profile-avatar { width: 40px; height: 40px; font-size: var(--text-base); }
-.profile-name { font-size: var(--text-base); font-weight: var(--weight-semibold); line-height: var(--leading); }
-.profile-link { margin-left: var(--space-2); color: var(--color-text); font-size: var(--text-sm); text-decoration: underline; text-underline-offset: 3px; }
-.settings-facts .trace-copy { height: auto; min-height: 0; padding: 0; }
+/* General: account header card (avatar, name, email, Sign out on one row). */
+.account-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--space-3) var(--space-4); padding: var(--space-4); border: 1px solid var(--color-border); border-radius: var(--radius-card); }
+.account-avatar { width: 48px; height: 48px; font-size: var(--text-lg); }
+.account-identity { min-width: 0; }
+.account-identity p { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-name { font-size: var(--text-lg); font-weight: var(--weight-semibold); line-height: var(--leading); }
+.account-email { color: var(--color-muted); font-size: var(--text-sm); line-height: var(--leading); }
+.account-error { grid-column: 1 / -1; margin: 0; }

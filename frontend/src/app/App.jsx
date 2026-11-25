@@ -6,7 +6,7 @@ import { disconnectedRuns, disconnectedTraces, disconnectedInvestigations, disco
 import EvidencePage from '../features/evidence/EvidencePage.jsx'
 import ReadBoundary from '../components/ReadBoundary.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
-import { accountHref, homeHref, replaceHash, runsHref, useRoute } from './routes.jsx'
+import { accountHref, homeHref, replaceHash, runsHref, settingsHref, useRoute } from './routes.jsx'
 import { disconnectedAccount } from '../data/accessAdapters.js'
 import useProjects from '../features/access/useProjects.js'
 import ProjectsPage from '../features/access/ProjectsPage.jsx'
@@ -14,7 +14,6 @@ import AccountPage from '../features/access/AccountPage.jsx'
 import AccessState from '../features/access/AccessState.jsx'
 import HomePage from '../pages/HomePage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
-import ProfilePage from '../pages/ProfilePage.jsx'
 import { AccountContext } from '../features/access/session.js'
 import { DURABLE_PROJECT } from '../data/durableRepository.js'
 
@@ -45,6 +44,8 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   const durable = adapter.mode === 'durable'
   const fallbackProjectId = project?.id || projects[0]?.id || (local ? 'local' : durable ? DURABLE_PROJECT : null)
   const protect = children => <ReadBoundary key={route.path} back={fallbackProjectId ? runsHref(fallbackProjectId, returnQuery(route.search)) : '#/projects'}>{children}</ReadBoundary>
+  // No Profile page: the account is shown in Settings › General.
+  if (route.profile) return <Redirect href={fallbackProjectId ? settingsHref(fallbackProjectId) : '#/projects'}/>
   if (durable && !route.account && (route.projectsPage || !route.projectId)) return <Redirect href={homeHref(DURABLE_PROJECT)}/>
   // Local Home stays usable while the backend is offline: its setup steps are
   // how the user gets it running.
@@ -52,7 +53,6 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   if (route.home && project) return protect(<HomePage key={project.id} project={project} projects={projects} route={route} local={false} repository={repository}/>)
   if (route.home && local) return protect(<AppShell projects={projects} project={project} route={route} local><AccessState kind="unavailable"/></AppShell>)
   if (project?.dataSource === 'local' && route.settings) return protect(<AppShell projects={projects} project={project} route={route}><SettingsPage project={project} initialTab={new URLSearchParams(route.search).get('tab')}/></AppShell>)
-  if (project && route.profile) return protect(<AppShell projects={projects} project={project} route={route}><ProfilePage project={project}/></AppShell>)
   if (project?.dataSource === 'local' && route.evidence) return protect(<AppShell projects={projects} project={project} route={route}><AccessState kind="unavailable"/></AppShell>)
   // Account/access routes unmount project workspaces, dropping rendered trace/evidence caches.
   // Disconnected authentication never fabricates or blocks captured local telemetry.

@@ -268,12 +268,14 @@ describe('durable source in the app', () => {
     expect(within(screen.getByRole('group', { name: 'Execution mode' })).getByText('Controlled')).toBeTruthy()
   })
 
-  it('names the project "Default project" in the breadcrumb and has no project switcher or Projects page', async () => {
+  it('names no project in the breadcrumb or title and has no project switcher or Projects page', async () => {
     window.history.replaceState(null, '', '/#/projects/default/runs')
     render(<App {...createApiAdapters(durableFetcher(), { source: 'durable' })}/>)
     await screen.findByRole('link', { name: `rag.run ${traceId}` })
     const crumbs = within(screen.getByRole('navigation', { name: 'Breadcrumb' }))
-    expect(crumbs.getByRole('link', { name: 'Default project' }).getAttribute('href')).toBe('#/projects/default')
+    // Projects are not a product feature yet, so the one project is never named.
+    expect(document.querySelector('.topbar').textContent).not.toContain('Default project')
+    expect(document.title).not.toContain('Default project')
     expect(crumbs.getByText('Tracing')).toBeTruthy()
     expect(screen.queryByLabelText('Project')).toBeNull()
     expect(screen.queryByRole('link', { name: 'Projects' })).toBeNull()
@@ -299,7 +301,7 @@ describe('durable source in the app', () => {
     window.history.replaceState(null, '', '/?source=durable#/projects/default/runs')
     const user = userEvent.setup()
     render(<App {...createApiAdapters(durableFetcher(), { source: 'durable' })}/>)
-    await user.click(await screen.findByRole('link', { name: 'Project settings' }))
+    await user.click(await screen.findByRole('link', { name: 'Settings' }))
     await user.click(await screen.findByRole('tab', { name: 'API key' }))
     expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/traces/)).toBeTruthy()
     expect(screen.getByText(/AGENT_DEBUGGER_API_KEY=<your key>/)).toBeTruthy()

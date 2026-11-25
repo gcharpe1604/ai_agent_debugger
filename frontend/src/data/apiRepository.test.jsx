@@ -53,7 +53,7 @@ it('shows local Settings with server-reported retention, the SDK endpoint and no
   window.history.replaceState(null, '', '/#/projects/local/runs')
   const user = userEvent.setup()
   render(<App {...createApiAdapters(fetcher)}/> )
-  await user.click(await screen.findByRole('link', { name: 'Project settings' }))
+  await user.click(await screen.findByRole('link', { name: 'Settings' }))
   expect(await screen.findByRole('heading', { name: 'Settings' })).toBeTruthy()
   expect(screen.getByText('Traces are kept for 4 h, then removed.')).toBeTruthy()
   await user.click(screen.getByRole('tab', { name: 'API key' }))

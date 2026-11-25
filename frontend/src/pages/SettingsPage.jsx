@@ -64,9 +64,25 @@ function Facts({ rows }) {
   return <dl className="settings-facts">{rows.filter(Boolean).map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
 }
 
-// Settings: General (the project) and API key; the account itself is on the
-// Profile page. Local mode has no accounts or keys; its API key tab explains
-// the loopback endpoint instead.
+// General's account header: who is signed in, with Sign out on the same row.
+// There is no separate Profile page; old Profile URLs land here.
+function AccountHeader({ account }) {
+  const [state, setState] = useState('idle')
+  const user = account.user
+  async function signOut() {
+    setState('busy')
+    try { await account.signOut() } catch { setState('failed') }
+  }
+  return <section className="account-card" aria-label="Account">
+    <span className="user-avatar account-avatar" aria-hidden="true">{user.name.trim().charAt(0).toUpperCase()}</span>
+    <div className="account-identity"><p className="account-name">{user.name}</p><p className="account-email">{user.email}</p></div>
+    <button type="button" className="button small account-sign-out" disabled={state === 'busy'} onClick={signOut}>{state === 'busy' ? 'Signing out…' : 'Sign out'}</button>
+    {state === 'failed' && <p className="form-error account-error" role="alert">Sign-out failed. Retry.</p>}
+  </section>
+}
+
+// Settings: General (the account) and API key. Local mode has no
+// accounts or keys; its API key tab explains the loopback endpoint instead.
 export default function SettingsPage({ project, initialTab }) {
   const account = useAccount()
   const [tab, setTab] = useState(initialTab === 'api-key' ? 'api-key' : 'general')
@@ -77,11 +93,10 @@ export default function SettingsPage({ project, initialTab }) {
     <Tabs value={tab} onValueChange={setTab} className="settings-tabs">
       <TabsList aria-label="Settings sections"><TabsTrigger value="general">General</TabsTrigger><TabsTrigger value="api-key">API key</TabsTrigger></TabsList>
       <TabsContent value="general" className="settings-panel">
-        <Facts rows={[
-          ['Project', project.name],
-          !signedIn && ['Project ID', <code key="id">{project.id}</code>],
-          retention && ['Retention', `Traces are kept for ${retention}, then removed.`],
-        ]}/>
+        {/* No project name: projects are not a product feature yet. */}
+        {signedIn && <AccountHeader account={account}/>}
+        {retention && <Facts rows={[['Retention', `Traces are kept for ${retention}, then removed.`]]}/>}
+        {!signedIn && !retention && <p className="settings-note">Nothing to configure yet.</p>}
       </TabsContent>
       <TabsContent value="api-key" className="settings-panel">
         {signedIn ? <ApiKeyTab account={account}/> : <>

@@ -77,7 +77,9 @@ describe('durable session gate', () => {
     expect(topbar.queryByRole('button', { name: 'Sign out' })).toBeNull()
     await user.click(screen.getByLabelText('Account menu: Ada Lovelace'))
     const menu = within(await screen.findByRole('menu'))
-    expect(menu.getByText(ADA.email)).toBeTruthy()
+    // The menu itself does not repeat the name and email shown on its trigger.
+    expect(menu.queryByText(ADA.email)).toBeNull()
+    expect(menu.queryByText('Ada Lovelace')).toBeNull()
     expect(menu.getByRole('group', { name: 'Appearance' })).toBeTruthy()
     await user.click(menu.getByRole('menuitem', { name: 'Sign out' }))
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy()
@@ -162,14 +164,20 @@ describe('registration', () => {
 })
 
 describe('settings', () => {
-  it('shows General and API key tabs, a placeholder snippet, and rotates the key only after confirmation', async () => {
+  it('shows General (account header) and API key tabs, a placeholder snippet, and rotates the key only after confirmation', async () => {
     const { fetcher, user } = start('/projects/default/settings', { signedIn: true })
-    // General: the one project only; the account is on Profile; no storage line.
-    const general = await screen.findByRole('tabpanel', { name: 'General' })
-    expect(within(general).queryByText('Ada Lovelace')).toBeNull()
-    expect(within(general).queryByText(ADA.email)).toBeNull()
-    expect(within(general).getByText('Default project')).toBeTruthy()
-    expect(within(general).queryByText('Storage')).toBeNull()
+    // General: the account header (name, email, Sign out); no project name, no user ID, no storage line.
+    const general = within(await screen.findByRole('tabpanel', { name: 'General' }))
+    const header = within(general.getByRole('region', { name: 'Account' }))
+    expect(header.getByText('Ada Lovelace')).toBeTruthy()
+    expect(header.getByText(ADA.email)).toBeTruthy()
+    expect(header.getByRole('button', { name: 'Sign out' })).toBeTruthy()
+    expect(general.queryByText(ADA.id)).toBeNull()
+    expect(general.queryByText(/can.t be changed/)).toBeNull()
+    expect(general.queryByText('Storage')).toBeNull()
+    // Projects are not a product feature yet: the page and its breadcrumb never name one.
+    expect(document.body.textContent).not.toContain('Default project')
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('Settings')).toBeTruthy()
     await user.click(screen.getByRole('tab', { name: 'API key' }))
     const keys = within(screen.getByRole('table', { name: 'API keys' }))
     expect(keys.getAllByRole('columnheader').map(cell => cell.textContent)).toEqual(['Key prefix', 'Actions'])
@@ -202,21 +210,25 @@ describe('settings', () => {
     expect(localStorage.length).toBe(0); expect(sessionStorage.length).toBe(0)
   })
 
-  it('opens Profile from the account menu with the account details, and links to the API key tab', async () => {
-    const { user } = start('/projects/default', { signedIn: true })
-    await screen.findByRole('link', { name: 'Default project' })
+  it('has no Profile item in the account menu, and signs out from the Settings account header', async () => {
+    const { fetcher, user } = start('/projects/default', { signedIn: true })
+    await screen.findByRole('link', { name: 'Tracing' })
     await user.click(screen.getByLabelText('Account menu: Ada Lovelace'))
-    await user.click(within(await screen.findByRole('menu')).getByRole('menuitem', { name: 'Profile' }))
-    expect(await screen.findByRole('heading', { name: 'Profile' })).toBeTruthy()
-    expect(window.location.hash).toBe('#/projects/default/profile')
-    const facts = within(document.querySelector('.settings-facts'))
-    expect(facts.getByText('Ada Lovelace')).toBeTruthy()
-    expect(facts.getByText(ADA.email)).toBeTruthy()
-    expect(facts.getByText('Default project')).toBeTruthy()
-    expect(facts.getByText(`${KEY_1.slice(0, 12)}…`)).toBeTruthy()
-    await user.click(facts.getByRole('link', { name: 'Manage in Settings' }))
-    expect(await screen.findByRole('table', { name: 'API keys' })).toBeTruthy()
-    expect(screen.getByRole('tab', { name: 'API key' }).getAttribute('aria-selected')).toBe('true')
+    const menu = within(await screen.findByRole('menu'))
+    expect(menu.queryByRole('menuitem', { name: 'Profile' })).toBeNull()
+    expect(menu.getAllByRole('menuitem').map(item => item.textContent)).toEqual(['Sign out'])
+    await user.keyboard('{Escape}')
+    await user.click(screen.getByRole('link', { name: 'Settings' }))
+    expect(screen.getByRole('tab', { name: 'General' }).getAttribute('aria-selected')).toBe('true')
+    await user.click(within(screen.getByRole('region', { name: 'Account' })).getByRole('button', { name: 'Sign out' }))
+    expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeTruthy()
+    expect(calls(fetcher)).toContain('POST /api/v1/auth/logout')
+  })
+
+  it.each(['/projects/default/profile', '/profile'])('redirects the old Profile URL %s to Settings › General', async path => {
+    start(path, { signedIn: true })
+    expect(await screen.findByRole('tabpanel', { name: 'General' })).toBeTruthy()
+    expect(window.location.hash).toBe('#/projects/default/settings')
   })
 
   it('has no Projects nav or Projects page in durable mode: project URLs go to the Dashboard', async () => {
@@ -238,7 +250,7 @@ describe('signed-in shell', () => {
   it.each(['/projects/default', '/projects/default/runs', '/projects/default/settings'])('never offers Sign in in the sidebar on %s', async path => {
     const { user } = start(path, { signedIn: true })
     // Wait for the project, so the shell is the final one (pages re-mount it once loaded).
-    await screen.findByRole('link', { name: 'Default project' })
+    await screen.findByRole('link', { name: 'Tracing' })
     const sidebar = screen.getByRole('complementary', { name: 'Project navigation' })
     const account = screen.getByLabelText('Account menu: Ada Lovelace')
     expect(within(sidebar).queryByRole('link', { name: /Sign in/ })).toBeNull()
@@ -254,7 +266,7 @@ describe('signed-in shell', () => {
 
   it('switches the theme from the account menu with radio items and the keyboard', async () => {
     const { user } = start('/projects/default', { signedIn: true })
-    await screen.findByRole('link', { name: 'Default project' })
+    await screen.findByRole('link', { name: 'Tracing' })
     const account = screen.getByLabelText('Account menu: Ada Lovelace')
     await user.click(account)
     const themes = within(await screen.findByRole('group', { name: 'Appearance' }))
