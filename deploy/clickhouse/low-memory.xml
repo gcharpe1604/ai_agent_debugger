@@ -1,0 +1,27 @@
+<!-- Mounted into /etc/clickhouse-server/config.d/ by compose.prod.yaml: fit ClickHouse
+     into about 1.2 GB on a 4 GB VM shared with Kafka, PostgreSQL and the API. -->
+<clickhouse>
+    <!-- 1.2 GiB. Queries over the limit fail with MEMORY_LIMIT_EXCEEDED instead of
+         growing until the kernel kills a container. -->
+    <max_server_memory_usage>1288490188</max_server_memory_usage>
+    <mark_cache_size>268435456</mark_cache_size>
+    <index_mark_cache_size>67108864</index_mark_cache_size>
+    <uncompressed_cache_size>16777216</uncompressed_cache_size>
+
+    <logger>
+        <level>warning</level>
+    </logger>
+
+    <!-- Internal diagnostics tables that write continuously; not needed here.
+         query_log stays for debugging slow reads. -->
+    <trace_log remove="1"/>
+    <text_log remove="1"/>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <query_thread_log remove="1"/>
+    <query_views_log remove="1"/>
+    <processors_profile_log remove="1"/>
+    <part_log remove="1"/>
+    <latency_log remove="1"/>
+    <error_log remove="1"/>
+</clickhouse>
