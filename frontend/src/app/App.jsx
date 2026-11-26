@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import AppShell from '../components/AppShell.jsx'
 import RunExplorerPage from '../pages/RunExplorerPage.jsx'
 import RunDetailPage from '../pages/RunDetailPage.jsx'
@@ -6,7 +6,7 @@ import { disconnectedRuns, disconnectedTraces, disconnectedInvestigations, disco
 import EvidencePage from '../features/evidence/EvidencePage.jsx'
 import ReadBoundary from '../components/ReadBoundary.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
-import { accountHref, homeHref, replaceHash, runsHref, settingsHref, useRoute } from './routes.jsx'
+import { accountHref, homeHref, isPublic, replaceHash, runsHref, settingsHref, useRoute } from './routes.jsx'
 import { disconnectedAccount } from '../data/accessAdapters.js'
 import useProjects from '../features/access/useProjects.js'
 import ProjectsPage from '../features/access/ProjectsPage.jsx'
@@ -16,6 +16,12 @@ import HomePage from '../pages/HomePage.jsx'
 import SettingsPage from '../pages/SettingsPage.jsx'
 import { AccountContext } from '../features/access/session.js'
 import { DURABLE_PROJECT } from '../data/durableRepository.js'
+
+// Landing and docs: a separate chunk, so the app bundle does not grow.
+const PublicSite = lazy(() => import('../features/public/PublicSite.jsx'))
+function Public({ route, dashboard, signedIn }) {
+  return <Suspense fallback={<p className="session-check" role="status">Loading…</p>}><PublicSite route={route} dashboard={dashboard} signedIn={signedIn}/></Suspense>
+}
 
 // Replaces the current history entry, so Back does not loop through the redirect.
 function Redirect({ href }) {
@@ -44,6 +50,7 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   const durable = adapter.mode === 'durable'
   const fallbackProjectId = project?.id || projects[0]?.id || (local ? 'local' : durable ? DURABLE_PROJECT : null)
   const protect = children => <ReadBoundary key={route.path} back={fallbackProjectId ? runsHref(fallbackProjectId, returnQuery(route.search)) : '#/projects'}>{children}</ReadBoundary>
+  if (isPublic(route)) return <Public route={route} dashboard={fallbackProjectId ? homeHref(fallbackProjectId) : '#/projects'} signedIn={local || durable}/>
   // No Profile page: the account is shown in Settings › General.
   if (route.profile) return <Redirect href={fallbackProjectId ? settingsHref(fallbackProjectId) : '#/projects'}/>
   if (durable && !route.account && (route.projectsPage || !route.projectId)) return <Redirect href={homeHref(DURABLE_PROJECT)}/>
@@ -93,7 +100,8 @@ function DurableApp(props) {
     if (route.account === 'session-expired') setSession({ state: 'signed-out' })
   }
   const target = route.path + (route.search ? '?' + route.search : '')
-  useEffect(() => { if (session.state === 'signed-out' && !route.account) replaceHash(accountHref('login', target)) }, [session.state, route.account, target])
+  const publicPage = isPublic(route)
+  useEffect(() => { if (session.state === 'signed-out' && !route.account && !publicPage) replaceHash(accountHref('login', target)) }, [session.state, route.account, publicPage, target])
   const setUser = useCallback(user => setSession({ state: 'signed-in', user }), [])
   const signOut = useCallback(async () => {
     // An already-ended session is signed out too; other failures reach the button.
@@ -104,7 +112,9 @@ function DurableApp(props) {
   const user = session.state === 'signed-in' ? session.user : null
   const account = useMemo(() => ({ user, adapter: accountAdapter, setUser, signOut }), [user, accountAdapter, setUser, signOut])
   let content
-  if (route.account) content = <AccountPage key={route.path} route={route} adapter={accountAdapter} onSignedIn={setUser}/>
+  // Public pages never wait for the session check (a sleeping API can take a minute).
+  if (publicPage) content = <Public route={route} dashboard={homeHref(DURABLE_PROJECT)} signedIn={!!user}/>
+  else if (route.account) content = <AccountPage key={route.path} route={route} adapter={accountAdapter} onSignedIn={setUser}/>
   else if (user) content = <Workspace key={user.id} {...props}/>
   else if (session.state === 'error') content = <div className="account-shell"><main className="account-main"><AccessState kind="session" retry={() => { setSession({ state: 'checking' }); setRevision(value => value + 1) }}/></main></div>
   else content = <p className="session-check" role="status">{session.state === 'checking' ? 'Checking your session…' : 'Redirecting to sign in…'}</p>

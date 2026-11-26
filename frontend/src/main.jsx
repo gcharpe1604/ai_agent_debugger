@@ -10,5 +10,6 @@ import { expireSession } from './app/routes.jsx'
 
 const source = resolveSource(window.location.search)
 const adapters = createApiAdapters(fetch, { source, onUnauthorized: () => expireSession() })
-if (!window.location.hash) window.location.hash = source === 'durable' ? '#/projects/default' : '#/projects/local'
+// Durable: an empty hash opens the landing page. Local development opens the workspace.
+if (!window.location.hash) window.location.hash = source === 'durable' ? '#/' : '#/projects/local'
 createRoot(document.getElementById('root')).render(<StrictMode><App {...adapters}/></StrictMode>)
