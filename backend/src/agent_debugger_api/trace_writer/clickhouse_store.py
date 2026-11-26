@@ -3,6 +3,7 @@ from decimal import Decimal
 from agent_debugger_api.contracts.span_record import SpanRecord
 from agent_debugger_api.trace_writer.content_hash import content_hash
 from agent_debugger_api.contracts.interfaces import SpanConflict, StoredSpan, TraceRead, RunSummary
+from agent_debugger_api.contracts.first_error import run_first_error
 
 # Columns we insert: every SpanRecord field + the 4 the writer adds.
 # persisted_at is left out so ClickHouse fills it (DEFAULT now64(3)).
@@ -108,9 +109,16 @@ class ClickHouseTraceStore:
             "  countIf(parent_span_id IS NULL) = 0                    AS missing_root, "
             "  anyIf(execution_mode, execution_mode != '')            AS execution_mode, "
             "  uniqExact(span_id)                                     AS span_count, "
-            "  uniqExactIf(span_id, status_code = 'ERROR')            AS error_span_count "
+            "  uniqExactIf(span_id, status_code = 'ERROR')            AS error_span_count, "
+            # For first_error (contracts/first_error.py): the ERROR spans, and the
+            # parent links of a failed run only, so completed runs send no links.
+            "  groupArrayIf((span_id, toUnixTimestamp64Nano(started_at), span_name, operation_type, error_type), "
+            "    status_code = 'ERROR')                               AS error_spans, "
+            "  if(root_status = 'ERROR' AND NOT missing_root, "
+            "    groupArray((span_id, parent_span_id)), [])           AS links "
             f"FROM (SELECT DISTINCT trace_id, span_id, content_hash, span_name, parent_span_id, "
-            f"        execution_mode, status_code, service_name, started_at, ended_at "
+            f"        execution_mode, status_code, service_name, started_at, ended_at, "
+            f"        operation_type, error_type "
             f"      FROM {self._table} WHERE project_id = {{p:UUID}}) "
             "GROUP BY trace_id "
             "HAVING run_started_at >= {f:UInt64} AND run_started_at < {to:UInt64} "
@@ -132,5 +140,8 @@ class ClickHouseTraceStore:
                 error_span_count=r["error_span_count"],
                 root_status=None if r["missing_root"] else r["root_status"],
                 service_name="" if r["missing_root"] else r["root_service"],
+                first_error=run_first_error(
+                    None if r["missing_root"] else r["root_status"], r["error_spans"], r["links"]
+                ),
             ) for r in result.named_results()
         ]

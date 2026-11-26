@@ -1,5 +1,6 @@
 """Durable-path contracts: the Kafka message (`SpanRecord`) and the publisher/store ports."""
 
+from .first_error import RunFirstError, run_first_error
 from .interfaces import (
     PublishError,
     RunSummary,
@@ -15,6 +16,7 @@ from .span_record import PayloadState, SpanEvent, SpanLink, SpanRecord, StatusCo
 __all__ = [
     "PayloadState",
     "PublishError",
+    "RunFirstError",
     "RunSummary",
     "SpanConflict",
     "SpanEvent",
@@ -26,4 +28,5 @@ __all__ = [
     "StoredSpan",
     "TraceRead",
     "TraceStore",
+    "run_first_error",
 ]

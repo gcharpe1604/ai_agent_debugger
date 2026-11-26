@@ -20,3 +20,18 @@ describe('Captured values and navigation identity', () => {
     expect(returnQuery(query)).toBe('search=order&outcome=Completed')
   })
 })
+
+describe('JSON viewers never print "undefined"', () => {
+  it('drops undefined keys like JSON.stringify and keeps null', async () => {
+    const { default: JsonView } = await import('./JsonView.jsx')
+    const { default: ReadableView } = await import('./ReadableView.jsx')
+    const value = { kept: 1, missing: undefined, empty: null, nested: { gone: undefined } }
+    const { container, unmount } = render(<JsonView value={value}/>)
+    expect(container.textContent).not.toMatch(/undefined|missing|gone/)
+    expect(container.textContent).toContain('null')
+    unmount()
+    const readable = render(<ReadableView value={value}/>)
+    expect(readable.container.textContent).not.toMatch(/undefined|missing|gone/)
+    expect(readable.container.textContent).toContain('No fields')
+  })
+})

@@ -10,6 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Ta
 import { flagLabels } from '../../data/durableRepository.js'
 import Payload from './Payload.jsx'
 import JsonView from './JsonView.jsx'
+import { captureLabels, hasCapturedValue } from './capture.js'
 import { breadcrumb, inspectorTabs, spanErrorCount } from './inspectorModel.js'
 
 // Internal tab keys stay stable (URL/cache state); labels follow developer vocabulary.
@@ -34,7 +35,7 @@ function SpanMetadata({ span, data, ui, patch, copy }) {
     const value = attributes[key]
     return ['string', 'number', 'boolean'].includes(typeof value) && value !== '' ? [[label, String(value)]] : []
   })
-  const raw = Object.entries(attributes).filter(([key, value]) => (key + ' ' + JSON.stringify(value)).toLowerCase().includes(ui.attributeSearch.toLowerCase()))
+  const raw = Object.entries(attributes).filter(([key, value]) => value !== undefined && (key + ' ' + JSON.stringify(value)).toLowerCase().includes(ui.attributeSearch.toLowerCase()))
   return <div className="inspector-tab-content">
     <dl className="span-metadata">
       <div><dt>Operation</dt><dd>{span.name}</dd></div>
@@ -107,6 +108,32 @@ function SpanContent({ data, span, ui, patch, jump }) {
   </>
 }
 
+// Errors tab: recorded fields only. The stored error payload ({type, message}) with
+// its capture state, the status and its description, and any recorded exception
+// events. Nothing is assembled or filled in here.
+function SpanErrors({ data, span, ui, patch }) {
+  const status = data.status ?? span.status
+  const exceptions = (data.events || []).filter(event => event.name === 'exception')
+  const readable = hasCapturedValue(data.errorPayload, data.errorCapture)
+  return <div className="inspector-tab-content span-errors">
+    <dl className="span-metadata">
+      <div><dt>Status</dt><dd>{statusText(status)}</dd></div>
+      {data.statusDescription !== undefined && <div><dt>Status description</dt><dd>{data.statusDescription || <span className="secondary">Not recorded</span>}</dd></div>}
+    </dl>
+    {readable
+      ? <Payload label="Error payload" slot="error" value={data.errorPayload} capture={data.errorCapture} format={ui.formats?.error || 'Readable'} onFormat={format => patch({ formats: { ...ui.formats, error: format } })}/>
+      : <section className="payload-section" data-payload="error" aria-label="Error payload">
+        <div className="payload-heading"><h3>Error payload</h3>{data.errorCapture?.state && <span className="payload-state" data-state={data.errorCapture.state}>{captureLabels[data.errorCapture.state] || 'Capture state unknown'}</span>}</div>
+        <p className="payload-unavailable">No error payload recorded.</p>
+        {data.errorCapture?.reason && <p className="capture-reason">{data.errorCapture.reason}</p>}
+      </section>}
+    {exceptions.map((event, index) => <section className="recorded-event" key={index} aria-label="Exception event">
+      <h3>Exception event</h3>
+      <JsonView value={event.attributes || {}}/>
+    </section>)}
+  </div>
+}
+
 function SpanDetails({ span, data, copy }) {
   const inferredEnd = !Object.hasOwn(span, 'end')
   const end = inferredEnd && Number.isFinite(span.start) && Number.isFinite(span.duration) && span.duration >= 0 ? span.start + span.duration : span.end
@@ -152,7 +179,7 @@ export default function SpanInspector({ repository, projectId, runId, span, path
     if (tab === 'Content') return <SpanContent data={data} span={span} ui={ui} patch={patch} jump={jump}/>
     if (tab === 'Attributes') return <SpanMetadata span={span} data={data} ui={ui} patch={patch} copy={copy}/>
     if (tab === 'Events') return <div className="inspector-tab-content">{data.events === undefined ? <p>Events unavailable in this capture.</p> : !data.events.length ? <p>No recorded events.</p> : data.events.map((event, index) => <section className="recorded-event" key={index}><h3>{event.name}</h3><p className="secondary">{Number.isFinite(event.atMs) ? `Recorded offset ${durationText(event.atMs)}` : 'Time not recorded'}</p><JsonView value={event.attributes || {}}/></section>)}</div>
-    return <div className="inspector-tab-content">{data.error ? <><h3 className="error-text">{data.errorType || 'Recorded error'}</h3><p className="error-detail">{data.error}</p><JsonView value={{ status: data.status, type: data.errorType, message: data.error, recorded_owner: data.errorOwner }}/></> : <p>{data.status === 'ERROR' ? 'ERROR status recorded; exception details unavailable.' : 'No recorded exception details for this span.'}</p>}</div>
+    return <SpanErrors data={data} span={span} ui={ui} patch={patch}/>
   }
   return <section id="span-inspector" className="span-inspector" role="region" aria-label="Span inspector" aria-describedby="span-title" tabIndex="-1" ref={inspectorRef}>
     {single && <button className="inspector-back" onClick={back}><Icon name="back"/>Back to execution</button>}

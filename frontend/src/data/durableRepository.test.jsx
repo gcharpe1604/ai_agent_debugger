@@ -195,6 +195,8 @@ describe('durable trace and span', () => {
     expect(data.output).toBeUndefined()
     expect(data.outputCapture.state).toBe('unavailable')
     expect(data).toMatchObject({ error: 'no answer in 30 s', errorType: 'TimeoutError', source: 'durable', flags: ['conflict'] })
+    // The Errors tab shows the stored payload as is, its state and the recorded status description.
+    expect(data).toMatchObject({ errorPayload: { type: 'TimeoutError', message: 'no answer in 30 s' }, errorCapture: { state: 'captured' }, statusDescription: 'timed out' })
     expect(data.versions.map(item => [item.contentHash, item.name, item.status])).toEqual([[toolFirst.content_hash, 'tool.search', 'ERROR'], [toolSecond.content_hash, 'tool.search.v2', 'OK']])
     expect(data.attributes['otel.span_id']).toBe(TOOL)
     expect(data.attributes['resource.service.name']).toBe('rag_agent')
@@ -212,6 +214,61 @@ describe('durable trace and span', () => {
 })
 
 describe('durable source in the app', () => {
+  async function openErrors(fetcher) {
+    window.history.replaceState(null, '', '/?source=durable#/projects/default/runs/' + traceId)
+    const user = userEvent.setup()
+    render(<App {...createApiAdapters(fetcher, { source: resolveSource(window.location.search) })}/>)
+    // The first error (the tool span) is selected on open.
+    await user.click(await screen.findByRole('tab', { name: /^Errors/ }))
+    return { user, panel: await screen.findByRole('tabpanel') }
+  }
+
+  it('Errors tab shows only recorded fields: the stored payload, its state and the status description', async () => {
+    const { panel } = await openErrors(durableFetcher())
+    const payload = await within(panel).findByRole('region', { name: 'Error payload' })
+    expect(within(payload).getByText('Captured')).toBeTruthy()
+    expect(within(payload).getByText('TimeoutError')).toBeTruthy()
+    expect(within(payload).getByText('no answer in 30 s')).toBeTruthy()
+    expect(within(panel).getByText('Status description').nextSibling.textContent).toBe('timed out')
+    // Only the recorded keys: nothing assembled by the UI.
+    expect([...payload.querySelectorAll('dt')].map(item => item.textContent)).toEqual(['type', 'message'])
+    expect(panel.textContent).not.toMatch(/recorded_owner|undefined/)
+  })
+
+  it('Errors tab says when no error payload was recorded, with its state', async () => {
+    const versions = [{ ...spanBody.versions[0], error_state: 'unavailable', error_payload: '', status: { code: 'ERROR', description: '' } }, spanBody.versions[1]]
+    const { panel } = await openErrors(durableFetcher({ ['/spans/' + TOOL]: ok({ ...spanBody, versions }) }))
+    const payload = await within(panel).findByRole('region', { name: 'Error payload' })
+    expect(within(payload).getByText('No error payload recorded.')).toBeTruthy()
+    expect(within(payload).getByText('Unavailable')).toBeTruthy()
+    expect(within(payload).getByText('The span did not record this payload.')).toBeTruthy()
+    expect(within(panel).getByText('Status description').nextSibling.textContent).toBe('Not recorded')
+    expect(panel.textContent).not.toMatch(/undefined/)
+  })
+
+  it('renders no "undefined" in any inspector tab', async () => {
+    const event = { name: 'exception', time_unix_nano: '1792584000050000000', attributes: { 'exception.type': 'TimeoutError', 'exception.message': 'no answer in 30 s' } }
+    const versions = [{ ...spanBody.versions[0], events: [event], parent_span_id: ROOT, attempt: null, model: null }, spanBody.versions[1]]
+    const { user, panel } = await openErrors(durableFetcher({ ['/spans/' + TOOL]: ok({ ...spanBody, versions }) }))
+    expect(await within(panel).findByRole('region', { name: 'Exception event' })).toBeTruthy()
+    for (const name of ['Input / Output', 'Metadata', /^Events/, /^Errors/]) {
+      await user.click(screen.getByRole('tab', { name }))
+      const current = await screen.findByRole('tabpanel')
+      await waitFor(() => expect(current.textContent.length).toBeGreaterThan(0))
+      expect(current.textContent, String(name)).not.toMatch(/undefined/)
+    }
+  })
+
+  it('shows the list first_error type in the Dashboard Recent failures', async () => {
+    // Inside the Dashboard's default 7-day window.
+    const now = BigInt(Date.now()) * 1_000_000n
+    const failed = { ...listRow, start_time_unix_nano: String(now - 60_000_000_000n), end_time_unix_nano: String(now - 59_000_000_000n), first_error: run.first_error }
+    window.history.replaceState(null, '', '/?source=durable#/projects/default')
+    render(<App {...createApiAdapters(durableFetcher({ '/runs?': ok({ project: 'default', runs: [failed], next_cursor: null }) }), { source: 'durable' })}/>)
+    const table = await screen.findByRole('region', { name: 'Recent failures' })
+    expect(await within(table).findByText('TimeoutError')).toBeTruthy()
+  })
+
   it('opens a durable trace and shows structure warnings, row flags and conflicting versions', async () => {
     const fetcher = durableFetcher()
     window.history.replaceState(null, '', '/?source=durable#/projects/default/runs')

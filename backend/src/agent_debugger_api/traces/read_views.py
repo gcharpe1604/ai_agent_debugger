@@ -24,6 +24,16 @@ def run_from_summary(run: RunSummary) -> dict:
         "end_time_unix_nano": str(run.run_ended_at),
         "span_count": run.span_count,
         "error_span_count": run.error_span_count,
+        # Same shape as run_from_tree; null unless the run failed.
+        "first_error": None
+        if run.first_error is None
+        else {
+            "span_id": run.first_error.span_id,
+            "span_name": run.first_error.span_name,
+            "operation_type": run.first_error.operation_type,
+            "error_type": run.first_error.error_type,
+            "originating_error_span_count": run.first_error.originating_error_span_count,
+        },
     }
 
 

@@ -22,13 +22,13 @@ function Scalar({ value }) {
   if (typeof value === 'number') return <span className="json-number">{String(value)}</span>
   if (typeof value === 'boolean') return <span className="json-boolean">{String(value)}</span>
   if (value === null) return <span className="json-null">null</span>
-  return <span className="json-null">{JSON.stringify(value) ?? 'undefined'}</span>
+  return <span className="json-null">{JSON.stringify(value) ?? 'Not recorded'}</span>
 }
 
 function Node({ name, value, depth, last }) {
   const branch = value !== null && typeof value === 'object'
   const isArray = Array.isArray(value)
-  const entries = branch ? (isArray ? value.map((item, index) => [index, item]) : Object.entries(value)) : []
+  const entries = branch ? (isArray ? value.map((item, index) => [index, item]) : Object.entries(value).filter(([, item]) => item !== undefined)) : []
   const [open, setOpen] = useState(depth < OPEN_DEPTH)
   const [all, setAll] = useState(false)
   const key = name === undefined ? null : <><span className="json-key">{typeof name === 'number' ? name : `"${name}"`}</span><span className="json-punct">: </span></>
