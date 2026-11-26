@@ -1,6 +1,8 @@
 {
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://agentdbg-api.onrender.com/api/:path*" },
+    { "source": "/docs", "destination": "<DOCS_PROJECT_URL>/docs/" },
+    { "source": "/docs/:path*", "destination": "<DOCS_PROJECT_URL>/docs/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

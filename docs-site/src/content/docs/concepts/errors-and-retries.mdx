@@ -1,0 +1,10 @@
+---
+title: Errors and recovered retries
+description: When a span is ERROR, and why a recovered retry does not fail the run.
+---
+
+A span is `ERROR` when an exception escaped it. A child can fail while its parent succeeds, because your code caught the failure.
+
+When a failed tool attempt is followed by a successful attempt of the same step, it is a **recovered retry**: the error is still visible on the span, but the run is not a failure.
+
+To record attempts, call tool methods with `step_id=` and `attempt=`; see [Retries](/docs/sdk/trace-session/#retries). To mark the whole run failed, see [Marking the run failed](/docs/sdk/trace-session/#marking-the-run-failed).

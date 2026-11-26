@@ -1,0 +1,87 @@
+/* Starlight theme from the app's design tokens. tokens.css defines the light
+   palette on :root and the dark one on [data-theme="dark"], the same attribute
+   Starlight sets on <html>, so one mapping covers both themes. Starlight's
+   grey scale runs from --sl-color-white (strongest text) to --sl-color-black
+   (page background) in both themes; the tokens below follow that order. */
+@import '../../../frontend/src/styles/tokens.css';
+
+:root,
+:root[data-theme='light'],
+:root[data-theme='dark'] {
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+
+  --sl-color-white: var(--color-text);
+  --sl-color-gray-1: var(--color-text);
+  --sl-color-gray-2: var(--color-text-secondary);
+  --sl-color-gray-3: var(--color-muted);
+  --sl-color-gray-4: var(--scrollbar-thumb);
+  --sl-color-gray-5: var(--color-border-strong);
+  --sl-color-gray-6: var(--color-selected);
+  --sl-color-gray-7: var(--color-sidebar);
+  --sl-color-black: var(--color-bg);
+
+  --sl-color-text: var(--color-text);
+  --sl-color-text-accent: var(--color-accent);
+  --sl-color-accent-low: var(--color-selected);
+  --sl-color-accent: var(--color-text-secondary);
+  --sl-color-accent-high: var(--color-accent);
+
+  --sl-color-bg: var(--color-bg);
+  --sl-color-bg-nav: var(--color-bg);
+  --sl-color-bg-sidebar: var(--color-sidebar);
+  --sl-color-bg-inline-code: var(--color-subtle);
+  --sl-color-hairline-light: var(--color-border);
+  --sl-color-hairline: var(--color-border);
+  --sl-color-hairline-shade: var(--color-border-strong);
+
+  /* Asides: note = neutral, tip = success, caution = warning, danger = danger. */
+  --sl-color-blue-low: var(--color-subtle);
+  --sl-color-blue: var(--color-muted);
+  --sl-color-blue-high: var(--color-text);
+  --sl-color-green-low: var(--color-success-surface);
+  --sl-color-green: var(--color-success);
+  --sl-color-green-high: var(--color-success);
+  --sl-color-orange-low: var(--color-warning-surface);
+  --sl-color-orange: var(--color-warning);
+  --sl-color-orange-high: var(--color-warning);
+  --sl-color-red-low: var(--color-danger-surface);
+  --sl-color-red: var(--color-danger);
+  --sl-color-red-high: var(--color-danger);
+
+  --adbg-radius: var(--radius-control);
+}
+
+/* Same thin scrollbars as the app (frontend/src/index.css). */
+* { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
+
+/* Current page in the sidebar: the app's nav selection, not an inverted pill. */
+.sidebar-content a[aria-current='page'],
+.sidebar-content a[aria-current='page']:hover,
+.sidebar-content a[aria-current='page']:focus {
+  background: var(--color-nav-selected);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* Inline code: the app's subtle chip, not Starlight's tinted one. */
+.sl-markdown-content :not(pre) > code {
+  padding: 0.1em 0.35em;
+  border: 1px solid var(--color-border);
+  border-radius: calc(var(--radius-control) - 2px);
+  font-size: 0.85em;
+}
+
+/* Tables scroll inside the article on narrow screens. */
+.sl-markdown-content table { font-size: var(--sl-text-sm); }
+.sl-markdown-content th { background: var(--color-subtle); }
+
+kbd {
+  padding: 0 0.3em;
+  border: 1px solid var(--color-border-strong);
+  border-bottom-width: 2px;
+  border-radius: calc(var(--radius-control) - 2px);
+  background: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}

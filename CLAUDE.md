@@ -9,6 +9,7 @@ AI Agent Debugger: a platform for debugging AI agent executions through structur
 - `sdk/python` — `ai_agent_debugger_sdk`, a thin OTel-based capture SDK (`Debugger`, `TraceSession`, `HttpSpanExporter`).
 - `backend` — `agent_debugger_api`, a FastAPI app (`agent_debugger_api.main:app`).
 - `frontend` — a React 19 + Vite UI (JavaScript, no TypeScript).
+- `docs-site` — the public docs, an Astro Starlight site served at `/docs/` (`base: '/docs'`, output `dist/docs/`). Its theme imports `frontend/src/styles/tokens.css`. Built into the web image by `frontend/Dockerfile` and served by Caddy before the SPA fallback; on Vercel, `frontend/vercel.json` rewrites `/docs` to a separate docs project.
 - `examples/{tool_task_agent,rag_agent,research_planning_agent,langgraph_workflow_agent}` — four standalone agent workloads. Each depends on the SDK as an editable path dependency (`[tool.uv.sources]`). `examples/refund-agent` is legacy and **excluded** from the integration.
 
 The development shell is Windows PowerShell. The docs use `npm.cmd` and `.\.venv\Scripts\python.exe`.
@@ -24,6 +25,10 @@ uv run --project backend --locked uvicorn agent_debugger_api.main:app --host 127
 
 # Frontend (port 5175, strictPort; proxies /api -> 127.0.0.1:8008)
 cd frontend; npm.cmd run dev
+
+# Docs site (port 4321, http://localhost:4321/docs/). The build fails on a broken internal link.
+cd docs-site; npm.cmd run dev
+cd docs-site; npm.cmd run build
 
 # Run an agent. `ask` calls the live model; `run <SCENARIO>` is deterministic and makes no provider call.
 uv run --directory examples/rag_agent --locked python -m rag_agent ask '<question>'

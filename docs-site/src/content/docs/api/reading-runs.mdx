@@ -1,0 +1,13 @@
+---
+title: Reading runs
+description: List runs, read one run and one span, and the health check.
+---
+
+Session cookie required. There is one project per account, named `default`. Paths are under `/api/v1`.
+
+| Request | Result |
+|---|---|
+| `GET /projects/default/runs` | Runs, newest first. Query: `started_from`, `started_to` (Unix ns), `limit` (1–200, default 50), `cursor` (the previous page’s `next_cursor`). |
+| `GET /projects/default/runs/{trace_id}` | The run summary, the rebuilt tree and every span (without payload text). |
+| `GET /projects/default/runs/{trace_id}/spans/{span_id}` | One span with its payloads. |
+| `GET /health` | `200` when the API can reach PostgreSQL, otherwise `503`. |

@@ -1,0 +1,17 @@
+---
+title: Trace view
+description: The span tree, waterfall and inspector for one run.
+---
+
+- **Header**: outcome, duration, span count and error count.
+- **Tree**: spans nested as they ran, with guide lines and a small waterfall bar on each row showing when it ran within the run.
+- **Inspector**: select a span to see **Input**, **Output**, **Metadata**, **Events** and **Errors**. JSON is shown in a collapsible viewer, with the [payload state](/docs/concepts/payloads/) (redacted, truncated…) labelled.
+- **Download JSON** saves the run.
+- Keyboard: <kbd>Esc</kbd> closes the inspector; <kbd>F6</kbd> moves focus between tree and inspector.
+
+## A typical debugging pass
+
+1. Dashboard → **Recent failures**, or Tracing filtered to **Failed**.
+2. Open the run and look for the red span in the tree.
+3. Read its **Errors** tab, then its **Input**: was the call wrong, or did the dependency fail?
+4. Walk up to the parent to see what the agent decided before that call.

@@ -1,0 +1,29 @@
+---
+title: Using your own OpenTelemetry provider
+description: Debugger and DurableSpanExporter for apps that already configure OpenTelemetry.
+---
+
+If your app already configures OpenTelemetry, use the lower-level `Debugger` and `DurableSpanExporter`:
+
+```python title="Python"
+from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from ai_agent_debugger_sdk import CaptureConfig, Debugger, DurableSpanExporter
+
+capture = CaptureConfig(secret_fields=("session_id",))
+provider = TracerProvider(resource=Resource.create({"service.name": "my-agent"}))
+provider.add_span_processor(BatchSpanProcessor(
+    DurableSpanExporter("https://<your-host>/api/v1/traces", capture, api_key="adbg_sk_...")
+))
+debugger = Debugger("my-agent", capture=capture, tracer_provider=provider)
+
+with debugger.run("support-run"):
+    with debugger.tool("lookup") as span:
+        span.set_input({"query": "sample"})
+        span.set_output({"found": True})
+```
+
+`Debugger` offers `run`, `agent`, `model`, `tool` and `retrieval` context managers; each yields a handle with `set_input`, `set_output` and `set_attribute`. Use `BatchSpanProcessor`, not `SimpleSpanProcessor`. Full reference: `sdk/python/README.md` in the repository.
+
+`CaptureConfig` is described in [Capture and redaction](/docs/sdk/capture-and-redaction/).
