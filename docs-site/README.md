@@ -24,5 +24,5 @@ npm.cmd run build    # dist/docs/; fails on a broken internal link (starlight-li
   `dist/docs` to `/srv/docs`; `deploy/Caddyfile` serves `/docs/*` before the SPA fallback.
 - **Vercel:** deploy this folder as its own project (root `docs-site`, output `dist`;
   see `vercel.json`). The app project's `frontend/vercel.json` rewrites `/docs` and
-  `/docs/:path*` to it. Replace `<DOCS_PROJECT_URL>` there with that project's URL, and
-  keep "Include files outside the root directory" on (the theme reads `frontend/`).
+  `/docs/:path*` to it (https://agentdbg-docs.vercel.app). Keep
+  "Include files outside the root directory" on (the theme reads `frontend/`).
