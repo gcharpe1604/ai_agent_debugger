@@ -17,10 +17,10 @@ import SettingsPage from '../pages/SettingsPage.jsx'
 import { AccountContext } from '../features/access/session.js'
 import { DURABLE_PROJECT } from '../data/durableRepository.js'
 
-// Landing and docs: a separate chunk, so the app bundle does not grow.
+// Landing page: a separate chunk, so the app bundle does not grow.
 const PublicSite = lazy(() => import('../features/public/PublicSite.jsx'))
-function Public({ route, dashboard, signedIn }) {
-  return <Suspense fallback={<p className="session-check" role="status">Loading…</p>}><PublicSite route={route} dashboard={dashboard} signedIn={signedIn}/></Suspense>
+function Public({ dashboard, signedIn }) {
+  return <Suspense fallback={<p className="session-check" role="status">Loading…</p>}><PublicSite dashboard={dashboard} signedIn={signedIn}/></Suspense>
 }
 
 // Replaces the current history entry, so Back does not loop through the redirect.
@@ -50,7 +50,7 @@ function Workspace({ repository = disconnectedRuns, traceRepository = disconnect
   const durable = adapter.mode === 'durable'
   const fallbackProjectId = project?.id || projects[0]?.id || (local ? 'local' : durable ? DURABLE_PROJECT : null)
   const protect = children => <ReadBoundary key={route.path} back={fallbackProjectId ? runsHref(fallbackProjectId, returnQuery(route.search)) : '#/projects'}>{children}</ReadBoundary>
-  if (isPublic(route)) return <Public route={route} dashboard={fallbackProjectId ? homeHref(fallbackProjectId) : '#/projects'} signedIn={local || durable}/>
+  if (isPublic(route)) return <Public dashboard={fallbackProjectId ? homeHref(fallbackProjectId) : '#/projects'} signedIn={local || durable}/>
   // No Profile page: the account is shown in Settings › General.
   if (route.profile) return <Redirect href={fallbackProjectId ? settingsHref(fallbackProjectId) : '#/projects'}/>
   if (durable && !route.account && (route.projectsPage || !route.projectId)) return <Redirect href={homeHref(DURABLE_PROJECT)}/>
@@ -113,7 +113,7 @@ function DurableApp(props) {
   const account = useMemo(() => ({ user, adapter: accountAdapter, setUser, signOut }), [user, accountAdapter, setUser, signOut])
   let content
   // Public pages never wait for the session check (a sleeping API can take a minute).
-  if (publicPage) content = <Public route={route} dashboard={homeHref(DURABLE_PROJECT)} signedIn={!!user}/>
+  if (publicPage) content = <Public dashboard={homeHref(DURABLE_PROJECT)} signedIn={!!user}/>
   else if (route.account) content = <AccountPage key={route.path} route={route} adapter={accountAdapter} onSignedIn={setUser}/>
   else if (user) content = <Workspace key={user.id} {...props}/>
   else if (session.state === 'error') content = <div className="account-shell"><main className="account-main"><AccessState kind="session" retry={() => { setSession({ state: 'checking' }); setRevision(value => value + 1) }}/></main></div>

@@ -59,9 +59,9 @@ it('shows local Settings with server-reported retention, the SDK endpoint and no
   await user.click(screen.getByRole('tab', { name: 'API key' }))
   expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/local\/traces/)).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Create API key' }).disabled).toBe(true)
-  // Docs are in-app pages now (#/docs), not a GitHub tab.
+  // Docs are the docs site on the same origin (/docs/), not a GitHub tab.
   const docs = screen.getByRole('link', { name: 'Docs' })
-  expect(docs.getAttribute('href')).toBe('#/docs')
+  expect(docs.getAttribute('href')).toBe('/docs/')
   expect(docs.getAttribute('target')).toBeNull()
 })
 

@@ -4,10 +4,8 @@ const subscribe = callback => { window.addEventListener('hashchange', callback);
 const snapshot = () => window.location.hash
 export function parseRoute(hash) {
   const [path, search = ''] = (hash.replace(/^#/, '') || '/projects').split('?')
-  // Public pages: no session needed. `#/` is the landing page, `#/docs/<page>` the docs.
+  // Public page: no session needed. `#/` is the landing page; the docs are a separate site at /docs/.
   if (path === '/') return { landing: true, projectId: null, runId: null, search, path }
-  const docs = /^\/docs(?:\/([a-z0-9-]+))?\/?$/.exec(path)
-  if (docs) return { docs: docs[1] || 'introduction', projectId: null, runId: null, search, path }
   const account = /^\/account\/(login|register|session-expired|access-denied)$/.exec(path)
   if (account) return { account: account[1], projectId: null, runId: null, search, path }
   if (path === '/projects' || path === '/projects/new') return { projectsPage: path.endsWith('/new') ? 'new' : 'list', projectId: null, runId: null, search, path }
@@ -21,8 +19,9 @@ export function parseRoute(hash) {
   const match = /^\/projects\/([a-z0-9-]+)\/runs(?:\/(R-\d+|[0-9a-f]{32})(\/evidence)?)?$/.exec(path)
   return match ? { projectId: match[1], runId: match[2] || null, evidence: !!match[3], search, path } : { projectId: null, runId: null, search: '', path }
 }
-export const docsHref = (page = '') => `#/docs${page ? '/' + page : ''}`
-export const isPublic = route => !!(route.landing || route.docs)
+// The docs are a static site on the same origin (docs-site/, served at /docs/), not an app route.
+export const docsUrl = (page = '') => `/docs/${page}`
+export const isPublic = route => !!route.landing
 export const settingsHref = id => `#/projects/${encodeURIComponent(id)}/settings`
 export const homeHref = id => `#/projects/${encodeURIComponent(id)}`
 // Navigation allowlist only. A return target never proves session validity or access.
