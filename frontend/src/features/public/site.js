@@ -13,6 +13,7 @@ export const DOCS = {
   opentelemetry: docsUrl('sdk/opentelemetry/'),
   retries: docsUrl('concepts/errors-and-retries/'),
   runsAndSpans: docsUrl('concepts/runs-and-spans/'),
+  dashboard: docsUrl('product/dashboard/'),
   ingestApi: docsUrl('api/ingest/'),
   selfHosting: docsUrl('self-hosting/docker-compose/'),
   limits: docsUrl('limits/'),
@@ -41,7 +42,7 @@ with TraceSession("my-agent") as tracing:
     tools = tracing.instrument(
         Tools(),
         {"search": ("tool", "Tools.search")},
-        payloads={"search": (lambda query: {"query": query}, lambda result: result)},
+        payloads={"search": (lambda q: {"query": q}, lambda r: r)},
     )
     with tracing.operation("agent", "MyAgent.run"):
         tools.search("refund policy")`
@@ -52,9 +53,12 @@ from ai_agent_debugger_sdk import CaptureConfig, Debugger, DurableSpanExporter
 
 capture = CaptureConfig()
 provider = TracerProvider()  # your existing provider
-provider.add_span_processor(BatchSpanProcessor(
-    DurableSpanExporter("${ingestEndpoint()}", capture, api_key="adbg_sk_...")
-))
+exporter = DurableSpanExporter(
+    "${ingestEndpoint()}",
+    capture,
+    api_key="adbg_sk_...",
+)
+provider.add_span_processor(BatchSpanProcessor(exporter))
 debugger = Debugger("my-agent", capture=capture, tracer_provider=provider)
 
 with debugger.run("support-run"):

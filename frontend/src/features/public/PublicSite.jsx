@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import Icon from '../../components/Icon.jsx'
+import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/Menu.jsx'
 import { useTheme } from '../../app/preferences.js'
 import { accountHref } from '../../app/routes.jsx'
 import LandingPage from './LandingPage.jsx'
@@ -24,15 +25,27 @@ export default function PublicSite({ dashboard, signedIn }) {
     <header className="public-header">
       <div className="public-header-inner">
         <a className="public-brand" href="#/"><span className="brand-mark" aria-hidden="true"><Icon name="branch"/></span>Agent Debugger</a>
-        <nav className="public-nav" aria-label="Site">
+        <nav className="public-nav public-wide" aria-label="Site">
           <a href={DOCS.home}>Docs</a>
           <External href={REPO_URL}>GitHub</External>
         </nav>
         <div className="public-actions">
-          <ThemeToggle dark={dark} setPreference={theme.setPreference}/>
+          <span className="public-wide"><ThemeToggle dark={dark} setPreference={theme.setPreference}/></span>
+          {!signedIn && <a className="button ghost public-wide" href={accountHref('login')}>Sign in</a>}
           {signedIn
             ? <a className="button solid" href={dashboard}>Open dashboard<Icon name="arrow"/></a>
-            : <><a className="button ghost" href={accountHref('login')}>Sign in</a><a className="button solid" href={accountHref('register')}>Sign up</a></>}
+            : <a className="button solid" href={accountHref('register')}>Sign up</a>}
+          {/* Under 640 px the site links, Sign in and the theme switch move into this menu. */}
+          <Menu>
+            <MenuTrigger><button type="button" className="button ghost icon-only public-narrow" aria-label="Menu"><Icon name="more"/></button></MenuTrigger>
+            <MenuContent align="end" className="public-menu">
+              <MenuItem asChild><a href={DOCS.home}>Docs</a></MenuItem>
+              <MenuItem asChild><a href={REPO_URL} target="_blank" rel="noreferrer">GitHub<span className="sr-only"> (opens in a new tab)</span></a></MenuItem>
+              {!signedIn && <MenuItem asChild><a href={accountHref('login')}>Sign in</a></MenuItem>}
+              <MenuSeparator/>
+              <MenuItem onSelect={() => theme.setPreference(dark ? 'light' : 'dark')}><Icon name={dark ? 'sun' : 'moon'}/>{dark ? 'Light theme' : 'Dark theme'}</MenuItem>
+            </MenuContent>
+          </Menu>
         </div>
       </div>
     </header>

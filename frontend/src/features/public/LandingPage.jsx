@@ -4,15 +4,19 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '../../components/ui/Ta
 import { accountHref } from '../../app/routes.jsx'
 import { DOCS, SDK_INSTALL, envSnippet, providerSnippet, traceSessionSnippet } from './site.js'
 
-// Real screenshots of the app at 1440x900, one per theme (docs/frontend/screenshots.md).
-// `crop` shows part of a screenshot: x, y, width, height in screenshot pixels.
-const SHOT = { width: 1440, height: 900 }
-function Shot({ name, theme, alt, crop, priority = false }) {
-  const [x, y, w, h] = crop || [0, 0, SHOT.width, SHOT.height]
-  const style = crop ? { '--crop-ratio': `${w} / ${h}`, '--crop-width': `${(SHOT.width / w) * 100}%`, '--crop-x': `${(-x / w) * 100}%`, '--crop-y': `${(-y / w) * 100}%` } : undefined
-  return <div className={crop ? 'shot shot-crop' : 'shot'} style={style}>
-    <img src={`/landing/${name}-${theme}.webp`} alt={alt} width={SHOT.width} height={SHOT.height} loading={priority ? 'eager' : 'lazy'} decoding="async" fetchPriority={priority ? 'high' : undefined}/>
-  </div>
+// Real screenshots of the Demo account, cropped at capture time and stored at 2x
+// (docs/frontend/screenshots.md). Width and height are CSS pixels.
+const SHOTS = {
+  hero: { width: 1200, height: 740, alt: 'Trace view of a failed live tool-task-agent run: the span tree with model, API and tool spans and their durations, and the failed Order tool call open on the Errors tab with its recorded ToolError.' },
+  failed: { width: 784, height: 501, alt: 'Tracing filtered to Status: Failed: nine failed runs from the langgraph-workflow, research-planning and tool-task agents, with latency, span count and error count.' },
+  tree: { width: 695, height: 327, alt: 'Trace tree of a live tool-task-agent run: the run, the agent, two model calls with their chat/completions requests and the failed Order tool call, each with a duration bar.' },
+  inspector: { width: 504, height: 542, alt: 'Span inspector for the failed "Order · attempt 1" tool call: status ERROR, the captured error payload with type ToolError and its message, and the recorded exception event.' },
+  dashboard: { width: 749, height: 746, alt: 'Dashboard tiles for 18 traces with a 50% error rate and p50 and p95 latency, a Latency by agent table for four agents, and Recent failures with each run\'s first error.' },
+}
+
+function Shot({ name, theme, priority = false }) {
+  const { width, height, alt } = SHOTS[name]
+  return <img className="shot" data-shot={name} src={`/landing/${name}-${theme}.webp`} alt={alt} width={width} height={height} loading={priority ? 'eager' : 'lazy'} decoding="async" fetchPriority={priority ? 'high' : undefined}/>
 }
 
 function Window({ children, label }) {
@@ -25,29 +29,37 @@ function Window({ children, label }) {
 const rows = [
   {
     title: 'Find the runs that failed',
-    text: 'Filter Tracing to failed runs and open one. A step that fails and then succeeds on retry is a recovered retry, not a failed run.',
+    text: 'Filter Tracing to failed runs across every agent. A step that fails and then succeeds on retry is a recovered retry, not a failed run.',
     link: [DOCS.retries, 'Errors and retries'],
-    shot: { name: 'tracing-failed', crop: [240, 48, 1200, 402], alt: 'Tracing filtered to Status: Failed, listing four failed tool-task-agent runs with their latency, span count and error count.' },
+    shot: 'failed', label: 'Tracing',
   },
   {
     title: 'See the whole run',
-    text: 'Each run is one trace: a tree of agent, model and tool spans in the order they ran, with a waterfall of durations.',
+    text: 'Each run is one trace: model calls, tool calls and requests in the order they ran, with a waterfall of durations.',
     link: [DOCS.runsAndSpans, 'Runs and spans'],
-    shot: { name: 'trace', crop: [240, 48, 696, 552], alt: 'Trace tree of a failed tool-task-agent run: plan, order and reserve succeed, then three pay attempts fail, each with its duration bar.' },
+    shot: 'tree', label: 'Trace tree',
   },
   {
     title: 'Read the failing step',
-    text: 'Open a span to read its input, output, metadata and error. Secret fields are redacted before they leave your process.',
+    text: 'Open a span to read its input, output and the error it recorded. Secret fields are redacted before they leave your process.',
     link: [DOCS.traceSession, 'Payload capture'],
-    shot: { name: 'trace', crop: [936, 148, 504, 360], alt: 'Span inspector for "Pay · attempt 1" with the Errors tab open, showing a ToolTimeout error and its recorded message.' },
+    shot: 'inspector', label: 'Span inspector',
+  },
+  {
+    title: 'Watch error rate and latency',
+    text: 'The Dashboard shows error rate and p50 / p95 latency per agent, and links each recent failure to its first error.',
+    link: [DOCS.dashboard, 'Dashboard'],
+    shot: 'dashboard', label: 'Dashboard',
   },
 ]
 
 const architecture = [
-  ['Python SDK', 'OpenTelemetry spans from your agent'],
+  ['Python SDK', 'Spans from your agent'],
   ['Ingest API', 'Checks the key, answers 202'],
   ['Kafka', 'Buffers spans'],
+  ['Trace writer', 'Writes batches to ClickHouse'],
   ['ClickHouse', 'Stores spans for fast reads'],
+  ['Web UI', 'Rebuilds the tree'],
 ]
 
 function PrimaryCta({ signedIn, dashboard }) {
@@ -65,9 +77,7 @@ export default function LandingPage({ signedIn, dashboard, theme }) {
         <PrimaryCta signedIn={signedIn} dashboard={dashboard}/>
         <a className="button large" href={DOCS.quickstart}>Read the quickstart</a>
       </div>
-      <Window label="Trace view">
-        <Shot name="trace" theme={theme} priority alt="Trace view of a failed tool-task-agent run: the span tree with three failed pay attempts on the left, and the first attempt's ToolTimeout error open on the right."/>
-      </Window>
+      <Window label="Trace view"><Shot name="hero" theme={theme} priority/></Window>
     </section>
 
     <section className="landing-section landing-instrument" aria-labelledby="instrument-title">
@@ -91,13 +101,13 @@ export default function LandingPage({ signedIn, dashboard, theme }) {
       </Tabs>
     </section>
 
-    {rows.map(({ title, text, link, shot }, index) => <section key={title} className="landing-section landing-row" data-flip={index % 2 === 1 || undefined} aria-labelledby={`row-${index}`}>
+    {rows.map(({ title, text, link, shot, label }, index) => <section key={title} className="landing-section landing-row" data-flip={index % 2 === 1 || undefined} aria-labelledby={`row-${index}`}>
       <div className="landing-row-text">
         <h2 id={`row-${index}`} className="landing-title">{title}</h2>
         <p>{text}</p>
         <a className="landing-link" href={link[0]}>{link[1]}<Icon name="arrow"/></a>
       </div>
-      <Window label={title}><Shot name={shot.name} theme={theme} crop={shot.crop} alt={shot.alt}/></Window>
+      <div className="landing-row-shot" data-shot={shot}><Window label={label}><Shot name={shot} theme={theme}/></Window></div>
     </section>)}
 
     <section className="landing-section" aria-labelledby="architecture-title">
@@ -117,9 +127,6 @@ export default function LandingPage({ signedIn, dashboard, theme }) {
         <PrimaryCta signedIn={signedIn} dashboard={dashboard}/>
         <a className="button large" href={DOCS.home}>Browse the docs</a>
       </div>
-      <Window label="Dashboard">
-        <Shot name="dashboard" theme={theme} alt="Dashboard for the last 7 days: 14 traces, 29% error rate, p50 and p95 latency, a traces-over-time chart, latency by agent and recent failures."/>
-      </Window>
     </section>
   </>
 }

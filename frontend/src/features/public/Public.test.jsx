@@ -72,13 +72,41 @@ describe('public routes', () => {
   it('shows the screenshots of the resolved theme, with alt text', async () => {
     localStorage.setItem('agent-debugger.frontend.v1.theme', 'dark')
     start('/')
-    const hero = await screen.findByRole('img', { name: /^Trace view of a failed tool-task-agent run/ })
-    expect(hero.getAttribute('src')).toBe('/landing/trace-dark.webp')
+    const hero = await screen.findByRole('img', { name: /^Trace view of a failed live tool-task-agent run/ })
+    expect(hero.getAttribute('src')).toBe('/landing/hero-dark.webp')
     const sources = screen.getAllByRole('img').map(image => image.getAttribute('src'))
-    expect(sources).toEqual(['/landing/trace-dark.webp', '/landing/tracing-failed-dark.webp', '/landing/trace-dark.webp', '/landing/trace-dark.webp', '/landing/dashboard-dark.webp'])
+    expect(sources).toEqual(['hero', 'failed', 'tree', 'inspector', 'dashboard'].map(name => `/landing/${name}-dark.webp`))
     await act(async () => { within(screen.getByRole('banner')).getByRole('button', { name: 'Switch to light theme' }).click() })
-    expect(hero.getAttribute('src')).toBe('/landing/trace-light.webp')
-    expect(screen.getAllByRole('img').every(image => image.getAttribute('alt').length > 40)).toBe(true)
+    expect(hero.getAttribute('src')).toBe('/landing/hero-light.webp')
+    for (const image of screen.getAllByRole('img')) {
+      expect(image.getAttribute('alt').length).toBeGreaterThan(60)
+      expect(Number(image.getAttribute('width'))).toBeGreaterThan(0)
+      expect(Number(image.getAttribute('height'))).toBeGreaterThan(0)
+    }
+    // Four feature rows, the Dashboard last; nothing under the final call to action.
+    expect(within(screen.getByRole('main')).getAllByRole('heading', { level: 2 }).map(heading => heading.textContent)).toEqual([
+      'Instrument in minutes', 'Find the runs that failed', 'See the whole run', 'Read the failing step', 'Watch error rate and latency', 'How a trace gets stored', 'Trace your next agent run.',
+    ])
+    expect(within(screen.getByRole('region', { name: 'Trace your next agent run.' })).queryByRole('img')).toBeNull()
+  })
+
+  it('lists the six storage steps and PostgreSQL for accounts and keys', async () => {
+    start('/')
+    const strip = await screen.findByRole('region', { name: 'How a trace gets stored' })
+    expect(within(strip).getAllByRole('listitem').map(item => item.querySelector('strong').textContent)).toEqual(['Python SDK', 'Ingest API', 'Kafka', 'Trace writer', 'ClickHouse', 'Web UI'])
+    expect(strip.textContent).toContain('PostgreSQL holds accounts and API keys.')
+  })
+
+  it('puts Docs, GitHub, Sign in and the theme switch in the header menu', async () => {
+    start('/')
+    const header = within(await screen.findByRole('banner'))
+    // Sign up stays in the header row itself.
+    expect(header.getByRole('link', { name: 'Sign up' })).toBeTruthy()
+    const menu = header.getByRole('button', { name: 'Menu' })
+    await act(async () => { menu.focus(); menu.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })) })
+    const items = await screen.findAllByRole('menuitem')
+    expect(items.map(item => item.textContent)).toEqual(['Docs', 'GitHub (opens in a new tab)', 'Sign in', 'Dark theme'])
+    expect(items[0].getAttribute('href')).toBe('/docs/')
   })
 
   it('switches the code example tabs', async () => {
