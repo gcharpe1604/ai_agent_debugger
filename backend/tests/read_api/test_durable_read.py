@@ -61,7 +61,64 @@ class _ApiCase(unittest.TestCase):
         return self.client.get(path, params=params)
 
 
-class DurableReadClickHouseTests(ClickHouseTestCase, _ApiCase):
+class _FirstErrorCases:
+    """first_error in the run list, the same on ClickHouse and on the in-memory store."""
+
+    def list_by_trace(self, *spans):
+        self.store.insert_spans(list(spans))
+        # Every run here starts at T0; other tests in the class start an hour or more later.
+        return {r["trace_id"]: r for r in self.get(RUNS, started_from=T0, started_to=T0 + HOUR, limit=200).json()["runs"]}
+
+    def test_run_list_first_error_is_the_deepest_error_of_a_failed_run(self):
+        t = trace(0xE01)
+        runs = self.list_by_trace(
+            span(trace_id=t, status_code="ERROR", started_at=T0, ended_at=T0 + 900),
+            # An OK span between two ERROR spans: the root still carries the tool's error.
+            span(trace_id=t, span_id=CHILD, parent_span_id=ROOT, operation_type="agent", span_name="agent.run",
+                 started_at=T0 + 10, ended_at=T0 + 800),
+            span(trace_id=t, span_id=GRANDCHILD, parent_span_id=CHILD, operation_type="tool", span_name="tool.pay",
+                 status_code="ERROR", error_type="ToolTimeout", started_at=T0 + 20, ended_at=T0 + 30),
+        )
+        self.assertEqual(
+            runs[t]["first_error"],
+            {"span_id": GRANDCHILD, "span_name": "tool.pay", "operation_type": "tool",
+             "error_type": "ToolTimeout", "originating_error_span_count": 1},
+        )
+
+    def test_run_list_first_error_is_null_for_a_completed_run(self):
+        t = trace(0xE02)
+        runs = self.list_by_trace(
+            span(trace_id=t, started_at=T0, ended_at=T0 + 900),
+            span(trace_id=t, span_id=CHILD, parent_span_id=ROOT, operation_type="tool", started_at=T0 + 10, ended_at=T0 + 20),
+        )
+        self.assertEqual(runs[t]["status"], "OK")
+        self.assertIsNone(runs[t]["first_error"])
+
+    def test_run_list_first_error_is_null_for_a_recovered_retry(self):
+        t = trace(0xE03)
+        runs = self.list_by_trace(
+            span(trace_id=t, started_at=T0, ended_at=T0 + 900),
+            span(trace_id=t, span_id=CHILD, parent_span_id=ROOT, operation_type="tool", span_name="tool.pay",
+                 status_code="ERROR", error_type="Unavailable", attempt=1, started_at=T0 + 10, ended_at=T0 + 20),
+            span(trace_id=t, span_id=RETRY, parent_span_id=ROOT, operation_type="tool", span_name="tool.pay",
+                 attempt=2, retry_of_span_id=CHILD, started_at=T0 + 30, ended_at=T0 + 40),
+        )
+        self.assertEqual((runs[t]["status"], runs[t]["error_span_count"]), ("OK", 1))
+        self.assertIsNone(runs[t]["first_error"])
+
+    def test_run_list_first_error_counts_every_originating_error(self):
+        t = trace(0xE04)
+        runs = self.list_by_trace(
+            span(trace_id=t, status_code="ERROR", started_at=T0, ended_at=T0 + 900),
+            span(trace_id=t, span_id=OTHER, parent_span_id=ROOT, status_code="ERROR", span_name="later",
+                 started_at=T0 + 50, ended_at=T0 + 60),
+            span(trace_id=t, span_id=CHILD, parent_span_id=ROOT, status_code="ERROR", span_name="earlier",
+                 started_at=T0 + 10, ended_at=T0 + 20),
+        )
+        self.assertEqual((runs[t]["first_error"]["span_name"], runs[t]["first_error"]["originating_error_span_count"]), ("earlier", 2))
+
+
+class DurableReadClickHouseTests(ClickHouseTestCase, _FirstErrorCases, _ApiCase):
     def setUp(self):
         self.store = ClickHouseTraceStore(self.client, table=self.table)
         self.clickhouse = self.client
@@ -102,6 +159,7 @@ class DurableReadClickHouseTests(ClickHouseTestCase, _ApiCase):
                 "end_time_unix_nano": str(base + 900),  # latest span end, not the root's
                 "span_count": 2,
                 "error_span_count": 1,
+                "first_error": None,  # the root is OK: a completed run has no first error
             },
         )
         self.assertEqual((body["runs"][0]["status"], body["runs"][0]["name"]), ("ERROR", "rag.failed"))
@@ -482,7 +540,7 @@ class DurableReadUnavailableStoreTests(_ApiCase):
             self.get(RUNS)
 
 
-class DurableReadFakeStoreTests(_ApiCase):
+class DurableReadFakeStoreTests(_FirstErrorCases, _ApiCase):
     """The same route over InMemoryTraceStore: the fake and ClickHouse must page alike."""
 
     def setUp(self):

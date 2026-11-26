@@ -15,7 +15,7 @@ function Scalar({ value }) {
   if (typeof value === 'number') return <span className="json-number">{String(value)}</span>
   if (typeof value === 'boolean') return <span className="json-boolean">{String(value)}</span>
   if (value === null) return <span className="readable-empty">null</span>
-  return <span className="readable-empty">{JSON.stringify(value) ?? 'undefined'}</span>
+  return <span className="readable-empty">{JSON.stringify(value) ?? 'Not recorded'}</span>
 }
 
 // A list of plain values reads as one stacked list, not numbered rows.
@@ -31,7 +31,7 @@ function ScalarList({ items }) {
 function Field({ name, value, depth }) {
   const branch = isBranch(value)
   const list = Array.isArray(value)
-  const count = branch ? (list ? value.length : Object.keys(value).length) : 0
+  const count = branch ? (list ? value.length : Object.values(value).filter(item => item !== undefined).length) : 0
   const [open, setOpen] = useState(depth < OPEN_DEPTH)
   const label = String(name)
   if (!branch || !count) return <div className="readable-row"><dt>{label}</dt><dd>{branch ? <span className="readable-empty">{list ? 'Empty list' : 'No fields'}</span> : <Scalar value={value}/>}</dd></div>
@@ -44,7 +44,7 @@ function Field({ name, value, depth }) {
 
 function Fields({ value, depth }) {
   const list = Array.isArray(value)
-  const entries = list ? value.map((item, index) => [index, item]) : Object.entries(value)
+  const entries = list ? value.map((item, index) => [index, item]) : Object.entries(value).filter(([, item]) => item !== undefined)
   const [all, setAll] = useState(false)
   const shown = list && !all && entries.length > ARRAY_PREVIEW ? entries.slice(0, ARRAY_PREVIEW) : entries
   return <dl className="readable-fields">

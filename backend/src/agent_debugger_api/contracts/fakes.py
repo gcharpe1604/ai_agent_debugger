@@ -7,6 +7,7 @@ from collections import defaultdict
 from collections.abc import Callable, Sequence
 from uuid import UUID
 
+from .first_error import run_first_error
 from .interfaces import PublishError, RunSummary, SpanConflict, StoredSpan, TraceRead
 from .span_record import SpanRecord, StatusCode
 
@@ -131,6 +132,14 @@ class InMemoryTraceStore:
                 error_span_count=len({r.span_id for r in records if r.status_code is StatusCode.ERROR}),
                 root_status=roots[0].status_code.value if roots else None,
                 service_name=roots[0].service_name if roots else "",
+                first_error=run_first_error(
+                    roots[0].status_code.value if roots else None,
+                    [
+                        (r.span_id, r.started_at, r.span_name, r.operation_type, r.error_type)
+                        for r in records if r.status_code is StatusCode.ERROR
+                    ],
+                    [(r.span_id, r.parent_span_id) for r in records],
+                ),
             )
             key = (run.run_started_at, run.trace_id)
             if started_from <= run.run_started_at < started_to and (before is None or key < before):

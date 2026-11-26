@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
+from .first_error import RunFirstError
 from .span_record import SpanRecord
 
 
@@ -80,6 +81,9 @@ class RunSummary:
     # Status and service of the earliest root span. None / "" when no root has arrived.
     root_status: str | None = None
     service_name: str = ""
+    # Failed runs only (root ERROR); None for completed runs, recovered retries
+    # and runs without a root. See contracts/first_error.py.
+    first_error: RunFirstError | None = None
 
 
 @runtime_checkable

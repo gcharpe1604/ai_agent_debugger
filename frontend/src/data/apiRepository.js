@@ -92,6 +92,7 @@ export function createApiAdapters(fetcher = fetch, { source = 'local', onUnautho
         retryOf: reference(retry_of), retries: retries.map(reference),
         inputCapture: { state: 'disabled', reason: 'This profile captures span metadata only.' },
         outputCapture: { state: 'disabled', reason: 'This profile captures span metadata only.' },
+        errorCapture: { state: 'disabled', reason: 'This profile captures span metadata only.' },
       }
     },
   }

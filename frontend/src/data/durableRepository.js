@@ -77,12 +77,19 @@ function payload(text, state) {
   try { return { value: JSON.parse(text), capture } } catch { return { value: text, capture } }
 }
 
+// `error` / `errorType` are a one-line summary for the Input / Output banner, taken
+// from recorded fields only. The Errors tab shows the stored payload itself
+// (`errorPayload` with its capture state) and the status description as recorded.
 function recordedError(version) {
-  const stored = payload(version.error_payload, version.error_state).value
+  const stored = payload(version.error_payload, version.error_state)
+  const value = stored.value
   const exception = version.events.find(event => event.name === 'exception')?.attributes
-  const message = (stored && typeof stored === 'object' ? stored.message : stored) || exception?.['exception.message'] || version.status.description
-  const type = version.error_type || (stored && typeof stored === 'object' ? stored.type : null) || exception?.['exception.type']
-  return { error: message || undefined, errorType: type || undefined }
+  const message = (value && typeof value === 'object' ? value.message : value) || exception?.['exception.message'] || version.status.description
+  const type = version.error_type || (value && typeof value === 'object' ? value.type : null) || exception?.['exception.type']
+  return {
+    error: message || undefined, errorType: type || undefined,
+    errorPayload: value, errorCapture: stored.capture, statusDescription: version.status.description || null,
+  }
 }
 
 export function createDurableAdapters(fetcher = fetch, { onUnauthorized } = {}) {

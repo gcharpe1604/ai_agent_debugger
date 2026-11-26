@@ -144,7 +144,9 @@ describe('Trace Detail interactions', () => {
     await screen.findByText('service.name')
     await user.click(row('lookup-order · attempt 1'))
     await user.click(await screen.findByRole('tab', { name: 'Errors1' }))
-    expect(await screen.findByText('Order service did not respond within 1,200 ms.', { selector: '.error-detail' })).toBeTruthy()
+    // The fixture records no error payload: the tab says so instead of assembling one.
+    expect(await screen.findByText('No error payload recorded.')).toBeTruthy()
+    expect(screen.getByRole('tabpanel').textContent).not.toMatch(/undefined|recorded_owner/)
   })
   it('windows large fixtures and preserves the loaded anchor when loading more structure', async () => {
     window.history.replaceState(null, '', '/#/projects/agent-examples/runs/R-8100')
