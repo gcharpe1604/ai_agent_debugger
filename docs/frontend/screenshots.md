@@ -4,7 +4,7 @@ The landing page (`#/`) shows real screenshots of the app from `frontend/public/
 
 | File | What it shows | Viewport (CSS px) | Clip | Size (CSS px) |
 |---|---|---|---|---|
-| `hero` | Trace view of a failed live run, its first error selected, Errors tab open | 1440×740 | x 240 → right edge (no app sidebar or account footer) | 1200×740 |
+| `hero` | Trace view of a failed live run, its first error selected, Errors tab open | 1440×740 | x 240 → right edge (no app sidebar or account footer), top → just below the Error payload card (y 517), so there is no empty band under the 7 tree rows | 1200×517 |
 | `failed` | Tracing with `?outcome=Failed` | 1024×760 | Filters toolbar to the end of the table | 784×501 |
 | `tree` | Tree and waterfall of the same live run | 1440×740 | Column header row to the last row, tree pane only | 695×327 |
 | `inspector` | Span inspector of the same run, Errors tab | 1440×740 | Inspector pane, top to the end of its content | 504×542 |
@@ -14,9 +14,9 @@ Target: every image stays readable when shown about 560 px wide, so no clip is m
 
 ## Data (Demo account)
 
-Register a local account named `Demo` with email `demo@example.com` (never a personal address) and a generated password. Keep its API key for the agents. The 2026-11-26 set has 18 runs:
+Register a local account named `Demo` with email `demo@example.com` (never a personal address) and a generated password. Keep its API key for the agents. The 2026-11-26 set has 26 runs, 9 of them failed (the Dashboard shot was taken at 26):
 
-- Live `ask` runs (they call the model configured in each agent's ignored `.env`, so durations are real and model calls are spans): tool_task_agent 2 (`Please fulfill order ORD-100`; `Please fulfill order ORD-404 for 3 sensor kits` fails with `order_not_found`), rag_agent 4 (all answered or `insufficient_evidence`: no live RAG failure occurred), research_planning_agent 3 and langgraph_workflow_agent 4 (2 failures each, from provider HTTP 429/503).
+- Live `ask` runs (they call the model configured in each agent's ignored `.env`, so durations are real and model calls are spans): tool_task_agent 4 (`Please fulfill order ORD-100` three times, worded differently; `Please fulfill order ORD-404 for 3 sensor kits` fails with `order_not_found`), rag_agent 4 (all answered or `insufficient_evidence`: no live RAG failure occurred), research_planning_agent 6 and langgraph_workflow_agent 7 (2 failures each, from provider HTTP 429/503). The later successful runs used the README prompts (field-station recommendations between Ridge and Vale; `Beacon has a stalled worker`, `Beacon host is unavailable; telemetry is delayed`) and small variations of them, run 40 s apart.
 - Controlled runs, only for what live runs do not give reliably: TOOL-07 (recovered retry: it counts as completed) and failed TOOL-02, -03, -04, -05.
 
 The hero, tree and inspector use the live run that failed on `ORD-404` (7 spans, 2.96 s). Re-seed with:

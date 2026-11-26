@@ -7,11 +7,11 @@ import { DOCS, SDK_INSTALL, envSnippet, providerSnippet, traceSessionSnippet } f
 // Real screenshots of the Demo account, cropped at capture time and stored at 2x
 // (docs/frontend/screenshots.md). Width and height are CSS pixels.
 const SHOTS = {
-  hero: { width: 1200, height: 740, alt: 'Trace view of a failed live tool-task-agent run: the span tree with model, API and tool spans and their durations, and the failed Order tool call open on the Errors tab with its recorded ToolError.' },
+  hero: { width: 1200, height: 517, alt: 'Trace view of a failed live tool-task-agent run: the span tree with model, API and tool spans and their durations, and the failed Order tool call open on the Errors tab with its recorded ToolError.' },
   failed: { width: 784, height: 501, alt: 'Tracing filtered to Status: Failed: nine failed runs from the langgraph-workflow, research-planning and tool-task agents, with latency, span count and error count.' },
   tree: { width: 695, height: 327, alt: 'Trace tree of a live tool-task-agent run: the run, the agent, two model calls with their chat/completions requests and the failed Order tool call, each with a duration bar.' },
   inspector: { width: 504, height: 542, alt: 'Span inspector for the failed "Order · attempt 1" tool call: status ERROR, the captured error payload with type ToolError and its message, and the recorded exception event.' },
-  dashboard: { width: 749, height: 746, alt: 'Dashboard tiles for 18 traces with a 50% error rate and p50 and p95 latency, a Latency by agent table for four agents, and Recent failures with each run\'s first error.' },
+  dashboard: { width: 749, height: 746, alt: 'Dashboard tiles for 26 traces with a 35% error rate and p50 and p95 latency, a Latency by agent table for four agents, and Recent failures with each run\'s first error.' },
 }
 
 function Shot({ name, theme, priority = false }) {
