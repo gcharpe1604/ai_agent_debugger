@@ -1,0 +1,20 @@
+---
+title: Upgrade and backup
+description: Update, read logs, restart a service, and keep your data.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+```sh title="Shell"
+git pull && docker compose -f compose.prod.yaml up -d --build    # update
+docker compose -f compose.prod.yaml logs -f api trace-writer       # logs
+docker compose -f compose.prod.yaml restart trace-writer           # restart one service
+```
+
+Database migrations run each time the API starts, so an update needs no separate migration step.
+
+<Aside type="danger">
+`down` keeps your data; `down -v` deletes every volume: all traces, users and TLS certificates. Back up with a VM snapshot.
+</Aside>
+
+Single broker and single database node, no replication: losing the disk loses the data. Full guide: `docs/deployment.md` in the repository.

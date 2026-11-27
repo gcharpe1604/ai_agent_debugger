@@ -1,0 +1,29 @@
+---
+title: Runs and spans
+description: A run is one OpenTelemetry trace; a span is one step inside it.
+---
+
+## Run and trace
+
+A **run** is one execution of your agent. It is one OpenTelemetry trace, identified by a 32-character hex `trace_id`. Its outcome comes from the root `run` span: **Completed** (OK), **Failed** (ERROR) or **Unknown** (no status or no root recorded).
+
+## Span
+
+A **span** is one step with a start and an end: a model call, a tool call, a block of agent code. It has a 16-character `span_id`, an optional parent, a type, a status (`UNSET`, `OK` or `ERROR`), attributes, events and up to three [payloads](/docs/concepts/payloads/).
+
+| Type | Use it for |
+|---|---|
+| `run` | The root of a run (TraceSession creates it) |
+| `agent` | An agent or workflow step that contains other steps |
+| `model` | A call to a language model |
+| `retrieval` | Fetching documents or context |
+| `tool` | A tool or function the agent invokes |
+| `api` | An outbound HTTP or database call (status ≥ 400 marks it ERROR) |
+| `state` | Reading or writing memory or state |
+| `custom` | Anything else, such as deterministic test doubles |
+
+Parent–child means “ran inside”, not “caused”. Spans can arrive in any order; a child that arrives before its parent is kept, and the run is shown as partial rather than dropped.
+
+## Accounts and projects
+
+Each account has one project. The server takes the project from your API key, never from the request body, so a key can only write to its own project and the UI only shows your own runs.

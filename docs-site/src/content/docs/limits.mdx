@@ -1,0 +1,21 @@
+---
+title: Limits and roadmap
+description: What Agent Debugger does not do yet, and what is planned.
+---
+
+## Current limits
+
+- Python SDK only. Other languages can post protocol “1” batches to the [HTTP API](/docs/api/ingest/) directly.
+- Only ended spans are exported: a step that is still running, or lost in a hard crash, is not visible.
+- One project per account; no teams or sharing yet.
+- Redaction matches field names, not content.
+- Single-node deployment, no replication.
+- A hosted instance without Kafka and ClickHouse can sign you up and issue keys, but cannot store traces; the Dashboard and Tracing then show “unavailable”. Self-host the full stack to store traces.
+
+## Roadmap
+
+- **AI investigator**: reads a failed run and points to suspicious spans, citing only recorded evidence and saying so when the evidence is not enough. Planned outside the OJT duration.
+- **Projects and teams**: several projects per account and shared access.
+- Replay and counterfactual debugging are future ideas, not planned work.
+
+Source and issues: [GitHub](https://github.com/gcharpe1604/ai_agent_debugger).

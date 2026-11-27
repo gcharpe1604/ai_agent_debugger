@@ -1,0 +1,63 @@
+---
+title: TraceSession
+description: One run per session; wrap methods with instrument, mark your own code with operation.
+---
+
+The SDK package is `ai_agent_debugger_sdk`. For most agents you need one class, `TraceSession`, and three of its methods.
+
+## TraceSession: one run
+
+```python title="Signature"
+TraceSession(service_name, *, model=None, provider=None, endpoint=None,
+             execution_mode="live", capture=None)
+```
+
+- Used as `with TraceSession("my-agent") as tracing:`. Entering it starts the root `run` span; leaving it ends the run, flushes (up to 10 s) and prints the delivery line.
+- `endpoint` defaults to `AGENT_DEBUGGER_ENDPOINT`; the key comes from `AGENT_DEBUGGER_API_KEY`. With no endpoint the session does nothing and your code runs unchanged.
+- `model` and `provider` are recorded on the run. `execution_mode` is `"live"` or `"controlled"` (deterministic test runs); Tracing can filter on it.
+- It uses its own private OpenTelemetry provider. It never replaces your global provider and never patches classes.
+- Telemetry errors never replace your agent’s result or raise into your code.
+
+`capture` takes a `CaptureConfig`; see [Capture and redaction](/docs/sdk/capture-and-redaction/).
+
+## instrument: wrap methods on an object
+
+```python title="Python"
+tools = tracing.instrument(
+    LocalTools(),                                   # your own instance
+    {"invoke": ("tool", "LocalTools.invoke")},      # method -> (span type, span name)
+    payloads={"invoke": (input_fn, output_fn)},     # optional, see below
+)
+```
+
+Only the named methods on that one instance are wrapped. Sync and `async` methods both work. Each call becomes one span of the given type: `run`, `agent`, `model`, `retrieval`, `tool`, `api`, `state` or `custom`.
+
+## Recording inputs and outputs
+
+By default a wrapped call records no arguments or results. To record them, give a pair of functions:
+
+- `input_fn(*args, **kwargs)` receives the call’s arguments and returns plain data to store.
+- `output_fn(result)` receives the return value.
+
+Return only built-in types: dict, list, tuple, str, int, float, bool, None. Anything else becomes `"[unsupported]"`, so convert model objects yourself (for example `result.model_dump()`). An extractor that raises is ignored. A call that raises records its input and error type, and no output.
+
+## operation: mark your own code
+
+```python title="Python"
+with tracing.operation("agent", "Planner.run", {"debugger.step": "plan"}):
+    plan = planner.run(request)
+```
+
+If an exception escapes the block, the span is marked `ERROR` with an exception event holding only the exception type, and the exception is re-raised unchanged. A failure you catch inside the block leaves the parent successful.
+
+## Retries
+
+Call tool methods with the keyword arguments `step_id=` (a string) and `attempt=` (an int). The span is then named `LocalTools.invoke · charge · attempt 2`, and attempt 2 is linked to attempt 1. If attempt 1 failed and attempt 2 succeeded, the UI shows a recovered retry and the run stays **Completed**. See [Errors and recovered retries](/docs/concepts/errors-and-retries/).
+
+## Marking the run failed
+
+Call `tracing.record_result(result)` at the end. If `result.status == "failed"` or `result.execution_error` is set, the run is marked `ERROR`. An exception escaping the session also fails the run.
+
+## Delivery
+
+Spans are exported in batches by a background processor. A `503` is retried 3 times (after 1, 2 and 4 s); `401`, `413`, `422`, other errors and connection failures drop the batch at once. Stack traces are never exported; the error payload is `{"type", "message"}`.

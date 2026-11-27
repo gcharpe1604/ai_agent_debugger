@@ -1,0 +1,35 @@
+---
+title: Overview
+description: What Agent Debugger records, who it is for, and how a trace reaches the UI.
+---
+
+import { LinkCard, CardGrid } from '@astrojs/starlight/components'
+
+Agent Debugger records what an AI agent actually did during a run (every model call, tool call, retrieval and retry) and lets you inspect it as a tree and a timeline. When a run goes wrong, you open the failing step and read its input, output and error.
+
+## Who it is for
+
+Developers building Python agents who need to answer “what happened in this run, and which step broke?” without adding print statements and re-running.
+
+## What you can do
+
+- Send traces from your agent with a small Python SDK built on OpenTelemetry.
+- See all runs in **Tracing**, filter by status, agent, execution mode and time.
+- Open a run: span tree, waterfall, and an inspector with Input, Output, Metadata, Events and Errors.
+- Tell real failures from recovered ones: a tool that fails and then succeeds on retry does not make the run fail.
+- Watch totals, error rate, latency by agent and recent failures on the **Dashboard**.
+
+## How it works
+
+1. The SDK turns each step of your agent into an OpenTelemetry span. One run is one trace.
+2. Ended spans are sent in batches to `POST /api/v1/traces` with your API key.
+3. The API validates them and publishes them to Kafka, a buffer, then answers `202`.
+4. A trace writer moves spans from Kafka into ClickHouse.
+5. The web UI reads them back and rebuilds the tree. Accounts and keys live in PostgreSQL.
+
+## Next
+
+<CardGrid>
+  <LinkCard title="Quickstart" description="A first trace on screen in about five minutes." href="/docs/get-started/quickstart/" />
+  <LinkCard title="Python SDK" description="TraceSession, instrument, operation and retries." href="/docs/sdk/trace-session/" />
+</CardGrid>

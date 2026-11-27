@@ -1,0 +1,12 @@
+---
+// Header left: the landing page's mono wordmark (links to the site root), then
+// Docs and GitHub. The links move into the mobile menu below 50rem.
+const REPO = 'https://github.com/gcharpe1604/ai_agent_debugger'
+---
+<div class="adbg-brand">
+  <a class="adbg-wordmark" href="/"><span class="adbg-mark" aria-hidden="true">▸</span><span>agent-debugger</span></a>
+  <nav class="adbg-nav" aria-label="Site">
+    <a href="/docs/" aria-current="true">Docs</a>
+    <a href={REPO} target="_blank" rel="noreferrer">GitHub<span class="sr-only"> (opens in a new tab)</span></a>
+  </nav>
+</div>

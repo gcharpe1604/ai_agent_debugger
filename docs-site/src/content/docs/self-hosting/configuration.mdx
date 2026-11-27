@@ -1,0 +1,61 @@
+---
+title: Configuration
+description: The settings in .env.prod, read by every container.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+`compose.prod.yaml` reads its settings from `.env.prod` (git-ignored), copied from `.env.prod.example`. Every container reads this file. Fill in every `CHANGE_ME`. Generate secrets with:
+
+```sh title="Shell"
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+## Site
+
+| Variable | Meaning |
+|---|---|
+| `SITE_ADDRESS` | Public address Caddy serves. A domain whose DNS points at this VM gets a Let's Encrypt certificate (ports 80 and 443 must be open). `localhost` uses Caddy's local CA (testing only). |
+
+## PostgreSQL (users and API keys)
+
+| Variable | Meaning |
+|---|---|
+| `POSTGRES_DB`, `POSTGRES_USER` | Database and user, `agent_debugger` in the example |
+| `POSTGRES_PASSWORD` | Must match the password in `DATABASE_URL` |
+| `DATABASE_URL` | `postgresql+asyncpg://agent_debugger:CHANGE_ME@postgres:5432/agent_debugger` |
+
+## ClickHouse (spans)
+
+The image creates this user and database on first start; the API and trace writer use the same names.
+
+| Variable | Example value |
+|---|---|
+| `CLICKHOUSE_HOST`, `CLICKHOUSE_PORT` | `clickhouse`, `8123` |
+| `CLICKHOUSE_DB`, `CLICKHOUSE_DATABASE` | `telemetry` |
+| `CLICKHOUSE_USER`, `CLICKHOUSE_PASSWORD` | `agentdbg`, `CHANGE_ME` |
+
+## Kafka
+
+Topics are created by `kafka-init`.
+
+| Variable | Example value |
+|---|---|
+| `KAFKA_BOOTSTRAP_SERVERS` | `kafka:29092` (the compose network listener) |
+| `KAFKA_TRACE_TOPIC` | `agentdbg.traces.v1` |
+| `KAFKA_TRACE_DLQ_TOPIC` | `agentdbg.traces.v1.dlq` |
+| `KAFKA_TRACE_WRITER_GROUP` | `agentdbg-trace-writer` |
+| `KAFKA_PUBLISH_TIMEOUT_S` | `10` |
+| `DEFAULT_PROJECT_ID` | `00000000-0000-4000-8000-000000000001` |
+
+## UI sessions and sign-up
+
+| Variable | Meaning |
+|---|---|
+| `SESSION_SECRET` | At least 32 characters (the command above gives 43) |
+| `SESSION_COOKIE_SECURE` | `true` |
+| `ALLOW_SIGNUP` | `false` turns public sign-up off; `scripts/create_user.py` still creates users |
+
+<Aside type="tip">
+Set `ALLOW_SIGNUP=false` once your accounts exist.
+</Aside>

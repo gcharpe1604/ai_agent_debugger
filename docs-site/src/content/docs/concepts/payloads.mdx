@@ -1,0 +1,18 @@
+---
+title: Payloads
+description: Input, output and error payloads and their states.
+---
+
+Each span can carry an **input**, an **output** and an **error** payload, each with a state:
+
+| State | Meaning |
+|---|---|
+| `captured` | Stored as recorded |
+| `redacted` | At least one secret field was replaced by `"[redacted]"` |
+| `truncated` | Cut to fit a limit; still valid JSON |
+| `disabled` | Capture was turned off; no payload |
+| `unavailable` | Not recorded, failed, or not JSON; no payload |
+
+The SDK cuts payloads to 16 KiB by default (up to 128 KiB). The server never truncates: a payload over 131,072 bytes is rejected with `422`.
+
+Stack traces are never exported; the error payload is `{"type", "message"}`. Limits and redaction rules are in [Capture and redaction](/docs/sdk/capture-and-redaction/).
