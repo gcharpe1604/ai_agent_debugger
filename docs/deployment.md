@@ -72,6 +72,25 @@ Volumes: `agent-debugger_postgres_data` (users, keys), `agent-debugger_clickhous
 docker compose -f compose.prod.yaml exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > backup.sql
 ```
 
+## Vercel (web UI and docs)
+
+The web UI and the docs are one Vercel project, rooted at `frontend/`. The API is not on Vercel: `frontend/vercel.json` rewrites `/api/*` to `https://agentdbg-api.onrender.com/api/*`.
+
+- **Build:** `frontend/vercel.json` sets the build command to `node ../scripts/build-vercel.mjs` (output `dist`). After Vercel's `npm install` in `frontend/`, the script runs the frontend build, then `npm ci` and `npm run build` in `docs-site/`, and copies `docs-site/dist/docs` to `frontend/dist/docs` and the docs `404.html` to `frontend/dist/404.html`.
+- **Project setting:** "Include files outside the root directory" must stay on; the build reads `../scripts` and `../docs-site`, and the docs theme reads `frontend/src/styles/tokens.css`.
+- **Routing** (static files are served first, then the rules in order):
+  - `/docs` redirects to `/docs/` (308).
+  - `/api/*` is proxied to the API.
+  - Everything else except `/docs` and `/docs/*` falls back to `/index.html` (the app). A missing docs page therefore gets a 404 with the docs 404 page, not the app.
+
+To build what Vercel builds, from the repo root (after `npm ci` in `frontend/`):
+
+```bash
+node scripts/build-vercel.mjs
+```
+
+The VM path above is separate: `frontend/Dockerfile` builds the docs in its own stage and Caddy serves them.
+
 ## Testing the stack locally
 
 Set `SITE_ADDRESS=localhost`: Caddy then signs its own certificate. Clients must trust Caddy's root CA:

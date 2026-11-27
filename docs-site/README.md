@@ -22,7 +22,9 @@ npm.cmd run build    # dist/docs/; fails on a broken internal link (starlight-li
 
 - **VM (Caddy):** `frontend/Dockerfile` builds this site in its `docs` stage and copies
   `dist/docs` to `/srv/docs`; `deploy/Caddyfile` serves `/docs/*` before the SPA fallback.
-- **Vercel:** deploy this folder as its own project (root `docs-site`, output `dist`;
-  see `vercel.json`). The app project's `frontend/vercel.json` rewrites `/docs` and
-  `/docs/:path*` to it (https://agentdbg-docs.vercel.app). Keep
-  "Include files outside the root directory" on (the theme reads `frontend/`).
+- **Vercel:** one project, the frontend's (root `frontend/`). Its build command,
+  `node ../scripts/build-vercel.mjs`, builds the app, then this site, and copies
+  `dist/docs` into `frontend/dist/docs` (and the docs 404 page to `frontend/dist/404.html`).
+  `frontend/vercel.json` redirects `/docs` to `/docs/` and keeps its SPA fallback off
+  `/docs`, so a missing docs page gets the docs 404. The project needs "Include files
+  outside the root directory" on, because the build reads `../docs-site` and `../scripts`.

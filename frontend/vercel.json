@@ -1,8 +1,11 @@
 {
+  "buildCommand": "node ../scripts/build-vercel.mjs",
+  "outputDirectory": "dist",
+  "redirects": [
+    { "source": "/docs", "destination": "/docs/", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/api/:path*", "destination": "https://agentdbg-api.onrender.com/api/:path*" },
-    { "source": "/docs", "destination": "https://agentdbg-docs.vercel.app/docs/" },
-    { "source": "/docs/:path*", "destination": "https://agentdbg-docs.vercel.app/docs/:path*" },
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/((?!docs/|docs$).*)", "destination": "/index.html" }
   ]
 }
