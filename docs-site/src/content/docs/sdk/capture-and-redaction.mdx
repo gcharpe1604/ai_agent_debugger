@@ -1,0 +1,28 @@
+---
+title: Capture and redaction
+description: CaptureConfig limits and how secret fields are redacted.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Pass `capture=CaptureConfig(...)` to `TraceSession` (or to `Debugger` and `DurableSpanExporter`) to change what is recorded:
+
+| Option | Default | Allowed |
+|---|---|---|
+| `capture_inputs` | `True` | bool |
+| `capture_outputs` | `True` | bool |
+| `capture_errors` | `True` | bool; False also drops exception messages |
+| `max_payload_bytes` | 16,384 | 64 – 131,072 |
+| `max_depth` | 8 | 0 – 32 |
+| `max_nodes` | 512 | 1 – 10,000 |
+| `secret_fields` | `()` | extra field names to redact |
+
+## Redaction
+
+Fields named like passwords, API keys, tokens, cookies, authorization headers, client secrets, private keys and credentials are replaced with `"[redacted]"` at any depth, before the value is measured. Matching ignores case and punctuation.
+
+<Aside type="caution">
+Redaction is by field name, not content. A secret inside free text or under an unusual key is not caught; add it to `secret_fields` or turn capture off for that call.
+</Aside>
+
+What each payload state means is in [Payloads](/docs/concepts/payloads/).

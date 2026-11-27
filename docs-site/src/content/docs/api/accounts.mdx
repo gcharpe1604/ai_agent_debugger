@@ -1,0 +1,16 @@
+---
+title: Accounts
+description: Register, sign in and out, read the current user and rotate the API key.
+---
+
+The browser session is a signed cookie. These endpoints are used by the web app. Paths are under `/api/v1`.
+
+| Request | Result |
+|---|---|
+| `POST /auth/register` | Body `{name, email, password}`. `201` with the user and the API key (shown once); starts a session. `409` if the email exists, `403` if sign-up is disabled. |
+| `POST /auth/login` | Body `{email, password}`. `204`; `401` for a wrong email or password. |
+| `POST /auth/logout` | `204`; ends the session. |
+| `GET /auth/me` | The signed-in user: `id`, `name`, `email`, `key_prefix`. |
+| `POST /auth/key/rotate` | A new API key (shown once); the old key stops working. |
+
+Sign-up can be turned off on a self-hosted server; see [Configuration](/docs/self-hosting/configuration/).

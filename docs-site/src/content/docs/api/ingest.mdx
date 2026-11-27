@@ -1,0 +1,48 @@
+---
+title: Ingest
+description: POST /api/v1/traces, its responses and the span fields.
+---
+
+All endpoints are under `/api/v1`. Error bodies are described in [Errors](/docs/api/errors/).
+
+## Request
+
+```http title="HTTP"
+POST /api/v1/traces
+Authorization: Bearer adbg_sk_...
+Content-Type: application/json
+
+{"protocol_version": "1", "spans": [ ... ]}
+```
+
+The SDK builds this request for you. Body limit 4 MiB. Unknown fields are rejected. The key is checked before the body is read.
+
+## Responses
+
+| Status | Meaning | Retry? |
+|---|---|---|
+| `202` | Every span is in the buffer (Kafka). Not yet stored in ClickHouse. Body: `{"status": "accepted", "spans": n}` | — |
+| `401` | Missing, invalid or rotated API key | No |
+| `413` | Body over 4 MiB, or one span too large as a Kafka record. Nothing was published. | No |
+| `415` | Content type is not `application/json` | No |
+| `422` | Invalid batch, e.g. a bad ID or a payload over 131,072 bytes. Nothing was published. | No |
+| `503` | Buffer unavailable; nothing accepted. Has `Retry-After`. | Yes, the whole batch |
+
+## Span fields
+
+| Field | Type |
+|---|---|
+| `trace_id` | 32 lowercase hex characters (required) |
+| `span_id` | 16 lowercase hex characters (required) |
+| `parent_span_id` | 16 hex characters or null |
+| `name` | non-empty string (required) |
+| `operation_type` | run, agent, model, retrieval, tool, api, state or custom (required) |
+| `start_time`, `end_time` | integer nanoseconds since the Unix epoch (required) |
+| `status` | `{"code": "UNSET" \| "OK" \| "ERROR", "description": ""}` |
+| `attempt`, `retry_of_span_id` | retry metadata |
+| `model`, `provider`, `input_tokens`, `output_tokens`, `total_tokens`, `cost` | model metadata; `cost` is a decimal string |
+| `input_payload`, `output_payload`, `error_payload` | strings up to 131,072 UTF-8 bytes |
+| `input_state`, `output_state`, `error_state` | captured, redacted, truncated, disabled or unavailable |
+| `attributes`, `events`, `links` | extra data, events and explicit relations |
+
+`project_id` and `received_at` are set by the server and rejected if sent. Full contract: `docs/trace-protocol.md` in the repository.

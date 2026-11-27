@@ -1,0 +1,106 @@
+---
+title: Quickstart
+description: From a new account to your first trace.
+---
+
+import { Aside, Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+
+From a new account to your first trace. You need Python 3.10 or newer.
+
+<Steps>
+
+1. **Create an account**
+
+   Sign up in the app with your name, email and a password. You are signed in and shown your API key, `adbg_sk_…`.
+
+   <Aside type="caution">
+   The key is shown **once**. Only a hash of it is stored, so it cannot be shown again. If you lose it, go to **Settings → API key → Rotate**; the old key stops working immediately.
+   </Aside>
+
+2. **Install the SDK**
+
+   ```sh title="Terminal"
+   pip install "git+https://github.com/gcharpe1604/ai_agent_debugger.git#subdirectory=sdk/python"
+   ```
+
+   The example below also uses `python-dotenv` to read a `.env` file: `pip install python-dotenv`. Plain environment variables work just as well.
+
+3. **Point it at your server**
+
+   ```ini title=".env"
+   AGENT_DEBUGGER_ENDPOINT=https://<your-host>/api/v1/traces
+   AGENT_DEBUGGER_API_KEY=adbg_sk_...
+   ```
+
+   The endpoint must end in `/api/v1/traces` and use `https` (plain `http` is allowed only for `localhost`/`127.0.0.1`). Keep `.env` out of version control.
+
+4. **Wrap your agent**
+
+   ```python title="agent.py"
+   from dotenv import load_dotenv
+   from ai_agent_debugger_sdk import TraceSession
+
+   load_dotenv()  # AGENT_DEBUGGER_ENDPOINT and AGENT_DEBUGGER_API_KEY
+
+   class Tools:
+       def search(self, query):
+           return {"hits": 3}
+
+   with TraceSession("my-agent") as tracing:
+       tools = tracing.instrument(
+           Tools(),
+           {"search": ("tool", "Tools.search")},
+           payloads={"search": (lambda query: {"query": query}, lambda result: result)},
+       )
+       with tracing.operation("agent", "MyAgent.run"):
+           tools.search("refund policy")
+   ```
+
+   `TraceSession` opens one run. `instrument` wraps the methods you name on that one object; `operation` marks a block of your own code. [TraceSession](/docs/sdk/trace-session/) explains each part.
+
+5. **Run it and open Tracing**
+
+   When the session ends, the SDK flushes and prints one line to stderr:
+
+   ```text title="Output"
+   Trace 4f2a9c1e...: exported (3 acknowledged spans)
+   ```
+
+   Open **Tracing** in the app and select the run.
+
+</Steps>
+
+## Try the example agents
+
+The repository has four example agents in `examples/`: `tool_task_agent`, `rag_agent`, `langgraph_workflow_agent` and `research_planning_agent`. Each loads the nearest `.env` at start and has controlled scenarios that need no model key, including failures and recovered retries:
+
+<Tabs syncKey="shell">
+  <TabItem label="PowerShell">
+    ```powershell
+    cd examples/tool_task_agent
+    py -3 -m venv .venv
+    .\.venv\Scripts\python.exe -m pip install -e .
+    .\.venv\Scripts\python.exe -m tool_task_agent list
+    .\.venv\Scripts\python.exe -m tool_task_agent run TOOL-01
+    ```
+  </TabItem>
+  <TabItem label="bash">
+    ```bash
+    cd examples/tool_task_agent
+    python3 -m venv .venv
+    .venv/bin/python -m pip install -e .
+    .venv/bin/python -m tool_task_agent list
+    .venv/bin/python -m tool_task_agent run TOOL-01
+    ```
+  </TabItem>
+</Tabs>
+
+## If nothing shows up
+
+| You see | Meaning | Fix |
+|---|---|---|
+| No “Trace …” line | The session did nothing: `AGENT_DEBUGGER_ENDPOINT` is unset or empty. | Load your `.env` before creating `TraceSession`. |
+| “delivery failed” and a 401 warning | The API key is missing, wrong or was rotated. | Copy a fresh key from Settings → API key. |
+| “delivery failed” after retries | The server answered `503`: its buffer (Kafka) is unavailable. The SDK retried 3 times. | Check the server; see [Self-hosting](/docs/self-hosting/docker-compose/). |
+| “delivery failed” at once | A `413` (batch too large) or `422` (invalid span). Not retried. | See [Ingest](/docs/api/ingest/). |
+| Exported, but not in Tracing | The trace writer has not stored it yet, or you are signed in to another account. | Refresh after a few seconds; check the account. |

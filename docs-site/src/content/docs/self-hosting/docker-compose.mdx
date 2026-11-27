@@ -1,0 +1,30 @@
+---
+title: Docker Compose on one VM
+description: Requirements and first deploy of the whole stack with Docker Compose.
+---
+
+The whole stack runs on one VM with Docker Compose: Caddy (HTTPS, the web UI and these docs) → API → Kafka → trace writer → ClickHouse, plus PostgreSQL for accounts.
+
+## Requirements
+
+- Ubuntu 24.04, 2 vCPU, 4 GB RAM, 30 GB disk.
+- Open inbound ports 22, 80 and 443 only. Kafka, ClickHouse, PostgreSQL and the API stay on the internal network.
+- A domain pointing at the VM. Without one, `<ip-with-dashes>.sslip.io` works.
+
+## Deploy
+
+```sh title="Shell"
+git clone https://github.com/gcharpe1604/ai_agent_debugger.git && cd ai_agent_debugger
+sudo bash scripts/deploy/vm-setup.sh     # Docker, compose plugin, swap; safe to re-run
+# log out and back in
+
+cp .env.prod.example .env.prod
+nano .env.prod                           # SITE_ADDRESS, replace every CHANGE_ME
+
+docker compose -f compose.prod.yaml up -d --build
+docker compose -f compose.prod.yaml ps   # all healthy; kafka-init "Exited (0)"
+```
+
+Then open `https://<SITE_ADDRESS>`, register and copy your key. Set `ALLOW_SIGNUP=false` in `.env.prod` once your accounts exist. Database migrations run each time the API starts. Every setting is listed in [Configuration](/docs/self-hosting/configuration/).
+
+For development without Docker, see `docs/local-development.md` in the repository; the full deployment guide is `docs/deployment.md`.
