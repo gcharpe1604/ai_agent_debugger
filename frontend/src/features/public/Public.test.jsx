@@ -118,12 +118,25 @@ describe('public routes', () => {
     expect(trace.getByText(/is a recovered retry, not a failed run\./)).toBeTruthy()
   })
 
-  it('lists the six storage steps and PostgreSQL on the side', async () => {
+  it('draws the write and read paths into one ClickHouse, with PostgreSQL beside the API', async () => {
     start('/')
-    const strip = await screen.findByRole('region', { name: 'The span path' })
-    expect(within(strip).getAllByRole('listitem').map(item => item.querySelector('strong').textContent)).toEqual(['Python SDK', 'Ingest API', 'Kafka', 'Trace writer', 'ClickHouse', 'Web UI'])
-    expect(strip.textContent).toContain('PostgreSQL')
-    expect(strip.textContent).toContain('Accounts and API keys. Spans never go here.')
+    const section = within(await screen.findByRole('region', { name: 'The span path' }))
+    const items = name => within(section.getByRole('list', { name })).getAllByRole('listitem').map(item => item.textContent)
+    expect(items('Write path')).toEqual([
+      'Agent + SDKTraceSession', 'HTTPS · Bearer API key', 'Ingest API/api/v1/traces', 'publish', 'Kafkaagentdbg.traces.v1',
+      'consume', 'Trace writerKafka consumer', 'insert', 'ClickHousetelemetry_spans',
+    ])
+    // The Web UI reads through the API, never ClickHouse directly.
+    expect(items('Read path')).toEqual(['Web UIReact', 'session cookie', 'Read API/api/v1/projects/…', 'SQL', 'ClickHousethe same node as above'])
+    expect(items('Accounts')).toEqual([
+      'Ingest API + Read APIthe same app as above', 'user lookup: key hash, session user_id', 'PostgreSQLAccounts and API key hashes. Spans never go here.',
+    ])
+    const notes = [...screen.getByRole('region', { name: 'The span path' }).querySelectorAll('.lp-arch-notes > div')].map(note => [note.querySelector('dt').textContent, note.querySelector('dd').textContent])
+    expect(notes).toEqual([
+      ['Kafka', 'The agent never waits on ClickHouse; a writer restart loses nothing.'],
+      ['ClickHouse', 'Column store for time-range scans of spans.'],
+      ['PostgreSQL', 'Accounts only.'],
+    ])
   })
 
   it('puts Docs, GitHub and Sign in in the header menu; the theme switch stays in the header', async () => {

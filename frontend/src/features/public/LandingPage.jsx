@@ -1,4 +1,5 @@
 import { accountHref } from '../../app/routes.jsx'
+import Architecture from './Architecture.jsx'
 import { CodeCard, CopyButton, Highlighted } from './Code.jsx'
 import { DOCS, SDK_INSTALL, envSnippet, traceSessionSnippet } from './site.js'
 
@@ -72,15 +73,6 @@ const FEATURES = [
   },
 ]
 
-const PIPELINE = [
-  ['Python SDK', 'OpenTelemetry spans from your agent'],
-  ['Ingest API', 'FastAPI, API-key auth'],
-  ['Kafka', 'Buffers span batches'],
-  ['Trace writer', 'Consumes, writes spans'],
-  ['ClickHouse', 'Stores spans'],
-  ['Web UI', 'Tree, waterfall, inspector'],
-]
-
 const pad = number => String(number).padStart(2, '0')
 
 export default function LandingPage({ signedIn, dashboard, theme }) {
@@ -141,14 +133,7 @@ export default function LandingPage({ signedIn, dashboard, theme }) {
 
     <Row id="architecture-title" label="06 · Architecture">
       <h2 id="architecture-title" className="lp-h2">The span path</h2>
-      <ol className="lp-strip">
-        {PIPELINE.map(([name, role], index) => <li key={name}>
-          <span className="lp-strip-meta" aria-hidden="true"><span>{pad(index + 1)}</span>{index < PIPELINE.length - 1 && <span className="lp-strip-arrow"/>}</span>
-          <strong>{name}</strong>
-          <span className="lp-strip-role">{role}</span>
-        </li>)}
-      </ol>
-      <p className="lp-side"><span className="lp-side-tag">side</span><strong>PostgreSQL</strong><span>Accounts and API keys. Spans never go here.</span></p>
+      <Architecture/>
     </Row>
 
     <section className="lp-section lp-cta" aria-labelledby="cta-title">

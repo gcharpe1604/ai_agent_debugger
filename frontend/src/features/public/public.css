@@ -210,28 +210,61 @@
   .lp-well[data-well="inspector"], .lp-well[data-well="dashboard"] { padding: 16px; }
 }
 
-/* 7 · Architecture */
-.lp-strip { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); margin: 32px 0 0; padding: 0; overflow: hidden; border: 1px solid var(--lp-border-strong); border-radius: var(--lp-radius-frame); list-style: none; }
-.lp-strip li { display: flex; flex-direction: column; min-width: 0; padding: 16px; border-left: 1px solid var(--lp-border); }
-.lp-strip li:first-child { border-left: 0; }
-.lp-strip-meta { display: flex; justify-content: space-between; color: var(--lp-muted); font-family: var(--lp-font-mono); font-size: 11px; }
-.lp-strip-arrow::before { content: "→"; }
-.lp-strip strong { margin-top: 12px; font-size: var(--lp-body-sm); font-weight: var(--weight-semibold); }
-.lp-strip-role { margin-top: 4px; color: var(--lp-muted); font-size: 13px; line-height: 1.4; }
-.lp-side { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin-top: 12px; padding: 12px 16px; border: 1px dashed var(--lp-border-strong); border-radius: var(--lp-radius-frame); color: var(--lp-text-2); font-size: var(--lp-ui); }
-.lp-side-tag { color: var(--lp-muted); font-family: var(--lp-font-mono); font-size: 11px; }
-.lp-side strong { color: var(--lp-text); }
-@media (max-width: 1023px) {
-  .lp-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .lp-strip li:nth-child(3n + 1) { border-left: 0; }
-  .lp-strip li:nth-child(n + 4) { border-top: 1px solid var(--lp-border); }
-}
-@media (max-width: 767px) {
-  .lp-strip { grid-template-columns: minmax(0, 1fr); }
-  .lp-strip li { padding-block: 17px; border-left: 0; }
-  .lp-strip li + li { border-top: 1px solid var(--lp-border); }
-  .lp-strip-arrow::before { content: "↓"; }
-  .lp-side > span:last-child { flex-basis: 100%; }
+/* 7 · Architecture: two lanes into one ClickHouse, PostgreSQL beside the API.
+   Stacked by default; one grid from 1280 px (narrower, the boxes are too small). */
+.lp-arch { margin-top: 32px; }
+.lp-arch ol { margin: 0; padding: 0; list-style: none; }
+.lp-arch-grid { display: flex; flex-direction: column; gap: 24px; }
+.lp-lane-name { margin-bottom: 8px; color: var(--lp-muted); font-family: var(--lp-font-mono); font-size: 11px; letter-spacing: .06em; text-transform: uppercase; }
+.lp-api-group { display: none; }
+.lp-node { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 12px; border: 1px solid var(--lp-border-strong); border-radius: var(--lp-radius-control); background: var(--lp-bg); }
+.lp-node strong { font-size: var(--lp-body-sm); font-weight: var(--weight-semibold); line-height: 1.3; }
+.lp-node-detail { color: var(--lp-muted); font-family: var(--lp-font-mono); font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.lp-node-store { background: var(--lp-surface-alt); }
+.lp-node-ref { border-style: dashed; background: none; }
+.lp-node-db { border-style: dashed; }
+.lp-node-db .lp-node-detail { color: var(--lp-text-2); font-family: var(--lp-font-sans); font-size: var(--lp-ui); }
+/* Stacked connector: a vertical line with its label beside it. */
+.lp-conn { display: flex; align-items: center; gap: 12px; min-height: 40px; padding-left: 24px; }
+.lp-conn-line { position: relative; flex: 0 0 1px; order: -1; align-self: stretch; color: var(--lp-muted); background: currentColor; }
+.lp-conn-line::after { content: ""; position: absolute; bottom: 0; left: -3px; border-style: solid; border-width: 6px 3.5px 0; border-color: currentColor transparent transparent; }
+.lp-conn-label { padding-block: 6px; color: var(--lp-muted); font-family: var(--lp-font-mono); font-size: 11px; line-height: 1.4; }
+.lp-arch-notes { margin-top: 32px; }
+.lp-arch-notes dt { flex: 0 0 88px; }
+
+@media (min-width: 1280px) {
+  .lp-arch-grid {
+    position: relative;
+    display: grid;
+    grid-template-columns: 48px repeat(4, minmax(0, 1.25fr) minmax(0, 1.2fr)) minmax(0, 1.25fr);
+    grid-template-rows: auto 40px auto 64px auto;
+    gap: 0;
+  }
+  .lp-lane, .lp-lane ol { display: contents; }
+  .lp-stack-only { display: none; }
+  .lp-lane-name { grid-column: 1; align-self: center; margin: 0; }
+  .lp-arch-grid li { grid-column: var(--col) / span var(--span); }
+  .lp-lane[data-lane="write"] > *, .lp-lane[data-lane="write"] li { grid-row: 1; }
+  .lp-lane[data-lane="read"] > *, .lp-lane[data-lane="read"] li { grid-row: 3; }
+  .lp-lane[data-lane="side"] > *, .lp-lane[data-lane="side"] .lp-node { grid-row: 5; }
+  .lp-lane[data-lane="side"] .lp-conn { grid-row: 4; }
+  .lp-lane[data-lane="write"] li.lp-node-store { grid-row: 1 / 4; justify-content: center; }
+  .lp-node-db { flex-direction: row; align-items: baseline; gap: 16px; }
+  /* Both API boxes are one FastAPI app; PostgreSQL hangs off its bottom edge. */
+  .lp-api-group { position: relative; z-index: 0; display: block; grid-column: 4; grid-row: 1 / 4; margin: -10px -8px; border: 1px dashed var(--lp-border-strong); border-radius: var(--lp-radius-frame); }
+  .lp-api-group span { position: absolute; top: -8px; left: 10px; padding: 0 6px; background: var(--lp-bg); color: var(--lp-muted); font-family: var(--lp-font-mono); font-size: 11px; line-height: 16px; white-space: nowrap; }
+  /* Horizontal connector: label above a line that meets both boxes at mid-height. */
+  .lp-conn { display: grid; grid-template-rows: 1fr auto 1fr; gap: 0; min-height: 0; padding: 0; }
+  .lp-conn-label { grid-row: 1; align-self: end; padding: 0 4px 6px; text-align: center; }
+  .lp-conn[data-edge="in"] .lp-conn-label { padding-right: 14px; }
+  .lp-conn[data-edge="out"] .lp-conn-label { padding-left: 14px; }
+  .lp-conn-line { grid-row: 2; order: 0; height: 1px; }
+  .lp-conn-line::after { top: -3px; right: 0; bottom: auto; left: auto; border-width: 3.5px 0 3.5px 6px; border-color: transparent transparent transparent currentColor; }
+  /* The PostgreSQL connector runs down from the API group, label to its right. */
+  .lp-lane[data-lane="side"] .lp-conn { position: relative; display: block; margin-top: 10px; }
+  .lp-lane[data-lane="side"] .lp-conn-line { position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; height: auto; }
+  .lp-lane[data-lane="side"] .lp-conn-line::after { top: auto; right: auto; bottom: 0; left: -3px; border-width: 6px 3.5px 0; border-color: currentColor transparent transparent; }
+  .lp-lane[data-lane="side"] .lp-conn-label { position: absolute; top: 50%; left: calc(50% + 12px); padding: 0; text-align: left; white-space: nowrap; transform: translateY(-50%); }
 }
 
 /* 8 · Final call to action */
