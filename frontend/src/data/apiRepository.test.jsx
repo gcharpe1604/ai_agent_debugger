@@ -59,7 +59,10 @@ it('shows local Settings with server-reported retention, the SDK endpoint and no
   await user.click(screen.getByRole('tab', { name: 'API key' }))
   expect(screen.getByText(/AGENT_DEBUGGER_ENDPOINT=http:\/\/127\.0\.0\.1:8008\/api\/v1\/local\/traces/)).toBeTruthy()
   expect(screen.getByRole('button', { name: 'Create API key' }).disabled).toBe(true)
-  expect(screen.getByRole('link', { name: 'Docs (opens in a new tab)' }).getAttribute('target')).toBe('_blank')
+  // Docs are the docs site on the same origin (/docs/), not a GitHub tab.
+  const docs = screen.getByRole('link', { name: 'Docs' })
+  expect(docs.getAttribute('href')).toBe('/docs/')
+  expect(docs.getAttribute('target')).toBeNull()
 })
 
 it('renders an empty captured store without inserting sample executions', async () => {

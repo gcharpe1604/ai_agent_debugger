@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "node scripts/check-docs-links.mjs && vite build",
     "lint": "eslint .",
     "test": "vitest run",
     "test:watch": "vitest",

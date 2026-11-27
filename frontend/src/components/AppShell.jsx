@@ -3,13 +3,12 @@ import Icon from './Icon.jsx'
 import Select from './ui/Select.jsx'
 import Tooltip, { TooltipProvider } from './ui/Tooltip.jsx'
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './ui/Menu.jsx'
-import { accountHref, homeHref, runsHref, settingsHref } from '../app/routes.jsx'
+import { accountHref, docsUrl, homeHref, runsHref, settingsHref } from '../app/routes.jsx'
 import { returnQuery } from '../features/trace/traceState.js'
 import { usePreference, useTheme } from '../app/preferences.js'
 import { hasModifier, isTyping } from '../app/keyboard.js'
 import { useAccount } from '../features/access/session.js'
 
-const DOCS_URL = 'https://github.com/gcharpe1604/ai_agent_debugger/tree/main/docs'
 const themes = [['light', 'Light'], ['dark', 'Dark'], ['system', 'System']]
 
 // Fixture/preview mode only: several projects to choose from. The local and
@@ -112,7 +111,7 @@ function Shell({ projects, project, route, children, header, crumbs, actions, lo
         {settingsProjectId && navItem('Settings', settingsHref(settingsProjectId), 'settings', !!route.settings, { ariaLabel: singleProject ? 'Settings' : 'Project settings', tooltip: singleProject ? 'Settings' : 'Project settings' })}
       </nav>
       <div className="sidebar-bottom">
-        {navItem('Docs', DOCS_URL, 'docs', false, { ariaLabel: 'Docs (opens in a new tab)', tooltip: 'Docs', link: { target: '_blank', rel: 'noreferrer' }, after: <span className="nav-text nav-external" aria-hidden="true"><Icon name="external"/></span> })}
+        {navItem('Docs', docsUrl(), 'docs', false)}
         {!singleProject && navItem('Sign in', accountHref('login', route.path + (route.search ? '?' + route.search : '')), 'arrow', false, { ariaLabel: 'Sign in — authentication not connected', tooltip: 'Sign in' })}
       </div>
       <div className="sidebar-footer">

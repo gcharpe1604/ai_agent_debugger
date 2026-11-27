@@ -11,6 +11,8 @@
   --text-base: 14px; /* body */
   --text-lg: 16px;   /* section */
   --text-xl: 20px;   /* page title */
+  --text-2xl: 28px;  /* landing section titles only */
+  --text-display: 44px; /* landing hero only */
   --leading: 1.4;
   --weight-regular: 400;
   --weight-medium: 500;

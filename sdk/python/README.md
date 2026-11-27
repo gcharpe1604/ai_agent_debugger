@@ -4,8 +4,8 @@ This package currently provides OpenTelemetry span helpers and bounded capture.
 Standalone Debugger use exports ended spans to the console. `HttpSpanExporter`
 and `TraceSession` now support bounded batched HTTP export to the explicit local
 capture profile. `DurableSpanExporter` sends protocol "1" batches, with
-payloads, to `POST /api/v1/traces` (see Durable export). API-key authentication
-is not implemented yet.
+payloads, to `POST /api/v1/traces` (see Durable export), with the API key from
+`AGENT_DEBUGGER_API_KEY` as a bearer token.
 See [normal development setup](../../docs/local-development.md).
 
 ## Public API
