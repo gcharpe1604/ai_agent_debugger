@@ -64,7 +64,7 @@ export default function PublicSite({ dashboard, signedIn }) {
         <div className="lp-footer-brand"><Wordmark/><p>© 2026</p></div>
         <nav className="lp-footer-columns" aria-label="Footer">
           <div>
-            <h2 className="lp-label">Product</h2>
+            <p className="lp-label">Product</p>
             <ul>
               {signedIn
                 ? <li><a href={dashboard}>Open dashboard</a></li>
@@ -73,7 +73,7 @@ export default function PublicSite({ dashboard, signedIn }) {
             </ul>
           </div>
           <div>
-            <h2 className="lp-label">Docs</h2>
+            <p className="lp-label">Docs</p>
             <ul>
               <li><a href={DOCS.quickstart}>Quickstart</a></li>
               <li><a href={DOCS.traceSession}>TraceSession</a></li>
@@ -82,7 +82,7 @@ export default function PublicSite({ dashboard, signedIn }) {
             </ul>
           </div>
           <div>
-            <h2 className="lp-label">Resources</h2>
+            <p className="lp-label">Resources</p>
             <ul>
               <li><External href={REPO_URL}>GitHub</External></li>
               <li><a href={DOCS.selfHosting}>Self-hosting</a></li>

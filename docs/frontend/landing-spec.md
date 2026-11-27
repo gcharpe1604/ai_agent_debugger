@@ -93,7 +93,7 @@ Families: `--lp-font-sans: "Inter Variable", Inter, system-ui, sans-serif` and `
 | 3–6 | 02 Runs · 03 Trace · 04 Inspector · 05 Dashboard | body grid `4fr 7fr`, gap 40, align start | Text side: h3; body (margin 12); optional type chips (Trace only: 24px tall, radius 6, an 8px swatch plus a mono label, gap 8); fact list with rules (`key` mono + value, 14px, padding 10 0). Image well: radius 8, `--lp-surface-alt`, `border: 1px solid --lp-border`. Runs: no padding, image flush. Trace: padding 24. Inspector: padding 32, image max 480px. Dashboard: padding 32, image max 560px. Images inside a padded well get a 1px border and radius 6. |
 | 7 | 06 · Architecture | h2, then a schematic 32px below, then three notes | See §3.1. The schematic shows how spans actually move: two lanes into one ClickHouse, PostgreSQL beside the API. No numbers or timings. Markup: `Architecture.jsx`, lanes as `<ol aria-label="Write path" / "Read path" / "Accounts">`. |
 | 8 | Final CTA | padding `112px 40px` | "Trace your first run." `--lp-cta`. Buttons 32px below. Install box 24px below the buttons: max-width 880, radius 8, `--lp-surface-alt`, padding `12px 8px 12px 16px`, then `$` + wrapped command + 32px copy button. |
-| 9 | Footer | same row grid (160 + 1fr) | Label cell: wordmark + "© 2026", padding `48px 16px 48px 0`. Body: 3 columns (Product / Docs / Resources), padding `48px 0 48px 40px`, gap 24. Titles use `--lp-label`; links 14px `--lp-text-2`, gap 8. |
+| 9 | Footer | same row grid (160 + 1fr) | Label cell: wordmark + "© 2026", padding `48px 16px 48px 0`. Body: 3 columns (Product / Docs / Resources), padding `48px 0 48px 40px`, gap 24. Titles are `<p>` labels (not headings) in `--lp-label`; links 14px `--lp-text-2`, gap 8. |
 
 ### 3.1 Section 06 · Architecture schematic
 
@@ -108,17 +108,17 @@ Facts it encodes (checked against the backend, 2026-11-27): ingest and read are 
 Style (tokens only, as the rest of the page):
 - Node: 1px `--lp-border-strong`, radius 6, padding 12, `--lp-bg`; name 15/600 sans; detail mono 11 `--lp-muted`, with a break opportunity after `/`, `.` and `_`. ClickHouse uses `--lp-surface-alt`. PostgreSQL and the stacked "same as above" references use a dashed border.
 - Connector: label mono 11 `--lp-muted`; a 1px `--lp-muted` line with a 6×7px arrowhead. Desktop: the label sits above a horizontal line at the node's mid-height; next to the API group the label is inset 14px so it clears the dashed border.
-- API group: a dashed `--lp-border-strong` frame, radius 8, 10px outside the Ingest API and Read API boxes, captioned `one FastAPI app` (mono 11) on its top edge.
+- API group: a dashed `--lp-border-strong` frame, radius 8, 10px outside the Ingest API and Read API boxes (28px below Read API), captioned `one FastAPI app` (mono 11) on its top edge.
 - Lane names `write`, `read`, `side`: mono 11, uppercase, 0.06em, `--lp-muted`.
 
-Layout ≥1280: one CSS grid, columns `48px repeat(4, minmax(0,1.25fr) minmax(0,1.2fr)) minmax(0,1.25fr)` (lane name, then node / connector alternating), rows `auto 40px auto 64px auto` (write, gap, read, PostgreSQL connector, PostgreSQL). ClickHouse spans rows 1–3, so both lanes' arrows end on the one box; the read lane's `SQL` connector spans columns 5–9. The PostgreSQL connector runs down from the API group's bottom edge (label to its right); PostgreSQL spans the Ingest API column and the next two.
+Layout ≥1280: one CSS grid, columns `48px repeat(4, minmax(0,1.25fr) minmax(0,1.2fr)) minmax(0,1.25fr)` (lane name, then node / connector alternating), rows `auto 40px auto 80px auto` (write, gap, read, PostgreSQL connector, PostgreSQL). ClickHouse spans rows 1–3, so both lanes' arrows end on the one box; the read lane's `SQL` connector spans columns 5–9. The PostgreSQL connector starts on the API group's bottom edge, marked by a 7px dot, so it comes from both APIs, not from Read API (label to its right); PostgreSQL spans the Ingest API column and the next two.
 
 Below 1280 (narrower, the boxes are too small): the lanes stack, `write` then `read` then `side`, 24px apart. Each node is full width; each connector is a 40px vertical line with a down arrow, 24px in, its label to the right. The read lane ends in a dashed **ClickHouse** "the same node as above"; the side lane starts with a dashed **Ingest API + Read API** "the same app as above". The API group frame is not drawn.
 
 Notes (margin 32, the fact-list style: mono term 88px, then text):
 - **Kafka**: The agent never waits on ClickHouse; a writer restart loses nothing.
 - **ClickHouse**: Column store for time-range scans of spans.
-- **PostgreSQL**: Accounts only.
+- **PostgreSQL**: Accounts need updates and unique emails; spans are append-only, so they live in ClickHouse.
 
 Link targets (all exist in `site.js` `DOCS`): Quickstart `get-started/quickstart/`, TraceSession `sdk/trace-session/`, Errors and retries `concepts/errors-and-retries/`, Ingest API `api/ingest/`, Dashboard `product/dashboard/`, Self-hosting `self-hosting/docker-compose/`, Limits `limits/`. Use `DOCS.*` and `REPO_URL`; don't hard-code paths.
 

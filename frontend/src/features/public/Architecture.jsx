@@ -66,7 +66,7 @@ export default function Architecture() {
     <dl className="lp-facts lp-arch-notes">
       <div><dt>Kafka</dt><dd>The agent never waits on ClickHouse; a writer restart loses nothing.</dd></div>
       <div><dt>ClickHouse</dt><dd>Column store for time-range scans of spans.</dd></div>
-      <div><dt>PostgreSQL</dt><dd>Accounts only.</dd></div>
+      <div><dt>PostgreSQL</dt><dd>Accounts need updates and unique emails; spans are append-only, so they live in ClickHouse.</dd></div>
     </dl>
   </div>
 }

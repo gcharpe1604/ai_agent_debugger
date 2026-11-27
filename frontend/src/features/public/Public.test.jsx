@@ -82,6 +82,9 @@ describe('public routes', () => {
       GitHub: 'https://github.com/gcharpe1604/ai_agent_debugger', 'Self-hosting': '/docs/self-hosting/docker-compose/', Limits: '/docs/limits/',
     })
     expect(document.body.textContent).not.toMatch(/\bOJT\b/)
+    // Footer column titles are labels, not headings.
+    expect(within(screen.getByRole('contentinfo')).queryAllByRole('heading')).toHaveLength(0)
+    expect([...document.querySelectorAll('.lp-footer-columns .lp-label')].map(label => [label.tagName, label.textContent])).toEqual([['P', 'Product'], ['P', 'Docs'], ['P', 'Resources']])
   })
 
   it('shows the screenshots of the resolved theme, with alt text and file sizes', async () => {
@@ -91,8 +94,12 @@ describe('public routes', () => {
     expect(hero.getAttribute('src')).toBe('/landing/hero-dark.webp')
     const sources = screen.getAllByRole('img').map(image => image.getAttribute('src'))
     expect(sources).toEqual(['hero', 'failed', 'tree', 'inspector', 'dashboard'].map(name => `/landing/${name}-dark.webp`))
+    // Only the resolved theme's files are referenced, so the other set never downloads.
+    expect(document.documentElement.innerHTML).not.toContain('-light.webp')
+    expect(document.querySelectorAll('picture, source, link[rel="preload"][as="image"]')).toHaveLength(0)
     await act(async () => { within(screen.getByRole('banner')).getByRole('button', { name: 'Switch to light theme' }).click() })
     expect(hero.getAttribute('src')).toBe('/landing/hero-light.webp')
+    expect(document.documentElement.innerHTML).not.toContain('-dark.webp')
     expect(screen.getAllByRole('img').map(image => [image.getAttribute('width'), image.getAttribute('height')])).toEqual([
       ['2400', '1034'], ['1568', '1002'], ['1390', '654'], ['1008', '1084'], ['1520', '1494'],
     ])
@@ -135,7 +142,7 @@ describe('public routes', () => {
     expect(notes).toEqual([
       ['Kafka', 'The agent never waits on ClickHouse; a writer restart loses nothing.'],
       ['ClickHouse', 'Column store for time-range scans of spans.'],
-      ['PostgreSQL', 'Accounts only.'],
+      ['PostgreSQL', 'Accounts need updates and unique emails; spans are append-only, so they live in ClickHouse.'],
     ])
   })
 
