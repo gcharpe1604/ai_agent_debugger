@@ -1,15 +1,20 @@
 import { useEffect } from 'react'
-import Icon from '../../components/Icon.jsx'
-import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '../../components/ui/Menu.jsx'
+import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu.jsx'
 import { useTheme } from '../../app/preferences.js'
 import { accountHref } from '../../app/routes.jsx'
 import LandingPage from './LandingPage.jsx'
 import { DOCS, REPO_URL } from './site.js'
 import './public.css'
 
+export const Wordmark = () => <a className="lp-wordmark" href="#/"><span className="lp-mark" aria-hidden="true">▸</span><span className="lp-wordmark-text">agent-debugger</span></a>
+
+// Half-filled circle; the theme name sits next to it from 768 px up.
 function ThemeToggle({ dark, setPreference }) {
   const label = dark ? 'Switch to light theme' : 'Switch to dark theme'
-  return <button type="button" className="button ghost icon-only" aria-label={label} title={label} onClick={() => setPreference(dark ? 'light' : 'dark')}><Icon name={dark ? 'sun' : 'moon'}/></button>
+  return <button type="button" className="lp-theme" aria-label={label} title={label} onClick={() => setPreference(dark ? 'light' : 'dark')}>
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg>
+    <span className="lp-theme-name" aria-hidden="true">{dark ? 'dark' : 'light'}</span>
+  </button>
 }
 
 const External = ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}<span className="sr-only"> (opens in a new tab)</span></a>
@@ -19,31 +24,33 @@ const External = ({ href, children }) => <a href={href} target="_blank" rel="nor
 export default function PublicSite({ dashboard, signedIn }) {
   const theme = useTheme()
   const dark = theme.resolved === 'dark'
-  useEffect(() => { document.title = 'Agent Debugger · Debug AI-agent runs from their traces' }, [])
+  useEffect(() => { document.title = 'agent-debugger · Debug AI agents from the trace' }, [])
   return <div className="public-site">
     <a className="skip-link" href="#public-main" onClick={event => { event.preventDefault(); document.getElementById('public-main')?.focus() }}>Skip to content</a>
-    <header className="public-header">
-      <div className="public-header-inner">
-        <a className="public-brand" href="#/"><span className="brand-mark" aria-hidden="true"><Icon name="branch"/></span>Agent Debugger</a>
-        <nav className="public-nav public-wide" aria-label="Site">
+    <header className="lp-nav">
+      <div className="lp-container lp-nav-inner">
+        <Wordmark/>
+        <nav className="lp-nav-links lp-wide" aria-label="Site">
           <a href={DOCS.home}>Docs</a>
           <External href={REPO_URL}>GitHub</External>
         </nav>
-        <div className="public-actions">
-          <span className="public-wide"><ThemeToggle dark={dark} setPreference={theme.setPreference}/></span>
-          {!signedIn && <a className="button ghost public-wide" href={accountHref('login')}>Sign in</a>}
+        <div className="lp-nav-actions">
+          <ThemeToggle dark={dark} setPreference={theme.setPreference}/>
           {signedIn
-            ? <a className="button solid" href={dashboard}>Open dashboard<Icon name="arrow"/></a>
-            : <a className="button solid" href={accountHref('register')}>Sign up</a>}
-          {/* Under 640 px the site links, Sign in and the theme switch move into this menu. */}
+            ? <a className="lp-btn lp-btn-primary lp-btn-sm" href={dashboard} aria-label="Open dashboard"><span className="lp-wide">Open dashboard</span><span className="lp-narrow">Dashboard</span></a>
+            : <>
+              <a className="lp-nav-signin lp-wide" href={accountHref('login')}>Sign in</a>
+              <a className="lp-btn lp-btn-primary lp-btn-sm" href={accountHref('register')}>Sign up</a>
+            </>}
+          {/* Under 768 px Docs, GitHub and Sign in move into this menu. */}
           <Menu>
-            <MenuTrigger><button type="button" className="button ghost icon-only public-narrow" aria-label="Menu"><Icon name="more"/></button></MenuTrigger>
+            <MenuTrigger><button type="button" className="lp-menu-button lp-narrow" aria-label="Menu">
+              <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+            </button></MenuTrigger>
             <MenuContent align="end" className="public-menu">
               <MenuItem asChild><a href={DOCS.home}>Docs</a></MenuItem>
               <MenuItem asChild><a href={REPO_URL} target="_blank" rel="noreferrer">GitHub<span className="sr-only"> (opens in a new tab)</span></a></MenuItem>
               {!signedIn && <MenuItem asChild><a href={accountHref('login')}>Sign in</a></MenuItem>}
-              <MenuSeparator/>
-              <MenuItem onSelect={() => theme.setPreference(dark ? 'light' : 'dark')}><Icon name={dark ? 'sun' : 'moon'}/>{dark ? 'Light theme' : 'Dark theme'}</MenuItem>
             </MenuContent>
           </Menu>
         </div>
@@ -52,37 +59,34 @@ export default function PublicSite({ dashboard, signedIn }) {
     <main id="public-main" tabIndex="-1" className="public-main">
       <LandingPage signedIn={signedIn} dashboard={dashboard} theme={dark ? 'dark' : 'light'}/>
     </main>
-    <footer className="public-footer">
-      <div className="public-footer-inner">
-        <div className="public-footer-brand">
-          <a className="public-brand" href="#/"><span className="brand-mark" aria-hidden="true"><Icon name="branch"/></span>Agent Debugger</a>
-          <p>Debug AI-agent runs from their OpenTelemetry traces.</p>
-        </div>
-        <nav className="public-footer-columns" aria-label="Footer">
+    <footer className="lp-footer">
+      <div className="lp-container lp-row">
+        <div className="lp-footer-brand"><Wordmark/><p>© 2026</p></div>
+        <nav className="lp-footer-columns" aria-label="Footer">
           <div>
-            <h2>Product</h2>
+            <h2 className="lp-label">Product</h2>
             <ul>
               {signedIn
                 ? <li><a href={dashboard}>Open dashboard</a></li>
                 : <><li><a href={accountHref('register')}>Sign up</a></li><li><a href={accountHref('login')}>Sign in</a></li></>}
-              <li><a href={DOCS.limits}>Limits and roadmap</a></li>
+              <li><a href={DOCS.dashboard}>Dashboard</a></li>
             </ul>
           </div>
           <div>
-            <h2>Docs</h2>
+            <h2 className="lp-label">Docs</h2>
             <ul>
               <li><a href={DOCS.quickstart}>Quickstart</a></li>
-              <li><a href={DOCS.traceSession}>Python SDK</a></li>
-              <li><a href={DOCS.ingestApi}>HTTP API</a></li>
-              <li><a href={DOCS.selfHosting}>Self-hosting</a></li>
+              <li><a href={DOCS.traceSession}>TraceSession</a></li>
+              <li><a href={DOCS.retries}>Errors and retries</a></li>
+              <li><a href={DOCS.ingestApi}>Ingest API</a></li>
             </ul>
           </div>
           <div>
-            <h2>Resources</h2>
+            <h2 className="lp-label">Resources</h2>
             <ul>
               <li><External href={REPO_URL}>GitHub</External></li>
-              <li><a href={DOCS.runsAndSpans}>Runs and spans</a></li>
-              <li><a href={DOCS.retries}>Errors and retries</a></li>
+              <li><a href={DOCS.selfHosting}>Self-hosting</a></li>
+              <li><a href={DOCS.limits}>Limits</a></li>
             </ul>
           </div>
         </nav>
