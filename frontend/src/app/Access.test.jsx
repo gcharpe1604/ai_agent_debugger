@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import App from '../test/FixtureApp.jsx'
 import { fixtureRepository } from '../test/fixtureRepository.js'
@@ -101,12 +101,30 @@ describe('Milestone 4A access and projects', () => {
     expect(screen.getByRole('checkbox', { name: 'I agree to the Terms and Conditions' }).checked).toBe(false)
   })
 
+  it('gives the auth pages the landing chrome: wordmark home, theme pill, no footer note', async () => {
+    at('/account/login'); const user = userEvent.setup(); render(<App/>)
+    expect(await screen.findByText('Sign in to see your traces.')).toBeTruthy()
+    const header = within(screen.getByRole('banner'))
+    expect(header.getByRole('link', { name: 'agent-debugger' }).getAttribute('href')).toBe('#/')
+    expect(screen.queryByRole('group', { name: 'Appearance' })).toBeNull()
+    await user.click(header.getByRole('button', { name: 'Switch to dark theme' }))
+    expect(localStorage.getItem('agent-debugger.frontend.v1.theme')).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(header.getByRole('button', { name: 'Switch to light theme' })).toBeTruthy()
+    expect(screen.queryByText(/Development build|sessions last 7 days|Terms are not published/)).toBeNull()
+    expect(screen.getByRole('link', { name: 'Back to home' }).getAttribute('href')).toBe('#/')
+    window.location.hash = '/account/register'
+    expect(await screen.findByText('Create an account to get your API key.')).toBeTruthy()
+    expect(screen.queryByText(/Terms are not published/)).toBeNull()
+  })
+
   it('shows expired and denied states without blocking the sample debugger or allowing an external return', async () => {
     at('/account/session-expired?returnTo=https%3A%2F%2Fevil.example'); const user = userEvent.setup(); render(<App/>)
     expect(await screen.findByRole('heading', { name: 'Session expired' })).toBeTruthy()
     await user.click(screen.getByRole('link', { name: 'Sign in' }))
     expect(window.location.hash).not.toContain('evil')
-    await user.click(screen.getByRole('link', { name: 'Back to projects' }))
+    expect(screen.getByRole('link', { name: 'Back to home' }).getAttribute('href')).toBe('#/')
+    window.location.hash = '/projects'
     await user.click(await screen.findByRole('link', { name: /^Agent examples/ }))
     await screen.findByRole('link', { name: 'refund-policy-review R-1042' })
     window.location.hash = '/account/access-denied'

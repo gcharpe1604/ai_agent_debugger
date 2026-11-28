@@ -1,0 +1,22 @@
+---
+// The landing page's header (docs/frontend/landing-spec.md §3, row 0): mono
+// wordmark, Docs and GitHub on the left; search, theme pill and "Open app" on the
+// right. 56 px, hairline below (drawn by PageFrame). Below 50rem the links and
+// "Open app" move into the menu (MobileMenuFooter.astro).
+import Search from '@astrojs/starlight/components/Search.astro'
+import ThemeSelect from './ThemeSelect.astro'
+import { REPO } from '../site.mjs'
+---
+
+<div class="adbg-container adbg-docs-header">
+	<a class="adbg-wordmark" href="/"><span class="adbg-mark" aria-hidden="true">▸</span><span class="adbg-wordmark-text">agent-debugger</span></a>
+	<nav class="adbg-docs-nav" aria-label="Site">
+		<a href="/docs/" aria-current="true">Docs</a>
+		<a href={REPO} target="_blank" rel="noreferrer">GitHub<span class="sr-only"> (opens in a new tab)</span></a>
+	</nav>
+	<div class="adbg-docs-actions print:hidden">
+		<Search />
+		<ThemeSelect />
+		<a class="adbg-open-app" href="/">Open app</a>
+	</div>
+</div>

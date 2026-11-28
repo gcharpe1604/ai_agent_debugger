@@ -1,0 +1,30 @@
+---
+// The landing page's footer (frontend/src/features/public/PublicSite.jsx) with the
+// same classes (.adbg-footer* in frontend/src/styles/chrome.css).
+import { FOOTER } from '../site.mjs'
+---
+
+<footer class="adbg-footer print:hidden">
+	<div class="adbg-container adbg-footer-inner">
+		<div class="adbg-footer-brand">
+			<a class="adbg-wordmark" href="/"><span class="adbg-mark" aria-hidden="true">▸</span><span class="adbg-wordmark-text">agent-debugger</span></a>
+			<p>© 2026</p>
+		</div>
+		<nav class="adbg-footer-columns" aria-label="Footer">
+			{FOOTER.map((column) => (
+				<div>
+					<p class="adbg-label">{column.title}</p>
+					<ul>
+						{column.links.map((link) => (
+							<li>
+								{link.external
+									? <a href={link.href} target="_blank" rel="noreferrer">{link.label}<span class="sr-only"> (opens in a new tab)</span></a>
+									: <a href={link.href}>{link.label}</a>}
+							</li>
+						))}
+					</ul>
+				</div>
+			))}
+		</nav>
+	</div>
+</footer>

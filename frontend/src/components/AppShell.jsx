@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Icon from './Icon.jsx'
+import { Wordmark } from './Brand.jsx'
 import Select from './ui/Select.jsx'
 import Tooltip, { TooltipProvider } from './ui/Tooltip.jsx'
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuRadioGroup, MenuRadioItem, MenuSeparator, MenuTrigger } from './ui/Menu.jsx'
@@ -100,10 +101,7 @@ function Shell({ projects, project, route, children, header, crumbs, actions, lo
   return <div className="app-shell" data-sidebar={sidebar}>
     <a className="skip-link" href="#main-content" onClick={event => { event.preventDefault(); main.current?.focus() }}>Skip to content</a>
     <aside className="sidebar" aria-label="Project navigation">
-      <div className="brand">
-        <span className="brand-mark" aria-hidden="true"><Icon name="branch"/></span>
-        <strong className="nav-text">Agent Debugger</strong>
-      </div>
+      <div className="brand"><Wordmark label="agent-debugger home"/></div>
       <nav className="sidebar-nav" aria-label="Project workspaces">
         {navItem('Dashboard', projectId ? homeHref(projectId) : undefined, 'dashboard', !!route.home)}
         {navItem('Tracing', runsLink, 'runs', tracingActive, { current: route.runId ? 'location' : 'page' })}

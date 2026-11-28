@@ -1,0 +1,27 @@
+---
+// Replaces Starlight's "Auto / Light / Dark" select with the landing page's theme
+// pill (frontend/src/components/Brand.jsx ThemeToggle): one click switches to the
+// other theme. Styles: .adbg-theme in frontend/src/styles/chrome.css.
+---
+
+<button type="button" class="adbg-theme" data-adbg-theme aria-label="Switch to dark theme" title="Switch to dark theme">
+	<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" stroke-width="1.5"></circle><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"></path></svg>
+	<span class="adbg-theme-name" aria-hidden="true">light</span>
+</button>
+
+{/* Inline: label the button for the current theme before it paints. */}
+<script is:inline>StarlightThemeProvider.apply();</script>
+
+<script>
+	const provider = (window as any).StarlightThemeProvider;
+	document.addEventListener('click', (event) => {
+		const button = (event.target as Element | null)?.closest?.('[data-adbg-theme]');
+		if (!button) return;
+		provider.write(provider.resolve(provider.read()) === 'dark' ? 'light' : 'dark');
+	});
+	// Follow the system theme while the preference is "system", and the app in another tab.
+	matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => provider.apply());
+	addEventListener('storage', (event) => {
+		if (event.key === null || event.key === provider.key) provider.apply();
+	});
+</script>

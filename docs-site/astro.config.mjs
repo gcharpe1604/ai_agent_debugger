@@ -20,7 +20,6 @@ export default defineConfig({
     starlight({
       title: 'Agent Debugger',
       favicon: '/favicon.svg',
-      social: [{ icon: 'github', label: 'GitHub', href: REPO }],
       editLink: { baseUrl: `${REPO}/edit/main/docs-site/` },
       pagefind: true,
       // Fails the build on a broken internal link or heading anchor.
@@ -31,12 +30,16 @@ export default defineConfig({
         '@fontsource/jetbrains-mono/400.css',
         './src/styles/theme.css',
       ],
+      // The landing page's chrome (docs/frontend/landing-spec.md): its header, a
+      // 1280 px frame with hairline column rules and a sticky sidebar, its footer,
+      // and its theme pill on the app's own theme key.
       components: {
-        // Header in the landing page's style (docs/frontend/landing-spec.md):
-        // mono wordmark + Docs / GitHub on the left, "Open app" on the right.
-        SiteTitle: './src/components/SiteTitle.astro',
-        SocialIcons: './src/components/HeaderLinks.astro',
-        // Sidebar section as a mono label above each page title.
+        Header: './src/components/Header.astro',
+        PageFrame: './src/components/PageFrame.astro',
+        MobileMenuFooter: './src/components/MobileMenuFooter.astro',
+        ThemeProvider: './src/components/ThemeProvider.astro',
+        ThemeSelect: './src/components/ThemeSelect.astro',
+        // Mono kicker (sidebar section, or "Docs") above each page title.
         PageTitle: './src/components/PageTitle.astro',
       },
       // Code blocks as the landing page's code card: token colours, mono 13/22,

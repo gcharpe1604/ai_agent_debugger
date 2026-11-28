@@ -1,10 +1,11 @@
 ---
-// The page title with its sidebar section as a mono label above it, like the
-// landing page's section labels ("PYTHON SDK" over "TraceSession").
+// The page title with a mono kicker above it, like the landing page's section
+// labels: the sidebar section ("PYTHON SDK" over "TraceSession"), or "Docs" for a
+// page outside a section (Overview, Limits and roadmap).
 import Default from '@astrojs/starlight/components/PageTitle.astro'
 
 const { sidebar } = Astro.locals.starlightRoute
 const section = sidebar.find(entry => entry.type === 'group' && entry.entries.some(child => child.type === 'link' && child.isCurrent))
 ---
-{section && <p class="adbg-kicker">{section.label}</p>}
+<p class="adbg-label adbg-kicker">{section ? section.label : 'Docs'}</p>
 <Default />

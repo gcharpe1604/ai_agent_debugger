@@ -1,0 +1,132 @@
+---
+// Starlight's PageFrame, re-laid out like the landing page: a full-width 56 px
+// header, then one 1280 px frame (the landing's container) holding the sidebar and
+// the content with hairline column rules, then the landing's footer. The sidebar
+// is sticky and scrolls only when it is taller than the viewport, so the page has
+// one scrollbar on desktop. Below 50rem the sidebar is Starlight's popover menu.
+// Based on @astrojs/starlight 0.42.10 components/PageFrame.astro (script unchanged).
+import MobileMenuToggle from '@astrojs/starlight/components/MobileMenuToggle.astro'
+import SiteFooter from './SiteFooter.astro'
+
+const { hasSidebar } = Astro.locals.starlightRoute
+---
+
+<div class="page sl-flex">
+	<header class="header"><slot name="header" /></header>
+	<div class="adbg-frame adbg-container">
+		{hasSidebar && <nav class="sidebar print:hidden" aria-label={Astro.locals.t('sidebarNav.accessibleLabel')}>
+			<MobileMenuToggle />
+			<script>
+				// The mobile menu uses the popover API to open and close without JavaScript. We enhance this
+				// behaviour with focus trapping while the menu is open.
+				class StarlightSidebarPane extends HTMLElement {
+					constructor() {
+						super();
+						const desktopMediaQuery = matchMedia('(min-width: 50em)');
+						// Remove the popover attribute on desktop viewports. It's only needed for the mobile menu.
+						const resetPopoverAttribute = () => {
+							this.popover = desktopMediaQuery.matches ? null : 'auto';
+						};
+						resetPopoverAttribute();
+						desktopMediaQuery.addEventListener('change', () => resetPopoverAttribute());
+						// Update the menu state when the sidebar popover is toggled.
+						this.addEventListener('toggle', ({ newState }: any) => this.trapFocus(newState === 'open'));
+					}
+					/** Trap keyboard focus inside the header and menu when the menu is expanded. */
+					trapFocus(shouldTrap: boolean) {
+						document.querySelectorAll<HTMLElement>('.main-frame, .sl-skip-link, .adbg-footer').forEach((el) => {
+							el.toggleAttribute('inert', shouldTrap);
+						});
+					}
+				}
+				customElements.define('sl-sidebar-pane', StarlightSidebarPane);
+			</script>
+			<sl-sidebar-pane popover="" id="starlight__sidebar" class="sidebar-pane">
+				<div class="sidebar-content sl-flex"><slot name="sidebar" /></div>
+			</sl-sidebar-pane>
+		</nav>}
+		<div class="main-frame"><slot /></div>
+	</div>
+	<SiteFooter />
+</div>
+
+<style>
+	.page {
+		flex-direction: column;
+		min-height: 100vh;
+	}
+	.header {
+		z-index: var(--sl-z-index-navbar);
+		position: fixed;
+		inset-inline-start: 0;
+		inset-block-start: 0;
+		width: 100%;
+		height: var(--sl-nav-height);
+		border-bottom: 1px solid var(--color-border);
+		background-color: var(--color-bg);
+	}
+	.adbg-frame {
+		flex: 1;
+		padding-top: var(--sl-nav-height);
+	}
+	.sidebar-pane {
+		/* By default, user agents apply some opinionated styles to popovers, which we don't want. */
+		border: unset;
+		padding: unset;
+		height: unset;
+		color: unset;
+		position: fixed;
+		z-index: var(--sl-z-index-menu);
+		inset-block: var(--sl-nav-height) 0;
+		inset-inline-start: 0;
+		width: 100%;
+		background-color: var(--color-bg);
+		overflow-y: auto;
+	}
+	.sidebar-content {
+		height: 100%;
+		min-height: max-content;
+		padding: 16px var(--adbg-gutter) 0;
+		flex-direction: column;
+		gap: 16px;
+	}
+	.main-frame {
+		min-width: 0;
+		padding-top: var(--sl-mobile-toc-height);
+	}
+
+	@media (min-width: 50rem) {
+		:global([data-has-sidebar]) .adbg-frame {
+			display: grid;
+			grid-template-columns: var(--sl-sidebar-width) minmax(0, 1fr);
+			align-items: start;
+		}
+		/* Sticky, and scrolls by itself only when taller than the viewport. */
+		.sidebar {
+			position: sticky;
+			top: var(--sl-nav-height);
+			max-height: calc(100vh - var(--sl-nav-height));
+			overflow-y: auto;
+			overscroll-behavior: contain;
+		}
+		.sidebar-pane {
+			display: block;
+			position: static;
+			width: auto;
+			overflow: visible;
+			background-color: transparent;
+		}
+		.sidebar-content {
+			height: auto;
+			padding: 24px 16px 24px 0;
+		}
+		/* The column rule runs the full height of the content, as the landing's label column. */
+		.main-frame {
+			min-height: calc(100vh - var(--sl-nav-height));
+			padding-top: 0;
+		}
+		:global([data-has-sidebar]) .main-frame {
+			border-inline-start: 1px solid var(--color-border);
+		}
+	}
+</style>

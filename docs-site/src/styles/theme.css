@@ -6,14 +6,12 @@
    from --sl-color-white (strongest text) to --sl-color-black (page background)
    in both themes; the tokens below follow that order. */
 @import '../../../frontend/src/styles/tokens.css';
+/* The landing page's wordmark, theme pill, header bar and footer (also used by the app). */
+@import '../../../frontend/src/styles/chrome.css';
 
 :root,
 :root[data-theme='light'],
 :root[data-theme='dark'] {
-  /* The landing page's derived surfaces (frontend/src/features/public/public.css). */
-  --adbg-surface-alt: var(--color-sidebar);
-  --adbg-border-strong: color-mix(in srgb, var(--color-border) 82%, var(--color-muted));
-
   --sl-font: var(--font-sans);
   --sl-font-mono: var(--font-mono);
 
@@ -55,9 +53,10 @@
   --sl-color-red: var(--color-danger);
   --sl-color-red-high: var(--color-danger);
 
-  /* Type scale (spec §1): page title = --lp-h2 40/46, body 16/1.5, ui 14. */
+  /* Type scale (spec §1): page title = --lp-h2 40/46, section heading = --lp-h3
+     32/1.2, body 16/1.5, ui 14. */
   --sl-text-h1: 40px;
-  --sl-text-h2: 24px;
+  --sl-text-h2: 32px;
   --sl-text-h3: 18px;
   --sl-text-h4: 16px;
   --sl-text-h5: 16px;
@@ -69,26 +68,21 @@
   --sl-line-height-headings: 1.2;
 
   /* Layout: 56 px bar as on the landing page. */
-  --sl-nav-height: 56px;
+  /* 56 px bar plus its 1 px hairline, as the landing's nav (56 + border). */
+  --sl-nav-height: 57px;
   --sl-sidebar-width: 17rem;
-}
-/* In dark the sidebar token is darker than the page; the alternate surface is lighter. */
-:root[data-theme='dark'] {
-  --adbg-surface-alt: color-mix(in srgb, var(--color-subtle) 55%, var(--color-bg));
-  --adbg-border-strong: var(--color-border-strong);
 }
 @media (max-width: 767px) {
   :root,
   :root[data-theme='light'],
   :root[data-theme='dark'] {
     --sl-text-h1: 28px;
-    --sl-text-h2: 22px;
+    --sl-text-h2: 26px;
     --sl-text-code: 12px;
   }
 }
 
-/* Mono label: section labels, sidebar groups, table heads, tab and aside titles. */
-.adbg-kicker,
+/* Mono label (as .adbg-label): sidebar groups, table heads, tab and aside titles. */
 .sidebar-content summary .large,
 .right-sidebar-panel h2,
 .sl-markdown-content th,
@@ -103,42 +97,20 @@
 }
 
 * { scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; }
-.sl-markdown-content a:hover, .adbg-nav a:hover { text-decoration: none; }
+.sl-markdown-content a:hover { text-decoration: none; }
 
-/* ---- Header (Starlight's bar already draws the bottom rule) ---- */
-.adbg-brand { display: flex; align-items: center; gap: 40px; min-width: 0; }
-.adbg-wordmark {
-  display: inline-flex;
+/* ---- Header: the landing nav (grid 160 px · links · actions), 56 px ---- */
+.adbg-docs-header {
+  display: grid;
+  grid-template-columns: var(--adbg-label-col) 1fr auto;
   align-items: center;
-  gap: 8px;
-  color: var(--color-text);
-  font-family: var(--font-mono);
-  font-size: 14px;
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
+  height: 100%;
 }
-.adbg-mark {
-  display: inline-grid;
-  place-items: center;
-  width: 18px;
-  height: 18px;
-  border: 1px solid var(--adbg-border-strong);
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1;
-}
-.adbg-nav { display: flex; gap: 24px; }
-.adbg-nav a { color: var(--color-text-secondary); font-size: 14px; text-decoration: none; }
-.adbg-nav a:hover, .adbg-nav a[aria-current] { color: var(--color-text); }
-@media (max-width: 49.99rem) { .adbg-nav { display: none; } }
-
-/* Right group: theme select, then "Open app" (as the landing's Sign up). */
-.right-group { gap: 16px; }
-.right-group .social-icons { order: 2; }
-.right-group .social-icons::after { display: none; }
-.header .adbg-github { display: none; }
-/* a.adbg-open-app outranks the sidebar link colour: the mobile menu footer is inside the sidebar. */
+.adbg-docs-header > .adbg-wordmark { justify-self: start; }
+.adbg-docs-nav { display: flex; gap: 24px; padding-left: 40px; }
+.adbg-docs-nav a { color: var(--color-text-secondary); font-size: 14px; text-decoration: none; }
+.adbg-docs-nav a:hover, .adbg-docs-nav a[aria-current] { color: var(--color-text); text-decoration: none; }
+.adbg-docs-actions { display: flex; align-items: center; gap: 16px; }
 .adbg-open-app,
 .sidebar-content a.adbg-open-app {
   display: inline-flex;
@@ -155,12 +127,13 @@
 }
 .adbg-open-app:hover,
 .sidebar-content a.adbg-open-app:hover { background: var(--color-accent-hover); color: var(--color-on-accent); }
-.adbg-github { color: var(--color-text-secondary); font-size: 14px; text-decoration: none; }
-.mobile-preferences .social-icons { gap: 16px; align-items: center; }
 
-/* Search and theme controls: 32 px, bordered, mono 12. */
-site-search button[data-open-modal] {
+/* Compact search: 32 px, bordered, mono 12, "Search" + Ctrl K. */
+.adbg-docs-actions site-search button[data-open-modal] {
+  width: 200px;
   height: 32px;
+  gap: 8px;
+  padding: 0 6px 0 10px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
   background: var(--color-bg);
@@ -168,35 +141,75 @@ site-search button[data-open-modal] {
   font-family: var(--font-mono);
   font-size: 12px;
 }
-site-search button[data-open-modal]:hover { border-color: var(--adbg-border-strong); color: var(--color-text); }
-site-search kbd { background: var(--adbg-surface-alt); }
-starlight-theme-select label {
-  height: 32px;
-  padding: 0 4px 0 10px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  color: var(--color-text-secondary);
+.adbg-docs-actions site-search button[data-open-modal]:hover { border-color: var(--adbg-border-strong); color: var(--color-text); }
+.adbg-docs-actions site-search button[data-open-modal] > svg { width: 14px; height: 14px; }
+.adbg-docs-actions site-search kbd { background: var(--adbg-surface-alt); color: var(--color-muted); }
+
+/* Below 50rem: wordmark, search icon and theme pill; the menu button sits at the
+   right edge (fixed); the links and "Open app" are in the menu. */
+@media (max-width: 49.99rem) {
+  .adbg-docs-header { grid-template-columns: 1fr auto; }
+  :root[data-has-sidebar] .adbg-docs-header { padding-inline-end: calc(var(--adbg-gutter) + 44px + 6px); }
+  .adbg-docs-nav, .adbg-docs-actions .adbg-open-app { display: none; }
+  .adbg-docs-actions { gap: 6px; }
+  .adbg-docs-actions site-search button[data-open-modal] { justify-content: center; width: 44px; height: 44px; padding: 0; border: 1px solid transparent; color: var(--color-text); }
+  .adbg-docs-actions site-search button[data-open-modal] > svg { width: 16px; height: 16px; }
 }
-starlight-theme-select select { font-family: var(--font-mono); font-size: 12px; }
-starlight-theme-select label:hover { color: var(--color-text); }
+/* The menu button: the landing's 44 px square, not Starlight's round one. */
+.sl-menu-button,
+:root[data-theme='light'] .sl-menu-button,
+:root[data-theme='light'] .sl-menu-button:has(~ :popover-open),
+.sl-menu-button:has(~ :popover-open) {
+  top: calc((var(--sl-nav-height) - 44px) / 2);
+  inset-inline-end: var(--adbg-gutter);
+  width: 44px;
+  height: 44px;
+  padding: 13px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-control);
+  background: var(--color-bg);
+  color: var(--color-text);
+  box-shadow: none;
+}
+.sl-menu-button:has(~ :popover-open) { border-color: var(--color-border); }
+.adbg-mobile-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 0 24px;
+  border-top: 1px solid var(--color-border);
+}
+.sidebar-content .adbg-mobile-links a { display: inline-flex; align-items: center; min-height: 44px; }
+.sidebar-content .adbg-mobile-links a:not(.adbg-open-app) { color: var(--color-text-secondary); font-size: 14px; text-decoration: none; }
+.sidebar-content .adbg-mobile-links a.adbg-open-app { margin-inline-start: auto; height: 44px; }
 
 /* ---- Sidebar ---- */
 .sidebar-content { font-size: 14px; }
 .sidebar-content summary .large { color: var(--color-muted); }
+/* Group headers: mono labels, no caret. */
+.sidebar-content summary .caret { display: none; }
+.sidebar-content summary { padding-inline: 0; }
 .sidebar-content a { color: var(--color-text-secondary); font-size: 14px; }
 .sidebar-content a.large { color: var(--color-text); font-size: 14px; font-weight: 500; }
 .sidebar-content a:hover { color: var(--color-text); }
+.sidebar-content a { border-radius: 0; }
+/* Active item: text colour and a 2 px rule on the left, no filled pill. */
 .sidebar-content a[aria-current='page'],
 .sidebar-content a[aria-current='page']:hover,
 .sidebar-content a[aria-current='page']:focus {
-  background: var(--color-nav-selected);
+  background: transparent;
   color: var(--color-text);
   font-weight: 500;
 }
-.sidebar-content ul ul li { border-inline-start-color: var(--color-border); }
+.sidebar-content ul ul li { margin-inline-start: 0; border-inline-start-color: var(--color-border); }
+.sidebar-content ul ul li:has(> a[aria-current='page']) { border-inline-start: 2px solid var(--color-text); padding-inline-start: calc(0.5rem - 1px); }
+.sidebar-content .top-level > li > a { padding-inline: 0; }
+.sidebar-content .top-level > li > a[aria-current='page'] { box-shadow: inset 2px 0 0 var(--color-text); padding-inline-start: 0.5rem; }
 
-/* ---- Page title ---- */
-.adbg-kicker { margin: 16px 0 -8px; color: var(--color-muted); }
+/* ---- Page title: mono kicker, H1, no full-width rule below ---- */
+.adbg-kicker { margin: 16px 0 -8px; }
+.content-panel + .content-panel { border-top: 0; padding-top: 0; }
 h1#_top { color: var(--color-text); letter-spacing: -0.025em; line-height: 46px; }
 @media (max-width: 767px) { h1#_top { line-height: 34px; } }
 
@@ -278,3 +291,28 @@ starlight-tabs [role='tab'][aria-selected='true'] { border-bottom-color: var(--c
 .right-sidebar-panel h2 { color: var(--color-muted); }
 .right-sidebar-panel a { color: var(--color-muted); font-size: 14px; }
 .right-sidebar-panel a:hover, .right-sidebar-panel a[aria-current='true'] { color: var(--color-text); }
+
+/* ---- Desktop frame (PageFrame.astro): content left-aligned to the column rule;
+   "On this page" a sticky column with its own rule. ---- */
+@media (min-width: 50rem) {
+  /* The mobile "On this page" bar starts at the frame's content column. */
+  :root[data-has-sidebar] { --sl-content-inline-start: calc(var(--adbg-gutter) + var(--sl-sidebar-width) + 1px); }
+  mobile-starlight-toc nav { inset-inline-end: var(--adbg-gutter); }
+}
+@media (min-width: 72rem) {
+  .main-pane { --sl-content-margin-inline: 0 auto; }
+  .right-sidebar-container { width: 240px; border-inline-start: 1px solid var(--color-border); }
+  :root[data-has-sidebar][data-has-toc] .main-pane { width: calc(100% - 240px); }
+  .right-sidebar {
+    position: sticky;
+    top: var(--sl-nav-height);
+    height: auto;
+    max-height: calc(100vh - var(--sl-nav-height));
+    padding-top: 0;
+    border-inline-start: 0;
+    overflow-y: auto;
+    scrollbar-width: thin;
+  }
+  .right-sidebar-panel { padding: 32px 0 32px 24px; }
+  .right-sidebar-panel .sl-container { width: auto; max-width: none; }
+}
