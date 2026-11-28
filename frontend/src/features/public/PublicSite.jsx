@@ -1,21 +1,11 @@
 import { useEffect } from 'react'
 import { Menu, MenuContent, MenuItem, MenuTrigger } from '../../components/ui/Menu.jsx'
 import { useTheme } from '../../app/preferences.js'
+import { ThemeToggle, Wordmark } from '../../components/Brand.jsx'
 import { accountHref } from '../../app/routes.jsx'
 import LandingPage from './LandingPage.jsx'
 import { DOCS, REPO_URL } from './site.js'
 import './public.css'
-
-export const Wordmark = () => <a className="lp-wordmark" href="#/"><span className="lp-mark" aria-hidden="true">▸</span><span className="lp-wordmark-text">agent-debugger</span></a>
-
-// Half-filled circle; the theme name sits next to it from 768 px up.
-function ThemeToggle({ dark, setPreference }) {
-  const label = dark ? 'Switch to light theme' : 'Switch to dark theme'
-  return <button type="button" className="lp-theme" aria-label={label} title={label} onClick={() => setPreference(dark ? 'light' : 'dark')}>
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5"/><path d="M8 1.75a6.25 6.25 0 0 1 0 12.5z" fill="currentColor"/></svg>
-    <span className="lp-theme-name" aria-hidden="true">{dark ? 'dark' : 'light'}</span>
-  </button>
-}
 
 const External = ({ href, children }) => <a href={href} target="_blank" rel="noreferrer">{children}<span className="sr-only"> (opens in a new tab)</span></a>
 
@@ -35,7 +25,7 @@ export default function PublicSite({ dashboard, signedIn }) {
           <External href={REPO_URL}>GitHub</External>
         </nav>
         <div className="lp-nav-actions">
-          <ThemeToggle dark={dark} setPreference={theme.setPreference}/>
+          <ThemeToggle/>
           {signedIn
             ? <a className="lp-btn lp-btn-primary lp-btn-sm" href={dashboard} aria-label="Open dashboard"><span className="lp-wide">Open dashboard</span><span className="lp-narrow">Dashboard</span></a>
             : <>
@@ -59,12 +49,12 @@ export default function PublicSite({ dashboard, signedIn }) {
     <main id="public-main" tabIndex="-1" className="public-main">
       <LandingPage signedIn={signedIn} dashboard={dashboard} theme={dark ? 'dark' : 'light'}/>
     </main>
-    <footer className="lp-footer">
-      <div className="lp-container lp-row">
-        <div className="lp-footer-brand"><Wordmark/><p>© 2026</p></div>
-        <nav className="lp-footer-columns" aria-label="Footer">
+    <footer className="adbg-footer">
+      <div className="adbg-container adbg-footer-inner">
+        <div className="adbg-footer-brand"><Wordmark/><p>© 2026</p></div>
+        <nav className="adbg-footer-columns" aria-label="Footer">
           <div>
-            <p className="lp-label">Product</p>
+            <p className="adbg-label">Product</p>
             <ul>
               {signedIn
                 ? <li><a href={dashboard}>Open dashboard</a></li>
@@ -73,7 +63,7 @@ export default function PublicSite({ dashboard, signedIn }) {
             </ul>
           </div>
           <div>
-            <p className="lp-label">Docs</p>
+            <p className="adbg-label">Docs</p>
             <ul>
               <li><a href={DOCS.quickstart}>Quickstart</a></li>
               <li><a href={DOCS.traceSession}>TraceSession</a></li>
@@ -82,7 +72,7 @@ export default function PublicSite({ dashboard, signedIn }) {
             </ul>
           </div>
           <div>
-            <p className="lp-label">Resources</p>
+            <p className="adbg-label">Resources</p>
             <ul>
               <li><External href={REPO_URL}>GitHub</External></li>
               <li><a href={DOCS.selfHosting}>Self-hosting</a></li>

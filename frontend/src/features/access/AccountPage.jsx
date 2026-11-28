@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { accountHref, runsHref, safeReturn } from '../../app/routes.jsx'
 import { failureKind } from '../../data/accessAdapters.js'
-import { useTheme } from '../../app/preferences.js'
+import { ThemeToggle, Wordmark } from '../../components/Brand.jsx'
 import AccessState from './AccessState.jsx'
 import ApiKeyReveal from './ApiKeyReveal.jsx'
 import { DURABLE_PROJECT } from '../../data/durableRepository.js'
@@ -33,7 +33,6 @@ export default function AccountPage({ route, adapter, onSignedIn }) {
   const [failure, setFailure] = useState(null)
   const main = useRef(null), emailInput = useRef(null), passwordInput = useRef(null), active = useRef(true), submitting = useRef(false), controller = useRef(null)
   const nameInput = useRef(null), confirmationInput = useRef(null), termsInput = useRef(null)
-  const theme = useTheme()
   useEffect(() => { if (route.account === 'login' || route.account === 'register') main.current?.focus(); document.title = `${register ? 'Register' : route.account === 'login' ? 'Sign in' : route.account === 'session-expired' ? 'Session expired' : 'Access denied'} · Agent Debugger`; active.current = true; return () => { active.current = false; controller.current?.abort() } }, [register, route.account])
   useEffect(() => { if (register) (step === 1 ? nameInput : passwordInput).current?.focus() }, [register, step])
   useEffect(() => { if (register) document.title = `Step ${step} of 2: Create an account · Agent Debugger` }, [register, step])
@@ -102,10 +101,11 @@ export default function AccountPage({ route, adapter, onSignedIn }) {
   const state = failure || (route.account === 'session-expired' ? 'expired' : route.account === 'access-denied' ? 'forbidden' : null)
   return <div className="account-shell">
     <a className="skip-link" href="#account-content" onClick={event => { event.preventDefault(); main.current?.focus() }}>Skip to content</a>
-    <header className="account-header"><a className="account-brand" href="#/"><span className="brand-mark"><Icon name="branch"/></span>Agent Debugger</a><div className="account-utilities"><div className="segmented theme-segmented" role="group" aria-label="Appearance">{[['light', 'Light'], ['dark', 'Dark'], ['system', 'System']].map(([value, label]) => <button key={value} type="button" aria-pressed={theme.preference === value} onClick={() => theme.setPreference(value)}>{label}</button>)}</div></div></header>
+    <header className="adbg-header"><div className="adbg-container adbg-header-inner"><Wordmark/><ThemeToggle/></div></header>
     <main id="account-content" ref={main} tabIndex="-1" className="account-main" data-registration={register && !state}>{state ? <AccessState kind={state} target={target}/> : issuedKey ? <div className="account-form"><ApiKeyReveal apiKey={issuedKey} onContinue={() => { window.location.hash = runsHref(DURABLE_PROJECT) }}/></div> : <section className="account-form" aria-labelledby="account-title">
+      <p className="adbg-label account-kicker">Account</p>
       <h1 id="account-title">{register ? 'Create an account' : 'Sign in'}</h1>
-      <p className="account-description">{register ? step === 1 ? 'Start with your name and email.' : <>Create credentials for <strong className="registration-email">{email.trim()}</strong>.</> : 'Continue to your projects and executions.'}</p>
+      <p className="account-description">{register ? step === 1 ? 'Create an account to get your API key.' : <>Create credentials for <strong className="registration-email">{email.trim()}</strong>.</> : 'Sign in to see your traces.'}</p>
       {register && <>
         <ol className="registration-progress" aria-label="Registration steps">
           <li aria-current={step === 1 ? 'step' : undefined} data-complete={step > 1}><span className="step-number" aria-hidden="true">{step > 1 ? <Icon name="check"/> : '1'}</span>Your details<span className="sr-only">{step > 1 ? ', completed' : ', current step'}</span></li>
@@ -128,8 +128,7 @@ export default function AccountPage({ route, adapter, onSignedIn }) {
         </div>
         <span className="sr-only" role="status">{busy ? register ? 'Submitting registration' : 'Submitting sign in' : ''}</span>
       </form>
-      <div className="account-links"><span>{register ? 'Already have an account?' : 'New to Agent Debugger?'} <a href={accountHref(register ? 'login' : 'register', target)}>{register ? 'Sign in' : 'Register'}</a></span><a className="sample-entry" href="#/projects">Back to projects<Icon name="arrow"/></a></div>
+      <div className="account-links"><span>{register ? 'Already have an account?' : 'New to Agent Debugger?'} <a href={accountHref(register ? 'login' : 'register', target)}>{register ? 'Sign in' : 'Register'}</a></span><a className="sample-entry" href="#/"><span aria-hidden="true">←</span>Back to home</a></div>
     </section>}</main>
-    <footer className="account-footer">{connected ? 'Development build · sessions last 7 days.' : 'Development preview · Authentication is not connected.'}{register && ' Terms are not published yet.'}</footer>
   </div>
 }

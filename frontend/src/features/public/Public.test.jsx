@@ -84,7 +84,7 @@ describe('public routes', () => {
     expect(document.body.textContent).not.toMatch(/\bOJT\b/)
     // Footer column titles are labels, not headings.
     expect(within(screen.getByRole('contentinfo')).queryAllByRole('heading')).toHaveLength(0)
-    expect([...document.querySelectorAll('.lp-footer-columns .lp-label')].map(label => [label.tagName, label.textContent])).toEqual([['P', 'Product'], ['P', 'Docs'], ['P', 'Resources']])
+    expect([...document.querySelectorAll('.adbg-footer-columns .adbg-label')].map(label => [label.tagName, label.textContent])).toEqual([['P', 'Product'], ['P', 'Docs'], ['P', 'Resources']])
   })
 
   it('shows the screenshots of the resolved theme, with alt text and file sizes', async () => {

@@ -1,0 +1,47 @@
+---
+// Replaces Starlight's theme provider. The docs read and write the web app's own
+// preference key (frontend/src/app/preferences.js), so a theme chosen in the app
+// carries into the docs and back (same origin). Values: light | dark | system;
+// a missing or unknown value is "system", as in the app.
+---
+
+{/* Inline so the theme is set before the first paint. */}
+<script is:inline>
+	window.StarlightThemeProvider = (() => {
+		const key = 'agent-debugger.frontend.v1.theme';
+		let memory = 'system'; // only used when localStorage is unavailable
+		const read = () => {
+			try {
+				const value = localStorage.getItem(key);
+				return value === 'light' || value === 'dark' || value === 'system' ? value : 'system';
+			} catch {
+				return memory;
+			}
+		};
+		const resolve = (preference) =>
+			preference === 'system'
+				? matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+				: preference;
+		const apply = () => {
+			const theme = resolve(read());
+			document.documentElement.dataset.theme = theme;
+			document.documentElement.style.colorScheme = theme;
+			const label = theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme';
+			document.querySelectorAll('[data-adbg-theme]').forEach((button) => {
+				button.setAttribute('aria-label', label);
+				button.title = label;
+				const name = button.querySelector('.adbg-theme-name');
+				if (name) name.textContent = theme;
+			});
+			return theme;
+		};
+		const write = (preference) => {
+			memory = preference;
+			try { localStorage.setItem(key, preference); } catch { /* the page still switches */ }
+			apply();
+		};
+		apply();
+		// Kept for Starlight internals that call it.
+		return { key, read, resolve, apply, write, updatePickers: apply };
+	})();
+</script>

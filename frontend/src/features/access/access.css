@@ -1,12 +1,10 @@
 /* Account and project presentation share the debugger's semantic palette. */
 .account-shell { min-height: 100dvh; display: flex; flex-direction: column; }
-.account-header { min-height: 72px; padding: var(--space-5) var(--space-6); display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); }
-.account-brand { display: inline-flex; align-items: center; gap: var(--space-2); font-weight: 600; flex-shrink: 0; }
-.account-utilities select { max-width: 120px; background: transparent; }
 .account-main { flex: 1; display: grid; align-content: center; padding: 48px var(--space-6) 72px; outline: none; }
 .account-main:focus-visible { outline: none; }
 .account-main[data-registration="true"] { align-content: start; padding-top: clamp(24px, 3vh, 40px); padding-bottom: var(--space-6); }
 .account-form, .account-main .access-state { width: 100%; max-width: 384px; margin: 0 auto; }
+.account-kicker { margin-bottom: var(--space-3); }
 .account-form h1, .account-main .access-state h1 { font-size: var(--text-xl); line-height: var(--leading); letter-spacing: -.7px; }
 .account-description { color: var(--color-text-secondary); margin-top: var(--space-3); line-height: var(--leading); }
 .account-form form { margin-top: var(--space-8); }
@@ -47,7 +45,6 @@
 .account-links span a { color: var(--color-text); font-weight: 500; text-decoration: underline; text-underline-offset: 3px; }
 .sample-entry { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: 32px; color: var(--color-text-secondary); font-size: var(--text-sm); }
 .account-links > .sample-entry { width: 100%; border-top: 1px solid var(--color-border); padding-top: var(--space-5); }
-.account-footer { padding: var(--space-4) var(--space-6) var(--space-6); text-align: center; font-size: var(--text-xs); line-height: var(--leading); color: var(--color-muted); }
 .access-state { width: 100%; max-width: 440px; margin: auto; padding: var(--space-8) 0; }
 .access-symbol { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); color: var(--color-text-secondary); margin-bottom: var(--space-6); }
 .access-symbol .icon { width: 20px; height: 20px; }
@@ -84,11 +81,10 @@
 .project-empty p { max-width: 340px; margin-top: var(--space-3); line-height: var(--leading); }
 .project-empty .button { margin-top: var(--space-6); }
 @media(max-width:767px) {
-  .account-header { min-height: 64px; padding: var(--space-4) var(--space-5); }
   .account-main { padding: 40px var(--space-6); }
   .account-main[data-registration="true"] { padding-top: var(--space-6); padding-bottom: var(--space-6); }
-  .account-form h1, .account-main .access-state h1 { font-size: var(--text-xl); line-height: var(--leading); }
-  .account-footer { padding: var(--space-4) var(--space-6) var(--space-6); }
+  .account-kicker { margin-bottom: var(--space-3); }
+.account-form h1, .account-main .access-state h1 { font-size: var(--text-xl); line-height: var(--leading); }
   .account-shell .button, .password-toggle, .project-page .button, .form-field input { min-height: 44px; }
   .password-field input { min-height: 42px; }
   .account-links a { min-height: 44px; }
@@ -103,4 +99,4 @@
   .project-empty { padding: var(--space-8) var(--space-4); }
   .page > .access-state { width: auto; margin: auto var(--space-6); }
 }
-@media(max-width:359px) { .account-header { padding-inline: var(--space-4); gap: var(--space-2); } .account-utilities select { max-width: 92px; } .account-main { padding-inline: var(--space-5); } }
+@media(max-width:359px) { .account-main { padding-inline: var(--space-5); } }

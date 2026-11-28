@@ -9,7 +9,7 @@ AI Agent Debugger: a platform for debugging AI agent executions through structur
 - `sdk/python` — `ai_agent_debugger_sdk`, a thin OTel-based capture SDK (`Debugger`, `TraceSession`, `HttpSpanExporter`).
 - `backend` — `agent_debugger_api`, a FastAPI app (`agent_debugger_api.main:app`).
 - `frontend` — a React 19 + Vite UI (JavaScript, no TypeScript).
-- `docs-site` — the public docs, an Astro Starlight site served at `/docs/` (`base: '/docs'`, output `dist/docs/`). Its theme imports `frontend/src/styles/tokens.css`. Built into the web image by `frontend/Dockerfile` and served by Caddy before the SPA fallback; on Vercel, the frontend project's build command `node ../scripts/build-vercel.mjs` copies it into `frontend/dist/docs` (one project).
+- `docs-site` — the public docs, an Astro Starlight site served at `/docs/` (`base: '/docs'`, output `dist/docs/`). Its theme imports `frontend/src/styles/tokens.css` and `chrome.css` (the wordmark, theme pill, header and footer shared with the landing page and the auth pages), and it reads the app's theme key `agent-debugger.frontend.v1.theme`. Built into the web image by `frontend/Dockerfile` and served by Caddy before the SPA fallback; on Vercel, the frontend project's build command `node ../scripts/build-vercel.mjs` copies it into `frontend/dist/docs` (one project).
 - `examples/{tool_task_agent,rag_agent,research_planning_agent,langgraph_workflow_agent}` — four standalone agent workloads. Each depends on the SDK as an editable path dependency (`[tool.uv.sources]`). `examples/refund-agent` is legacy and **excluded** from the integration.
 
 The development shell is Windows PowerShell. The docs use `npm.cmd` and `.\.venv\Scripts\python.exe`.

@@ -4,13 +4,13 @@
 .public-site {
   /* Colour */
   --lp-bg: var(--color-bg);
-  --lp-surface-alt: var(--color-sidebar);
+  --lp-surface-alt: var(--adbg-surface-alt);
   --lp-text: var(--color-text);
   --lp-text-2: var(--color-text-secondary);
   --lp-muted: var(--color-muted);
   --lp-faint: color-mix(in srgb, var(--color-muted) 60%, var(--color-bg));
   --lp-border: var(--color-border);
-  --lp-border-strong: color-mix(in srgb, var(--color-border) 82%, var(--color-muted));
+  --lp-border-strong: var(--adbg-border-strong);
   --lp-accent: var(--color-accent);
   --lp-on-accent: var(--color-on-accent);
   --lp-error: var(--color-danger);
@@ -52,8 +52,6 @@
   color: var(--lp-text);
   font-family: var(--lp-font-sans);
 }
-/* In dark the sidebar token is darker than the page; the alternate surface is lighter. */
-[data-theme="dark"] .public-site { --lp-surface-alt: color-mix(in srgb, var(--color-subtle) 55%, var(--color-bg)); --lp-border-strong: var(--color-border-strong); }
 @media (max-width: 767px) {
   .public-site {
     --lp-display: 40px; --lp-display-lh: 44px; --lp-cta: 44px;
@@ -88,27 +86,21 @@
 /* Nav */
 .lp-nav { border-bottom: 1px solid var(--lp-border); background: var(--lp-bg); }
 .lp-nav-inner { display: grid; grid-template-columns: var(--lp-label-col) 1fr auto; align-items: center; height: var(--lp-nav-h); }
-.lp-wordmark { display: inline-flex; align-items: center; gap: 8px; color: var(--lp-text); font-family: var(--lp-font-mono); font-size: 14px; font-weight: var(--weight-medium); white-space: nowrap; }
-.lp-mark { display: inline-grid; place-items: center; width: 18px; height: 18px; border: 1px solid var(--lp-border-strong); border-radius: 4px; font-size: 10px; line-height: 1; }
 .lp-nav-links { display: flex; gap: 24px; padding-left: 40px; }
 .lp-nav-links a, .lp-nav-signin { color: var(--lp-text-2); font-size: var(--lp-ui); }
 .lp-nav-links a:hover, .lp-nav-signin:hover { color: var(--lp-text); }
 .lp-nav-actions { display: flex; align-items: center; gap: 16px; }
-.lp-theme { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--lp-border); border-radius: var(--lp-radius-control); background: var(--lp-bg); color: var(--lp-text-2); font-family: var(--lp-font-mono); font-size: var(--lp-meta); }
-.lp-theme:hover { color: var(--lp-text); }
 .lp-menu-button { align-items: center; justify-content: center; width: 44px; height: 44px; border: 1px solid transparent; border-radius: var(--lp-radius-control); background: var(--lp-bg); color: var(--lp-text); }
 .public-menu a.menu-item { color: var(--color-text); text-decoration: none; }
 @media (max-width: 767px) {
   .lp-nav-inner { grid-template-columns: 1fr auto; }
   .lp-nav-actions { gap: 6px; }
-  .lp-theme { justify-content: center; width: 44px; height: 44px; padding: 0; }
-  .lp-theme-name { display: none; }
   .lp-nav .lp-btn-sm { height: 44px; padding: 0 12px; }
 }
 
 /* Below 360 px the header keeps only the mark, so its buttons still fit. */
 @media (max-width: 359px) {
-  .lp-nav .lp-wordmark-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .lp-nav .adbg-wordmark-text { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 }
 
 /* Sections and the label column */
@@ -281,15 +273,4 @@
   .lp-cta > .lp-container { padding-block: 64px; }
 }
 
-/* 9 · Footer */
-.lp-footer-brand { padding: 48px 16px 48px 0; border-right: 1px solid var(--lp-border); }
-.lp-footer-brand .lp-mark { display: none; }
-.lp-footer-brand p { margin-top: 8px; color: var(--lp-muted); font-size: var(--lp-ui); }
-.lp-footer-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 48px 0 48px 40px; }
-.lp-footer-columns ul { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
-.lp-footer-columns a { color: var(--lp-text-2); font-size: var(--lp-ui); line-height: 24px; }
-.lp-footer-columns a:hover { color: var(--lp-text); }
-@media (max-width: 767px) {
-  .lp-footer-brand { padding: 40px 0 0; border-right: 0; }
-  .lp-footer-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; padding: 28px 0 48px; }
-}
+/* 9 · Footer: styles/chrome.css (.adbg-footer), shared with the docs site. */

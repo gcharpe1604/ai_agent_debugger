@@ -1,0 +1,11 @@
+---
+// Bottom of the mobile menu (below 50rem): the header links that do not fit there.
+// The theme pill stays in the header, so it is not repeated here.
+import { REPO } from '../site.mjs'
+---
+
+<div class="adbg-mobile-links">
+	<a href="/docs/">Docs</a>
+	<a href={REPO} target="_blank" rel="noreferrer">GitHub<span class="sr-only"> (opens in a new tab)</span></a>
+	<a class="adbg-open-app" href="/">Open app</a>
+</div>

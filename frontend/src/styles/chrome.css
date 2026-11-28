@@ -1,0 +1,59 @@
+/* Shared site chrome (docs/frontend/landing-spec.md, Direction C): the mono
+   wordmark, the theme pill, the 56 px header bar and the site footer. Used by the
+   landing page, the auth pages, the app sidebar and the docs site
+   (docs-site/src/styles/theme.css imports this file). tokens.css variables only. */
+:root {
+  --adbg-container: 1280px;
+  --adbg-gutter: 40px;
+  --adbg-nav-h: 56px;
+  --adbg-label-col: 160px;
+  --adbg-surface-alt: var(--color-sidebar);
+  --adbg-border-strong: color-mix(in srgb, var(--color-border) 82%, var(--color-muted));
+}
+/* In dark the sidebar token is darker than the page; the alternate surface is lighter. */
+[data-theme="dark"] {
+  --adbg-surface-alt: color-mix(in srgb, var(--color-subtle) 55%, var(--color-bg));
+  --adbg-border-strong: var(--color-border-strong);
+}
+@media (max-width: 767px) { :root { --adbg-gutter: 16px; } }
+
+.adbg-container { width: 100%; max-width: calc(var(--adbg-container) + 2 * var(--adbg-gutter)); margin-inline: auto; padding-inline: var(--adbg-gutter); }
+
+/* ▸ agent-debugger */
+.adbg-wordmark { display: inline-flex; align-items: center; gap: 8px; color: var(--color-text); font-family: var(--font-mono); font-size: 14px; font-weight: var(--weight-medium); line-height: 1; text-decoration: none; white-space: nowrap; }
+.adbg-wordmark:hover { color: var(--color-text); text-decoration: none; }
+.adbg-mark { display: inline-grid; flex: none; place-items: center; width: 18px; height: 18px; border: 1px solid var(--adbg-border-strong); border-radius: 4px; font-size: 10px; line-height: 1; }
+
+/* Theme pill: half-filled circle + "light" / "dark"; glyph only under 768 px. */
+.adbg-theme { display: inline-flex; flex: none; align-items: center; justify-content: center; gap: 6px; height: 32px; padding: 0 10px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-bg); color: var(--color-text-secondary); font-family: var(--font-mono); font-size: 12px; line-height: 1; cursor: pointer; }
+.adbg-theme:hover { color: var(--color-text); }
+.adbg-theme:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+.adbg-theme svg { flex: none; }
+@media (max-width: 767px) {
+  .adbg-theme { width: 44px; height: 44px; padding: 0; }
+  .adbg-theme-name { display: none; }
+}
+
+/* Mono uppercase label: section kickers and footer column titles. */
+.adbg-label { margin: 0; color: var(--color-muted); font-family: var(--font-mono); font-size: 12px; font-weight: var(--weight-regular); letter-spacing: .06em; line-height: 1.4; text-transform: uppercase; }
+
+/* 56 px header bar with a hairline. */
+.adbg-header { flex: none; border-bottom: 1px solid var(--color-border); background: var(--color-bg); }
+.adbg-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; height: var(--adbg-nav-h); }
+
+/* Site footer: wordmark column + Product / Docs / Resources. */
+.adbg-footer { border-top: 1px solid var(--color-border); background: var(--color-bg); }
+.adbg-footer-inner { display: grid; grid-template-columns: var(--adbg-label-col) minmax(0, 1fr); }
+.adbg-footer-brand { padding: 48px 16px 48px 0; border-right: 1px solid var(--color-border); }
+.adbg-footer-brand .adbg-mark { display: none; }
+.adbg-footer-brand p { margin: 8px 0 0; color: var(--color-muted); font-size: 14px; }
+.adbg-footer-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; padding: 48px 0 48px 40px; }
+.adbg-footer-columns ul { display: flex; flex-direction: column; gap: 8px; margin: 16px 0 0; padding: 0; list-style: none; }
+.adbg-footer-columns li { margin: 0; }
+.adbg-footer-columns a { color: var(--color-text-secondary); font-size: 14px; line-height: 24px; text-decoration: none; }
+.adbg-footer-columns a:hover { color: var(--color-text); text-decoration: none; }
+@media (max-width: 767px) {
+  .adbg-footer-inner { grid-template-columns: 1fr; }
+  .adbg-footer-brand { padding: 40px 0 0; border-right: 0; }
+  .adbg-footer-columns { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 28px 0 48px; }
+}
